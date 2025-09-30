@@ -1,0 +1,13 @@
+#!/bin/bash
+
+docker compose --progress quiet up --abort-on-container-exit
+RESULT=$?
+docker compose --progress quiet down
+echo
+if [[ $RESULT -eq 0 ]]; then
+    echo ">>>> SUCCESS <<<<"
+else
+    echo "\n>>>> FAIL <<<<\n"
+fi
+echo
+exit $RESULT
