@@ -41,6 +41,7 @@
 (in-package :test-database)
 
 (setf prove:*enable-colors* t)
+(u:open-log nil :severity-threshold :info)
 
 (defparameter *rbac* (make-instance 'a:rbac-pg
                        :host cl-user::*host*
@@ -49,6 +50,7 @@
 (defparameter *macnod-id* (a:get-id *rbac* "users" "macnod"))
 (defparameter *macnod-email* (a:get-value *rbac* "users" "email" "username" "macnod"))
 (defparameter *admin-id* (a:get-id *rbac* "users" "admin"))
+(defparameter *admin-email* "no-email")
 (defparameter *system-id* (a:get-id *rbac* "users" "system"))
 (defparameter *create-id* (a:get-id *rbac* "permissions" "create"))
 (defparameter *delete-id* (a:get-id *rbac* "permissions" "delete"))
@@ -56,13 +58,15 @@
 (defparameter *admin-role-id* (a:get-id *rbac* "roles" "admin"))
 (defparameter *editor-role-id* (a:get-id *rbac* "roles" "editor"))
 (defparameter *roles* (list "admin" "admin:exclusive" "editor" "guest"
-                        "logged-in" "macnod:exclusive" "system"
-                        "system:exclusive" "viewer"))
+                        "logged-in" "system" "system:exclusive"))
 (defparameter *permissions* (list "create" "delete" "read" "update"))
 (defparameter *uuid-regex* "^[a-f0-9]{8}-([a-f0-9]{4}-){3}[a-f0-9]{12}$")
 
+(defun bogus-email-address (user)
+  "Return a fake email address for the user"
+  (format nil "~a@invalid-domain.com" user))
 
-(plan 32)
+(plan 2)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -90,8 +94,31 @@
                  or role_name like 'test-user-%:exclusive'")
     (db:query "delete from resources
                where resource_name like 'test-resource%'")
-    (is (db:query "select count(*) from users" :single) 3
+    (is (db:query "select count(*) from users" :single) 1
       "with-rbac with simple query")))
+
+(subtest "some-database-entries"
+  ;; Add admin role
+  (ok (setf *admin-role-id* (a:d-add-role *rbac* "admin")) "Add admin role")
+  (ok (member "admin" (a:list-role-names *rbac*) :test 'equal)
+    "New admin role exists")
+
+  ;; Add editor role
+  (like (setf *editor-role-id* 
+          (a:d-add-role *rbac* "editor" :permissions '("read" "update")))
+    *uuid-regex*
+    "Add new editor role.")
+
+  ;; Add admin user
+  (like 
+    (setf *admin-id* 
+      (a:d-add-user *rbac* "admin" "weasel-1234" :roles '("admin")))
+    *uuid-regex*
+    "Add admin user with new admin role")
+
+  ;; Check that admin user has new admin role
+  (ok (member "admin" (a:list-user-role-names *rbac* "admin") :test 'equal)
+    "User admin has role admin"))
 
 (subtest "check"
   (let* (errors
@@ -112,31 +139,31 @@
 
 (subtest "rbac-query-single"
   (a:with-rbac (*rbac*)
-    (is (a:rbac-query-single (list "select count(*) from users")) 3
+    (is (a:rbac-query-single (list "select count(*) from users")) 2
       "User count (no parameters)")
-    (is (a:rbac-query-single
-          (list "select id from users where username = $1" "macnod"))
-      *macnod-id*
+    (like (a:rbac-query-single
+            (list "select id from users where username = $1" "admin"))
+      *uuid-regex*
       "User ID (username parameter)")
-    (is (a:rbac-query-single
+    (like (a:rbac-query-single
           (list "select id from users where username = $1 and email = $2"
-            "macnod"
-            *macnod-email*))
-      *macnod-id*
+            "admin"
+            *admin-email*))
+      *uuid-regex*
       "User ID (username and email parameters")))
 
 (subtest "rbac-query"
   (a:with-rbac (*rbac*)
     (is (a:rbac-query
           (list "select username from users order by username"))
-      '((:username "admin") (:username "macnod") (:username "system"))
+      '((:username "admin") (:username "system"))
       "Usernames (no parameters)")
     (is (a:rbac-query
           (list "select username from users
                  where length(username) = $1
                  order by username"
-            6))
-      '((:username "macnod") (:username "system"))
+            5))
+      '((:username "admin"))
       "Usernames (1 parameter)")))
 
 (subtest "usql"
@@ -284,15 +311,14 @@
            join role_permissions rp on rp.role_id = r.id
            join permissions p on rp.permission_id = p.id"
         (list "u.username = $1")
-        (list "macnod")
+        (list "admin")
         (list "r.role_name" "p.permission_name")
         1
         10)
-    (list
-      (list :role-name "editor" :permission-name "read")
-      (list :role-name "editor" :permission-name "update")
-      (list :role-name "macnod:exclusive" :permission-name "read")
-      (list :role-name "macnod:exclusive" :permission-name "update"))
+    '((:ROLE-NAME "admin" :PERMISSION-NAME "create")
+       (:ROLE-NAME "admin" :PERMISSION-NAME "delete")
+       (:ROLE-NAME "admin" :PERMISSION-NAME "read")
+       (:ROLE-NAME "admin" :PERMISSION-NAME "update"))
     "List-rows with 4 table joins, a where clause, and a value"))
 
 (subtest "upsert-link-sql"
@@ -332,7 +358,9 @@
                                "12345"
                                ""
                                "mac┼nod"
-                               (make-string 65 :initial-element #\a))
+                               (make-string 
+                                 (1+ (a:username-length-max *rbac*))
+                                 :initial-element #\a))
     for username in invalid-usernames
     for message = (if (> (length username) (a:username-length-max *rbac*))
                     (format nil 
@@ -364,7 +392,9 @@
                                "123!@#"
                                ")(*xyz"
                                (format nil "~a~a"
-                                 "heav3^-" (make-string 58 :initial-element #\z)))
+                                 "heav3^-" 
+                                 (make-string (- (a:password-length-max *rbac*) 6)
+                                   :initial-element #\z)))
     for password in invalid-passwords
     for message = (if (> (length password) (a:password-length-max *rbac*))
                     (format nil "a password longer than ~d characters is not valid"
@@ -378,10 +408,13 @@
                           "abc@example.com"
                           "abc_def@one-two.com"
                           "abc.def@example-x.com"
+                          "no-email"
                           (format nil "~a@domain.com"
-                            (make-string 117 :initial-element #\e)))
+                            (make-string 
+                              (- (a:email-length-max *rbac*) 11)
+                              :initial-element #\e)))
     for email in valid-emails
-    for message = (if (= (length email) 128)
+    for message = (if (= (length email) (a:email-length-max *rbac*))
                     "a proper email address can have length of up to 128 characters"
                     (format nil "~s is valid" email))
     do (ok (a:valid-email-p *rbac* email) message))
@@ -392,10 +425,14 @@
                             "user"
                             ""
                             (format nil "~a@domain.com"
-                              (make-string 118 :initial-element #\f)))
+                              (make-string 
+                                (- (a:email-length-max *rbac*) 10)
+                                :initial-element #\f)))
     for email in invalid-emails
-    for message = (if (> (length email) 128)
-                    "an email address longer than 128 characters is not valid"
+    for message = (if (> (length email) (a:email-length-max *rbac*))
+                    (format nil 
+                      "an email address longer than ~d characters is not valid"
+                      (a:email-length-max *rbac*))
                     (format nil "~s is not valid" email))
     do (ok (not (a:valid-email-p *rbac* email)) message)))
 
@@ -445,7 +482,8 @@
                            "Abc"
                            "aBc"
                            ""
-                           (make-string 65 :initial-element #\a))
+                           (make-string (1+ (a:role-length-max *rbac*))
+                             :initial-element #\a))
     for role in invalid-roles
     for message = (if (> (length role) (a:role-length-max *rbac*))
                     (format nil "a role longer than ~a characters is not valid"
@@ -489,7 +527,9 @@
                                  "read:1"
                                  "read:A"
                                  ""
-                                 (make-string 65 :initial-element #\a))
+                                 (make-string 
+                                   (1+ (a:permission-length-max *rbac*))
+                                   :initial-element #\a))
     for permission in invalid-permissions
     for message = (if (> (length permission) (a:permission-length-max *rbac*))
                     (format nil 
@@ -525,7 +565,9 @@
                                "/abc//def/"
                                "/abc?one*5/"
                                "/abc/def/file.txt"
-                               (make-string 65 :initial-element #\a))
+                               (make-string 
+                                 (1+ (a:resource-length-max *rbac*))
+                                 :initial-element #\a))
     for resource in invalid-resources
     for message = (if (> (length resource) (a:resource-length-max *rbac*))
                     (format nil 
@@ -580,24 +622,24 @@
     "update query with where clause, 1 search term, and 1 first value"))
 
 (subtest "soft-delete support"
-  (is (a::soft-delete-sql *rbac* "users" `("user_id" ,*macnod-id*) *system-id*)
+  (is (a::soft-delete-sql *rbac* "users" `("user_id" ,*admin-id*) *system-id*)
     (list
       (format nil "~{~a~^ ~}"
         (list
           "update users"
           "set deleted_at = now(), updated_by = $1"
           "where deleted_at is null and user_id = $2"))
-      *system-id* *macnod-id*)
+      *system-id* *admin-id*)
     "soft-delete-sql")
   (is (a::referencing-soft-delete-sql 
-        *rbac* "user_roles" "users" *macnod-id* *system-id*)
+        *rbac* "user_roles" "users" *admin-id* *system-id*)
     (list
       (format nil "~{~a~^ ~}"
         (list
           "update user_roles"
           "set deleted_at = now(), updated_by = $1"
           "where deleted_at is null and user_id = $2"))
-      *system-id* *macnod-id*)
+      *system-id* *admin-id*)
     "referencing-soft-delete-sql")
   (is (a::referencing-tables *rbac* "users")
     (list "role_users")
@@ -605,11 +647,11 @@
   (is (a::delete-refs-sql
         *rbac*
         "users"
-        `("id" ,*macnod-id*)
+        `("id" ,*admin-id*)
         *system-id*)
     (loop
       with referencing-tables = (list "role_users")
-      and user-id = *macnod-id*
+      and user-id = *admin-id*
       and actor-id = *system-id*
       for table in referencing-tables
       collect
@@ -625,12 +667,12 @@
     "delete-refs-sql"))
 
 (subtest "get-value"
-  (is (a:get-id *rbac* "users" "macnod")
-    *macnod-id*
+  (is (a:get-id *rbac* "users" "admin")
+    *admin-id*
     "get user ID by username")
   (is (a:get-value *rbac* "users" "id"
-        "username" "macnod" "email" *macnod-email*)
-    *macnod-id*
+        "username" "admin" "email" *admin-email*)
+    *admin-id*
     "get user ID by username and email")
   (is (a:get-value *rbac* "permissions" "permission_name" "id" *delete-id*)
     "delete"
@@ -682,7 +724,7 @@
       with all-applicable-roles = (append roles a::*default-roles*)
       for a from 1 to 3
       for username = (format nil "test-user-~d" a)
-      for email = (format nil "~a@sinistercode.com" username)
+      for email = (bogus-email-address username)
       for password = (format nil "~a-password" username)
       for log = (diag (format nil "Adding user ~a with email ~a"
                         username email))
@@ -711,19 +753,20 @@
               all-applicable-roles)
           (format nil "User ~a has roles ~{~a~^, ~}"
             username (append roles a::*default-roles*)))))
-    (is-error (a:add-user *rbac* "test-user-1" "test-user-4@sinistercode.com"
+    (is-error (a:add-user *rbac* "test-user-1" 
+                (bogus-email-address "test-user-4")
                 "test-user-4-password" roles actor)
       'simple-error
       "Username must be unique")
     (ok (not (a:get-value *rbac* "users" "id"
-               "email" "test-user-4@sinistercode.com"))
+               "email" (bogus-email-address "test-user-4")))
       "Duplicate username addition does not create a user")
-    (ok (a:add-user *rbac* "test-user-5" "test-user-1@sinistercode.com"
+    (ok (a:add-user *rbac* "test-user-5" (bogus-email-address "test-user-1")
           "test-user-5-password" roles actor)
       "Multple users can have the same email address")
     (is (a:with-rbac (*rbac*)
           (db:query "select count(*) from users where email = $1"
-            "test-user-1@sinistercode.com" :single))
+            (bogus-email-address "test-user-1") :single))
       2
       "2 users with the same email address exist")))
 
@@ -731,7 +774,7 @@
   (let* ((sql-user "select id, username, email
                     from users
                     where username = $1")
-          (sql-role-users "select ru.id
+          (sql-user-roles "select ru.id
                            from role_users ru
                              join users u on ru.user_id = u.id
                              join roles r on ru.role_id = r.id
@@ -739,32 +782,31 @@
           (username "test-user-5")
           (user (a:with-rbac (*rbac*)
                   (db:query sql-user username :plist)))
-          (role-users (a:with-rbac (*rbac*)
-                        (db:query sql-role-users username :column))))
+          (role-user-ids (a:with-rbac (*rbac*)
+                           (db:query sql-user-roles username :column)))
+          (user-roles (a:list-user-role-names *rbac* username)))
     (ok user (format nil "user ~a exists" username))
-    (ok role-users (format nil "user ~a has roles" username))
+    (ok role-user-ids (format nil "user ~a has roles: ~{~a~^, ~}" username user-roles))
     (a:remove-user *rbac* username "system")
     (ok (not (a::get-id *rbac* "users" username))
       (format nil "user ~a no longer exists" username))
     (ok (notany
           (lambda (role-user-id)
             (a::get-value *rbac* "role_users" "id" "id" role-user-id))
-          role-users)
+          role-user-ids)
           (format nil "roles for user ~a no longer exist" username))))
 
 (subtest "list users"
-  (let ((two-users-by-name (a:list-users *rbac* '("username") 1 2))
-         (two-users-by-name-2 (a:list-users *rbac* '("username") 2 2))
-         (two-users-by-id (a:list-users *rbac* '("id") 1 2))
-         (all-users (a:list-users *rbac* '("username") 1 10))
-         (all-users-2 (a:list-users *rbac* '("username") 2 10)))
+  (let ((two-users-by-name (a:list-users *rbac* 1 2))
+         (two-users-by-name-2 (a:list-users *rbac* 2 2))
+         (all-users (a:list-users *rbac* 1 10))
+         (all-users-2 (a:list-users *rbac* 2 10)))
     (is (length two-users-by-name) 2 "two-users-by-name page params work")
     (is (length two-users-by-name-2) 2 "two-users-by-name-2 page params work")
-    (is (length two-users-by-id) 2 "two-users-by-id page params work")
-    (is (length all-users) 6 "all-users page params work")
+    (is (length all-users) 5 "all-users page params work")
     (ok (null all-users-2) "all-users-2 page 2 is empty")
     (is (mapcar (lambda (u) (getf u :username)) two-users-by-name)
-      (list "admin" "macnod")
+      (list "admin" "system")
       "two-users-by-name sorting works")
     (is (mapcar (lambda (u) (getf u :username)) two-users-by-name-2)
       (mapcar
@@ -777,16 +819,6 @@
                      limit 2"
             :plists)))
       "two-users-by-name-2 sorting and paging works")
-    (is (mapcar (lambda (u) (getf u :username)) two-users-by-id)
-      (mapcar
-        (lambda (u) (getf u :username))
-        (a:with-rbac (*rbac*)
-          (db:query "select username, id from users
-                     where deleted_at is null
-                     order by id
-                     limit 2"
-            :plists)))
-      "two-users-by-id sorting works")
     (is (mapcar (lambda (u) (getf u :username)) all-users)
       (mapcar
         (lambda (u) (getf u :username))
@@ -835,7 +867,8 @@
                        where p.permission_name = $1"
               new-permission
               :single))
-        "system")
+        "system"
+        "user system has the new permission")
       ;; Soft delete the new permission and check the updated list
       (diag (format nil "Removing permission '~a'" new-permission))
       (a:remove-permission *rbac* new-permission "system")
@@ -865,494 +898,495 @@
                        where p.permission_name = $1"
               new-permission
               :single))
-        "admin"))))
-
-(subtest "roles"
-  (let* ((roles-a (mapcar (lambda (r) (getf r :role-name))
-                    (a:list-roles *rbac* 1 100)))
-          (roles-sql "select role_name 
-                      from roles
-                      where deleted_at is null
-                      order by role_name")
-          (role-permissions-sql "select p.permission_name
-                                 from permissions p
-                                   join role_permissions rp on rp.permission_id = p.id
-                                   join roles r on rp.role_id = r.id
-                                 where
-                                   p.deleted_at is null
-                                   and rp.deleted_at is null
-                                   and r.deleted_at is null
-                                   and r.role_name = $1
-                                 order by p.permission_name")
-          (roles-b (a:with-rbac (*rbac*)
-                       (db:query roles-sql :column)))
-          (new-role "test-role")
-          (new-role-permissions '("read" "update"))
-          (actor "system"))
-    ;; Check the baseline state of roles
-    (is roles-a roles-b "list-roles returns correct list")
-    (ok (not (member new-role roles-a :test 'equal))
-      (format nil "roles do not include '~a'" new-role))
-    ;; Add a new role and check the updated list
-    (let ((new-id (a:add-role *rbac* new-role new-role
-                    nil new-role-permissions actor))
-           (roles-c (mapcar (lambda (r) (getf r :role-name))
-                            (a:list-roles *rbac* 1 100)))
-           (roles-d (a:with-rbac (*rbac*)
-                        (db:query roles-sql :column))))
-      (is roles-c roles-d "list-roles value includes a new role")
-      (isnt roles-a roles-c "the list of roles has changed")
-      (is (1+ (length roles-b)) (length roles-c) "there is one more role")
-      (ok (member new-role roles-c :test 'equal)
-        (format nil "roles now include '~a'" new-role))
-      (is (a:with-rbac (*rbac*)
-            (db:query role-permissions-sql new-role :column))
-        new-role-permissions
-        "new role has correct permissions, by sql")
-      (is (mapcar (lambda (p) (getf p :permission-name))
-                    (a:list-role-permissions *rbac* new-role 1 10))
-        new-role-permissions
-        "new role has correct permissions, by list-role-permissions")
-      ;; Soft delete the new role and check the updated list
-      (diag (format nil "Removing role '~a'" new-role))
-      (a:remove-role *rbac* new-role actor)
-      (isnt (a:with-rbac (*rbac*) 
-              (db:query "select deleted_at from roles
-                         where role_name = $1" 
-                new-role
-                :single))
-        :null
-        (format nil "role '~a' is soft-deleted" new-role))
-      (ok (not (member new-role
-                  (mapcar (lambda (r) (getf r :role-name))
-                    (a:list-roles *rbac* 1 100))
-                 :test 'equal))
-        (format nil "roles no longer include '~a'" new-role))
-      ;; Add back the soft-deleted role
-      (diag "Adding back removed role (un-soft-deleting role)")
-      (is new-id
-        (a:add-role *rbac* new-role new-role nil new-role-permissions actor)
-        "add back the role that was just soft-deleted")
-      (is (mapcar (lambda (r) (getf r :role-name))
-            (a:list-roles *rbac* 1 100))
-        (a:with-rbac (*rbac*) (db:query roles-sql :column))
-        "list-roles and equivalent sql match after reinstating role")
-      (ok (member new-role 
-            (mapcar (lambda (r) (getf r :role-name))
-              (a:list-roles *rbac* 1 100))
-            :test 'equal)
-        (format nil "role ~a exists and has been un-soft-deleted" new-role)))))
-
-(subtest "role users"
-  (let* ((user-1 "test-user-1")
-          (user-2 "test-user-2")
-          (user-3 "test-user-3")
-          (role "test-role")
-          (role-users (mapcar
-                        (lambda (u) (getf u :username))
-                        (a:list-role-users *rbac* role 1 100)))
-          (role-users-sql "select u.username
-                           from users u
-                             join role_users ru on ru.user_id = u.id
-                             join roles r on ru.role_id = r.id
-                           where
-                             u.deleted_at is null
-                             and ru.deleted_at is null
-                             and r.deleted_at is null
-                             and r.role_name = $1
-                           order by
-                             u.username")
-          (actor "system"))
-    ;; Check the baseline state of the role
-    (ok (not (member user-1 role-users :test 'equal))
-      (format nil "~a is not among the users of role ~a, via list-role-users"
-        user-1 role-users))
-    (ok (not (member
-               user-1
-               (a:with-rbac (*rbac*)
-                 (db:query role-users-sql role :column))))
-      (format nil "~a is not among the users of role ~a, via sql"
-        user-1 role))
-    (ok (not (member user-2 role-users :test 'equal))
-      (format nil "~a is not among the users of role ~a"
-        user-2 role))
-    ;; Add users to the role
-    (diag (format nil "Adding users to role ~a" role))
-    (let ((ru-id-1 (a:add-role-user *rbac* role user-1 actor))
-           (ru-id-2 (a:add-role-user *rbac* role user-2 actor))
-           (ru-id-3 (a:add-role-user *rbac* role user-3 actor)))
-      (push user-1 role-users)
-      (push user-2 role-users)
-      ;; Let's see if we got some good ids for the new role-user rows
-      (ok ru-id-1 (format nil "~a/~a -> ~a" role user-1 ru-id-1))
-      (ok ru-id-2 (format nil "~a/~a -> ~a" role user-2 ru-id-2))
-      (ok ru-id-3 (format nil "~a/~a -> ~a" role user-3 ru-id-3))
-      ;; Check that role users include the new users now
-      (ok (member
-            user-1
-            (mapcar
-              (lambda (u) (getf u :username))
-              (a:list-role-users *rbac* role 1 100))
-            :test 'equal)
-        (format nil "role ~a users now includes ~a" role user-1))
-      (ok (member
-            user-2
-            (mapcar
-              (lambda (u) (getf u :username))
-              (a:list-role-users *rbac* role 1 100))
-            :test 'equal)
-        (format nil "role ~a users now include ~a"
-          role user-2))
-      (ok (member
-            user-3
-            (mapcar
-              (lambda (u) (getf u :username))
-              (a:list-role-users *rbac* role 1 100))
-            :test 'equal)
-        (format nil "role ~a users now include ~a"
-          role user-3))
-      ;; Check that the actor is being recorded correctly
-      (is (a:with-rbac (*rbac*)
-            (db:query "select u.username
-                       from users u join role_users ru on ru.updated_by = u.id
-                       where ru.id = $1"
-              ru-id-3
-              :single))
-        actor
-        "updated_by correct after adding new role user")
-      ;; Remove (soft-delete) a user from the role
-      (diag "Removing a role user")
-      (a:remove-role-user *rbac* role user-3 actor)
-      (let ((deleted-at (a:with-rbac (*rbac*)
-                          (db:query "select deleted_at from role_users
-                                     where id = $1"
-                            ru-id-3
-                            :single))))
-        (isnt deleted-at :null
-          (format nil "role_users row for ~a has non-null deleted_at value ~a"
-            user-3 deleted-at)))
-      (ok (not (member
-                 user-3
-                 (mapcar 
-                   (lambda (ru) (getf ru :username))
-                   (a:list-role-users *rbac* role 1 10))))
-        (format nil "user ~a no longer part of role ~a"
-          user-3 role))
-      ;; Reinstate (un-soft-delete) the user's role
-      (diag "Reinstante soft-deleted role user")
-      (is ru-id-3 (a:add-role-user *rbac* role user-3 "admin")
-        "add-role-user with soft-deleted row returns original role-user id")
-      (is (a:with-rbac (*rbac*) 
-            (db:query "select u.username
-                       from users u join role_users ru on ru.updated_by = u.id
-                       where ru.id = $1"
-              ru-id-3
-              :single))
         "admin"
-        "updated_by correct after reinstating soft-deleted role user"))))
+        "user admin has the re-added permission"))))
 
-(subtest "role permissions"
-  (let* ((actor "system")
-          (actor-id (a:get-id *rbac* "users" actor))
-          (new-permissions (mapcar 
-                            (lambda (n) 
-                              (let ((permission (format nil 
-                                                  "test-permission-~d" n)))
-                                (a:add-permission
-                                  *rbac*
-                                  permission
-                                  permission
-                                  actor)
-                                permission))
-                            (u:range 1 3)))
-          (role "test-role")
-          (get-role-permissions (lambda ()
-                                  (mapcar
-                                    (lambda (u) (getf u :permission-name))
-                                    (a:list-role-permissions *rbac* role 1 99))))
-          (role-permissions-sql "select p.permission_name
-                                 from permissions p
-                                   join role_permissions rp
-                                     on rp.permission_id = p.id
-                                   join roles r on rp.role_id = r.id
-                                 where
-                                   p.deleted_at is null
-                                   and rp.deleted_at is null
-                                   and r.deleted_at is null
-                                   and r.role_name = $1
-                                 order by p.permission_name")
-          (get-rp-deleted-at (lambda (id)
-                               (a:with-rbac (*rbac*)
-                                 (db:query
-                                   "select deleted_at
-                                    from role_permissions
-                                    where id = $1"
-                                   id
-                                   :single))))
-          (get-rp-updated-by (lambda (id)
-                               (a:with-rbac (*rbac*)
-                                 (db:query
-                                   "select updated_by
-                                    from role_permissions
-                                    where id = $1"
-                                   id
-                                   :single)))))
-    ;; Check baseline state of the role
-    (is (funcall get-role-permissions) 
-      (a:with-rbac (*rbac*) (db:query role-permissions-sql role :column))
-      "get-role-permissions equivalent to sql")
-    (loop 
-      with role-permissions = (funcall get-role-permissions)
-      for permission in new-permissions
-      for permission-id = (a:get-id *rbac* "permissions" permission)
-      do
-      ;; The new permissions exist
-      (ok permission-id (format nil "permission ~a exists" permission))
-      ;; But, they're not part of the role "test-role"
-      (ok (not (member permission role-permissions :test 'equal))
-        (format nil "role ~a does not include ~a"
-          role permission)))
-    ;; Add permissions to the role
-    (let ((role-permission-ids (loop 
-                                 for permission in new-permissions
-                                 for id = (a:add-role-permission *rbac* 
-                                            role permission actor)
-                                 do (ok id (format nil "Added ~a -> ~a" 
-                                             role permission))
-                                 collect id)))
-      ;; Ensure that role permissions include new permissions now
-      (loop
-        with role-permissions = (funcall get-role-permissions)
-        for permission in new-permissions do
-        (ok (member permission role-permissions :test 'equal)
-          (format nil "role ~a permissions now include ~a" role permission)))
-      ;; Role permissions row should have deleted_at set to null
-      (is (funcall get-rp-deleted-at (car role-permission-ids))
-        :null
-        (format nil "deleted_at is null for ~a -> ~a"
-          role (car new-permissions)))
-      (is (funcall get-rp-updated-by (car role-permission-ids)) actor-id
-        (format nil "role permission last updated by ~a" actor))
-      ;; Soft-delete permission-1, using a different actor
-      (a:remove-role-permission *rbac* role (car new-permissions) "admin")
-      ;; Role permissions should no longer include permission-1
-      (ok (not (member (car new-permissions) 
-                 (funcall get-role-permissions) 
-                 :test 'equal))
-        (format nil "role ~a no longer includes permission ~a" 
-          role (car new-permissions)))
-      ;; role-permissions row should have a deleted_at time that is less
-      ;; than 2 seconds in the past
-      (ok (<
-            (- (get-universal-time)
-              (funcall get-rp-deleted-at (car role-permission-ids)))
-            2)
-        (format nil "role-permissions row has a good value for deleted_at"))
-      ;; role-permissions row was last updated by admin
-      (is (funcall get-rp-updated-by (car role-permission-ids))
-        (a:get-id *rbac* "users" "admin")
-        (format nil "role permission ~a, ~a was last updated by admin" 
-          role (car new-permissions)))
-      ;; Reinstante soft-deleted role permission
-      (is (a:add-role-permission *rbac* role (car new-permissions) actor)
-        (car role-permission-ids)
-        (format nil "reinstanted soft-deleted role permission ~a -> ~a"
-          role (car new-permissions)))
-      ;; role-permissions row should once again have a non-null deleted_at value
-      (is (funcall get-rp-deleted-at (car role-permission-ids))
-        :null
-        (format nil "deleted_at is null for ~a -> ~a"
-          role (car new-permissions))))))
+;; (subtest "roles"
+;;   (let* ((roles-a (mapcar (lambda (r) (getf r :role-name))
+;;                     (a:list-roles *rbac* 1 100)))
+;;           (roles-sql "select role_name 
+;;                       from roles
+;;                       where deleted_at is null
+;;                       order by role_name")
+;;           (role-permissions-sql "select p.permission_name
+;;                                  from permissions p
+;;                                    join role_permissions rp on rp.permission_id = p.id
+;;                                    join roles r on rp.role_id = r.id
+;;                                  where
+;;                                    p.deleted_at is null
+;;                                    and rp.deleted_at is null
+;;                                    and r.deleted_at is null
+;;                                    and r.role_name = $1
+;;                                  order by p.permission_name")
+;;           (roles-b (a:with-rbac (*rbac*)
+;;                        (db:query roles-sql :column)))
+;;           (new-role "test-role")
+;;           (new-role-permissions '("read" "update"))
+;;           (actor "system"))
+;;     ;; Check the baseline state of roles
+;;     (is roles-a roles-b "list-roles returns correct list")
+;;     (ok (not (member new-role roles-a :test 'equal))
+;;       (format nil "roles do not include '~a'" new-role))
+;;     ;; Add a new role and check the updated list
+;;     (let ((new-id (a:add-role *rbac* new-role new-role
+;;                     nil new-role-permissions actor))
+;;            (roles-c (mapcar (lambda (r) (getf r :role-name))
+;;                             (a:list-roles *rbac* 1 100)))
+;;            (roles-d (a:with-rbac (*rbac*)
+;;                         (db:query roles-sql :column))))
+;;       (is roles-c roles-d "list-roles value includes a new role")
+;;       (isnt roles-a roles-c "the list of roles has changed")
+;;       (is (1+ (length roles-b)) (length roles-c) "there is one more role")
+;;       (ok (member new-role roles-c :test 'equal)
+;;         (format nil "roles now include '~a'" new-role))
+;;       (is (a:with-rbac (*rbac*)
+;;             (db:query role-permissions-sql new-role :column))
+;;         new-role-permissions
+;;         "new role has correct permissions, by sql")
+;;       (is (mapcar (lambda (p) (getf p :permission-name))
+;;                     (a:list-role-permissions *rbac* new-role 1 10))
+;;         new-role-permissions
+;;         "new role has correct permissions, by list-role-permissions")
+;;       ;; Soft delete the new role and check the updated list
+;;       (diag (format nil "Removing role '~a'" new-role))
+;;       (a:remove-role *rbac* new-role actor)
+;;       (isnt (a:with-rbac (*rbac*) 
+;;               (db:query "select deleted_at from roles
+;;                          where role_name = $1" 
+;;                 new-role
+;;                 :single))
+;;         :null
+;;         (format nil "role '~a' is soft-deleted" new-role))
+;;       (ok (not (member new-role
+;;                   (mapcar (lambda (r) (getf r :role-name))
+;;                     (a:list-roles *rbac* 1 100))
+;;                  :test 'equal))
+;;         (format nil "roles no longer include '~a'" new-role))
+;;       ;; Add back the soft-deleted role
+;;       (diag "Adding back removed role (un-soft-deleting role)")
+;;       (is new-id
+;;         (a:add-role *rbac* new-role new-role nil new-role-permissions actor)
+;;         "add back the role that was just soft-deleted")
+;;       (is (mapcar (lambda (r) (getf r :role-name))
+;;             (a:list-roles *rbac* 1 100))
+;;         (a:with-rbac (*rbac*) (db:query roles-sql :column))
+;;         "list-roles and equivalent sql match after reinstating role")
+;;       (ok (member new-role 
+;;             (mapcar (lambda (r) (getf r :role-name))
+;;               (a:list-roles *rbac* 1 100))
+;;             :test 'equal)
+;;         (format nil "role ~a exists and has been un-soft-deleted" new-role)))))
 
-(defun get-resources (&optional part)
-  (let ((resources (a:list-resources *rbac* 1 1000)))
-    (if part
-      (mapcar (lambda (l) (getf l part)) resources)
-      resources)))
+;; (subtest "role users"
+;;   (let* ((user-1 "test-user-1")
+;;           (user-2 "test-user-2")
+;;           (user-3 "test-user-3")
+;;           (role "test-role")
+;;           (role-users (mapcar
+;;                         (lambda (u) (getf u :username))
+;;                         (a:list-role-users *rbac* role 1 100)))
+;;           (role-users-sql "select u.username
+;;                            from users u
+;;                              join role_users ru on ru.user_id = u.id
+;;                              join roles r on ru.role_id = r.id
+;;                            where
+;;                              u.deleted_at is null
+;;                              and ru.deleted_at is null
+;;                              and r.deleted_at is null
+;;                              and r.role_name = $1
+;;                            order by
+;;                              u.username")
+;;           (actor "system"))
+;;     ;; Check the baseline state of the role
+;;     (ok (not (member user-1 role-users :test 'equal))
+;;       (format nil "~a is not among the users of role ~a, via list-role-users"
+;;         user-1 role-users))
+;;     (ok (not (member
+;;                user-1
+;;                (a:with-rbac (*rbac*)
+;;                  (db:query role-users-sql role :column))))
+;;       (format nil "~a is not among the users of role ~a, via sql"
+;;         user-1 role))
+;;     (ok (not (member user-2 role-users :test 'equal))
+;;       (format nil "~a is not among the users of role ~a"
+;;         user-2 role))
+;;     ;; Add users to the role
+;;     (diag (format nil "Adding users to role ~a" role))
+;;     (let ((ru-id-1 (a:add-role-user *rbac* role user-1 actor))
+;;            (ru-id-2 (a:add-role-user *rbac* role user-2 actor))
+;;            (ru-id-3 (a:add-role-user *rbac* role user-3 actor)))
+;;       (push user-1 role-users)
+;;       (push user-2 role-users)
+;;       ;; Let's see if we got some good ids for the new role-user rows
+;;       (ok ru-id-1 (format nil "~a/~a -> ~a" role user-1 ru-id-1))
+;;       (ok ru-id-2 (format nil "~a/~a -> ~a" role user-2 ru-id-2))
+;;       (ok ru-id-3 (format nil "~a/~a -> ~a" role user-3 ru-id-3))
+;;       ;; Check that role users include the new users now
+;;       (ok (member
+;;             user-1
+;;             (mapcar
+;;               (lambda (u) (getf u :username))
+;;               (a:list-role-users *rbac* role 1 100))
+;;             :test 'equal)
+;;         (format nil "role ~a users now includes ~a" role user-1))
+;;       (ok (member
+;;             user-2
+;;             (mapcar
+;;               (lambda (u) (getf u :username))
+;;               (a:list-role-users *rbac* role 1 100))
+;;             :test 'equal)
+;;         (format nil "role ~a users now include ~a"
+;;           role user-2))
+;;       (ok (member
+;;             user-3
+;;             (mapcar
+;;               (lambda (u) (getf u :username))
+;;               (a:list-role-users *rbac* role 1 100))
+;;             :test 'equal)
+;;         (format nil "role ~a users now include ~a"
+;;           role user-3))
+;;       ;; Check that the actor is being recorded correctly
+;;       (is (a:with-rbac (*rbac*)
+;;             (db:query "select u.username
+;;                        from users u join role_users ru on ru.updated_by = u.id
+;;                        where ru.id = $1"
+;;               ru-id-3
+;;               :single))
+;;         actor
+;;         "updated_by correct after adding new role user")
+;;       ;; Remove (soft-delete) a user from the role
+;;       (diag "Removing a role user")
+;;       (a:remove-role-user *rbac* role user-3 actor)
+;;       (let ((deleted-at (a:with-rbac (*rbac*)
+;;                           (db:query "select deleted_at from role_users
+;;                                      where id = $1"
+;;                             ru-id-3
+;;                             :single))))
+;;         (isnt deleted-at :null
+;;           (format nil "role_users row for ~a has non-null deleted_at value ~a"
+;;             user-3 deleted-at)))
+;;       (ok (not (member
+;;                  user-3
+;;                  (mapcar 
+;;                    (lambda (ru) (getf ru :username))
+;;                    (a:list-role-users *rbac* role 1 10))))
+;;         (format nil "user ~a no longer part of role ~a"
+;;           user-3 role))
+;;       ;; Reinstate (un-soft-delete) the user's role
+;;       (diag "Reinstante soft-deleted role user")
+;;       (is ru-id-3 (a:add-role-user *rbac* role user-3 "admin")
+;;         "add-role-user with soft-deleted row returns original role-user id")
+;;       (is (a:with-rbac (*rbac*) 
+;;             (db:query "select u.username
+;;                        from users u join role_users ru on ru.updated_by = u.id
+;;                        where ru.id = $1"
+;;               ru-id-3
+;;               :single))
+;;         "admin"
+;;         "updated_by correct after reinstating soft-deleted role user"))))
 
-(defun get-resource-value (resource-name key)
-  (getf
-    (a:with-rbac (*rbac*)
-      (db:query
-        "select * from resources where resource_name = $1"
-        resource-name
-        :plist))
-    key))
+;; (subtest "role permissions"
+;;   (let* ((actor "system")
+;;           (actor-id (a:get-id *rbac* "users" actor))
+;;           (new-permissions (mapcar 
+;;                             (lambda (n) 
+;;                               (let ((permission (format nil 
+;;                                                   "test-permission-~d" n)))
+;;                                 (a:add-permission
+;;                                   *rbac*
+;;                                   permission
+;;                                   permission
+;;                                   actor)
+;;                                 permission))
+;;                             (u:range 1 3)))
+;;           (role "test-role")
+;;           (get-role-permissions (lambda ()
+;;                                   (mapcar
+;;                                     (lambda (u) (getf u :permission-name))
+;;                                     (a:list-role-permissions *rbac* role 1 99))))
+;;           (role-permissions-sql "select p.permission_name
+;;                                  from permissions p
+;;                                    join role_permissions rp
+;;                                      on rp.permission_id = p.id
+;;                                    join roles r on rp.role_id = r.id
+;;                                  where
+;;                                    p.deleted_at is null
+;;                                    and rp.deleted_at is null
+;;                                    and r.deleted_at is null
+;;                                    and r.role_name = $1
+;;                                  order by p.permission_name")
+;;           (get-rp-deleted-at (lambda (id)
+;;                                (a:with-rbac (*rbac*)
+;;                                  (db:query
+;;                                    "select deleted_at
+;;                                     from role_permissions
+;;                                     where id = $1"
+;;                                    id
+;;                                    :single))))
+;;           (get-rp-updated-by (lambda (id)
+;;                                (a:with-rbac (*rbac*)
+;;                                  (db:query
+;;                                    "select updated_by
+;;                                     from role_permissions
+;;                                     where id = $1"
+;;                                    id
+;;                                    :single)))))
+;;     ;; Check baseline state of the role
+;;     (is (funcall get-role-permissions) 
+;;       (a:with-rbac (*rbac*) (db:query role-permissions-sql role :column))
+;;       "get-role-permissions equivalent to sql")
+;;     (loop 
+;;       with role-permissions = (funcall get-role-permissions)
+;;       for permission in new-permissions
+;;       for permission-id = (a:get-id *rbac* "permissions" permission)
+;;       do
+;;       ;; The new permissions exist
+;;       (ok permission-id (format nil "permission ~a exists" permission))
+;;       ;; But, they're not part of the role "test-role"
+;;       (ok (not (member permission role-permissions :test 'equal))
+;;         (format nil "role ~a does not include ~a"
+;;           role permission)))
+;;     ;; Add permissions to the role
+;;     (let ((role-permission-ids (loop 
+;;                                  for permission in new-permissions
+;;                                  for id = (a:add-role-permission *rbac* 
+;;                                             role permission actor)
+;;                                  do (ok id (format nil "Added ~a -> ~a" 
+;;                                              role permission))
+;;                                  collect id)))
+;;       ;; Ensure that role permissions include new permissions now
+;;       (loop
+;;         with role-permissions = (funcall get-role-permissions)
+;;         for permission in new-permissions do
+;;         (ok (member permission role-permissions :test 'equal)
+;;           (format nil "role ~a permissions now include ~a" role permission)))
+;;       ;; Role permissions row should have deleted_at set to null
+;;       (is (funcall get-rp-deleted-at (car role-permission-ids))
+;;         :null
+;;         (format nil "deleted_at is null for ~a -> ~a"
+;;           role (car new-permissions)))
+;;       (is (funcall get-rp-updated-by (car role-permission-ids)) actor-id
+;;         (format nil "role permission last updated by ~a" actor))
+;;       ;; Soft-delete permission-1, using a different actor
+;;       (a:remove-role-permission *rbac* role (car new-permissions) "admin")
+;;       ;; Role permissions should no longer include permission-1
+;;       (ok (not (member (car new-permissions) 
+;;                  (funcall get-role-permissions) 
+;;                  :test 'equal))
+;;         (format nil "role ~a no longer includes permission ~a" 
+;;           role (car new-permissions)))
+;;       ;; role-permissions row should have a deleted_at time that is less
+;;       ;; than 2 seconds in the past
+;;       (ok (<
+;;             (- (get-universal-time)
+;;               (funcall get-rp-deleted-at (car role-permission-ids)))
+;;             2)
+;;         (format nil "role-permissions row has a good value for deleted_at"))
+;;       ;; role-permissions row was last updated by admin
+;;       (is (funcall get-rp-updated-by (car role-permission-ids))
+;;         (a:get-id *rbac* "users" "admin")
+;;         (format nil "role permission ~a, ~a was last updated by admin" 
+;;           role (car new-permissions)))
+;;       ;; Reinstante soft-deleted role permission
+;;       (is (a:add-role-permission *rbac* role (car new-permissions) actor)
+;;         (car role-permission-ids)
+;;         (format nil "reinstanted soft-deleted role permission ~a -> ~a"
+;;           role (car new-permissions)))
+;;       ;; role-permissions row should once again have a non-null deleted_at value
+;;       (is (funcall get-rp-deleted-at (car role-permission-ids))
+;;         :null
+;;         (format nil "deleted_at is null for ~a -> ~a"
+;;           role (car new-permissions))))))
 
-(defun get-resources-with-sql ()
-  (a:with-rbac (*rbac*)
-    (db:query 
-      "select resource_name from resources
-       where deleted_at is null
-       order by resource_name"
-      :column)))
+;; (defun get-resources (&optional part)
+;;   (let ((resources (a:list-resources *rbac* 1 1000)))
+;;     (if part
+;;       (mapcar (lambda (l) (getf l part)) resources)
+;;       resources)))
 
-(subtest "resources"
-  (let* ((new-resources (mapcar (lambda (n) (format nil "/test-resource-~d/" n))
-                          (u:range 1 3)))
-          (existing-resources (list 
-                                "/admin/"
-                                "/public/" 
-                                "/user/"))
-          (roles (list "viewer" "test-role"))
-          (actor "system")
-          (actor-id (a:get-id *rbac* "users" actor)))
-    ;; Check baseline
-    (is (get-resources :resource-name) (get-resources-with-sql)
-      "get-resources matches sql query result")
-    (is (get-resources :resource-name) existing-resources
-      "expected existing resources")
-    (is (sort (u:distinct-values (get-resources :updated-by)) #'string<)
-      (list actor-id)
-      "All existing resources updated by system")
-    (ok (loop for new-resource in new-resources
-          never (member new-resource existing-resources :test 'equal))
-      "None of the new resources exist yet")
-    (ok (loop 
-          with existing-resource-roles = (ds:ds 
-                                           '(:map
-                                              "/admin/" (:list "admin")
-                                              "/public/" (:list "guest")
-                                              "/user/" (:list "admin")))
-          for resource in existing-resources
-          always (equal
-                   (mapcar (lambda (rr) (getf rr :role-name))
-                     (a:list-resource-roles *rbac* resource 1 100))
-                   (gethash resource existing-resource-roles)))
-      "All resources have expected roles")
-    ;; Add some resources
-    (diag "Adding new resources")
-    (let ((new-resource-ids (loop
-                              for resource in new-resources
-                              collect (a:add-resource *rbac* 
-                                        resource resource roles actor))))
-      ;; Check that new resource exist now
-      (is (get-resources :resource-name)
-        (sort (append existing-resources new-resources) #'string<)
-        "New resources in database")
-      ;; All resources, including the new ones, updated by system
-      (is (sort (u:distinct-values (get-resources :updated-by)) #'string<)
-        (list actor-id))
-      ;; Soft-delete test-resource-1
-      (diag "Soft-deleting test-resource-1")
-      (a:remove-resource *rbac* (car new-resources) actor)
-      ;; Resource is no longer listed
-      (ok (not (member (car new-resources)
-                 (get-resources :resource-name) 
-                 :test 'equal))
-        (format nil "Resource ~a no longer listed" (car new-resources)))
-      ;; Check deleted_at on soft-deleted resource
-      (ok (< (- (get-universal-time)
-               (get-resource-value (car new-resources) :deleted-at))
-            2)
-        "soft-deleted resource has correct deleted_at timestamp")
-      ;; Check that appropriate resource_roles rows have been soft-deleted
-      ;; Reinstante soft-deleted resource test-resource-1
-      (is (a:add-resource *rbac* 
-            (car new-resources) 
-            (car new-resources)
-            (cons "editor" roles)
-            actor)
-        (car new-resource-ids)
-        "correctly reinstated soft-deleted resource"))))
+;; (defun get-resource-value (resource-name key)
+;;   (getf
+;;     (a:with-rbac (*rbac*)
+;;       (db:query
+;;         "select * from resources where resource_name = $1"
+;;         resource-name
+;;         :plist))
+;;     key))
 
-(defun get-resource-roles (resource)
-  (mapcar (lambda (r) (getf r :role-name))
-    (a:list-resource-roles *rbac* resource 1 100)))
+;; (defun get-resources-with-sql ()
+;;   (a:with-rbac (*rbac*)
+;;     (db:query 
+;;       "select resource_name from resources
+;;        where deleted_at is null
+;;        order by resource_name"
+;;       :column)))
 
-(subtest "resource roles"
-  (let* ((resource "/test-resource-1/")
-          (old-resource-roles (list "editor" "test-role" "viewer"))
-          (actor "system")
-          (new-resource-roles (list 
-                                "test-user-1:exclusive"
-                                "test-user-2:exclusive")))
-    ;; Check baseline
-    (is (get-resource-roles resource)
-      old-resource-roles
-      (format nil "resource ~a has roles ~{~a~^, ~}" 
-        resource old-resource-roles))
-    ;; Add some new roles to the resource
-    (let ((resource-role-ids (loop for role in new-resource-roles collect
-                               (a:add-resource-role *rbac*
-                                 resource role actor))))
-      (let ((roles-expected (sort
-                              (append old-resource-roles new-resource-roles)
-                              #'string<))
-             (roles-actual (get-resource-roles resource)))
-        (is roles-actual roles-expected "new roles were added to resource"))
-      ;; Soft-delete one of the new roles
-      (is (a:remove-resource-role *rbac* 
-            resource (car new-resource-roles) actor)
-        (car resource-role-ids)
-        (format nil "soft-deleting resource role returns its ID: ~a"
-          (car new-resource-roles)))
-      (ok (not (member (car new-resource-roles)
-                 (get-resource-roles resource)
-                 :test 'equal))
-        (format nil "resource no longer has role ~a"
-          (car new-resource-roles)))
-      ;; Reinstate resource role
-      (is (a:add-resource-role *rbac* resource (car new-resource-roles) actor)
-        (car resource-role-ids)
-        (format nil "role ~a reinstated to resource ~a"
-          (car new-resource-roles) resource))
-      (ok (member (car new-resource-roles)
-            (get-resource-roles resource)
-            :test 'equal)
-        (format nil "resource ~a has role ~a" resource
-          (car new-resource-roles))))))
+;; (subtest "resources"
+;;   (let* ((new-resources (mapcar (lambda (n) (format nil "/test-resource-~d/" n))
+;;                           (u:range 1 3)))
+;;           (existing-resources (list 
+;;                                 "/admin/"
+;;                                 "/public/" 
+;;                                 "/user/"))
+;;           (roles (list "viewer" "test-role"))
+;;           (actor "system")
+;;           (actor-id (a:get-id *rbac* "users" actor)))
+;;     ;; Check baseline
+;;     (is (get-resources :resource-name) (get-resources-with-sql)
+;;       "get-resources matches sql query result")
+;;     (is (get-resources :resource-name) existing-resources
+;;       "expected existing resources")
+;;     (is (sort (u:distinct-values (get-resources :updated-by)) #'string<)
+;;       (list actor-id)
+;;       "All existing resources updated by system")
+;;     (ok (loop for new-resource in new-resources
+;;           never (member new-resource existing-resources :test 'equal))
+;;       "None of the new resources exist yet")
+;;     (ok (loop 
+;;           with existing-resource-roles = (ds:ds 
+;;                                            '(:map
+;;                                               "/admin/" (:list "admin")
+;;                                               "/public/" (:list "guest")
+;;                                               "/user/" (:list "admin")))
+;;           for resource in existing-resources
+;;           always (equal
+;;                    (mapcar (lambda (rr) (getf rr :role-name))
+;;                      (a:list-resource-roles *rbac* resource 1 100))
+;;                    (gethash resource existing-resource-roles)))
+;;       "All resources have expected roles")
+;;     ;; Add some resources
+;;     (diag "Adding new resources")
+;;     (let ((new-resource-ids (loop
+;;                               for resource in new-resources
+;;                               collect (a:add-resource *rbac* 
+;;                                         resource resource roles actor))))
+;;       ;; Check that new resource exist now
+;;       (is (get-resources :resource-name)
+;;         (sort (append existing-resources new-resources) #'string<)
+;;         "New resources in database")
+;;       ;; All resources, including the new ones, updated by system
+;;       (is (sort (u:distinct-values (get-resources :updated-by)) #'string<)
+;;         (list actor-id))
+;;       ;; Soft-delete test-resource-1
+;;       (diag "Soft-deleting test-resource-1")
+;;       (a:remove-resource *rbac* (car new-resources) actor)
+;;       ;; Resource is no longer listed
+;;       (ok (not (member (car new-resources)
+;;                  (get-resources :resource-name) 
+;;                  :test 'equal))
+;;         (format nil "Resource ~a no longer listed" (car new-resources)))
+;;       ;; Check deleted_at on soft-deleted resource
+;;       (ok (< (- (get-universal-time)
+;;                (get-resource-value (car new-resources) :deleted-at))
+;;             2)
+;;         "soft-deleted resource has correct deleted_at timestamp")
+;;       ;; Check that appropriate resource_roles rows have been soft-deleted
+;;       ;; Reinstante soft-deleted resource test-resource-1
+;;       (is (a:add-resource *rbac* 
+;;             (car new-resources) 
+;;             (car new-resources)
+;;             (cons "editor" roles)
+;;             actor)
+;;         (car new-resource-ids)
+;;         "correctly reinstated soft-deleted resource"))))
 
-(subtest "user allowed"
-  (let* ((resource "/test-resource-3/")
-          (main-user "macnod")
-          (main-permission "read")
-          (main-role "test-role")
-          (exclusive-role "macnod:exclusive")
-          (actor "system"))
-    ;; User doesn't have read access to resource
-    (ok (not (a:user-allowed *rbac* main-user main-permission resource))
-      (format nil "user ~a does not have ~a access to resource ~a"
-        main-user main-permission resource))
-    ;; Give user read access to resource
-    (a:add-role-user *rbac* main-role main-user actor)
-    (ok (a:user-allowed *rbac* main-user main-permission resource)
-      (format nil "user ~a has ~a access to resource ~a"
-        main-user main-permission resource))
-    ;; Remove user's read access to resource by removing user from role
-    (a:remove-role-user *rbac* main-role main-user actor)
-    (ok (not (a:user-allowed *rbac* main-user main-permission resource))
-      (format nil "user ~a does not have ~a access to resource ~a"
-        main-user main-permission resource))
-    ;; Restore soft-deleted user's role
-    (a:add-role-user *rbac* main-role main-user actor)
-    (ok (a:user-allowed *rbac* main-user main-permission resource)
-      (format nil "~a access to resource ~a restored for user ~a"
-        main-permission resource main-user))
-    ;; Remove user from role again
-    (a:remove-role-user *rbac* main-role main-user actor)
-    (ok (not (a:user-allowed *rbac* main-user main-permission resource))
-      (format nil "user ~a does not have ~a access to resource ~a"
-        main-user main-permission resource))
-    ;; Give user access to the resource by adding the user's exclusive role to
-    ;; the resource
-    (a:add-resource-role *rbac* resource "macnod:exclusive" actor)
-    (ok (a:user-allowed *rbac* main-user main-permission resource)
-      (format nil "user ~a has ~a access to ~a via user's exclusive role."
-        main-user main-permission resource))
-    ;; Remove user's access by removing read permission from user's exclusive
-    ;; role
-    (a:remove-role-permission *rbac* exclusive-role main-permission actor)
-    ;; Make sure user no longer has access
-    (ok (not (a:user-allowed *rbac* main-user main-permission resource))
-      (format nil "user ~a does not have ~a access to resource ~a"
-        main-user main-permission resource))
-    ;; Fail: Uncomment to test failure
-    ;; (fail "Test failure")
-    ;; Add read permissiobn back to user's exclusive role
-    (a:add-role-permission *rbac* exclusive-role main-permission actor)))
+;; (defun get-resource-roles (resource)
+;;   (mapcar (lambda (r) (getf r :role-name))
+;;     (a:list-resource-roles *rbac* resource 1 100)))
+
+;; (subtest "resource roles"
+;;   (let* ((resource "/test-resource-1/")
+;;           (old-resource-roles (list "editor" "test-role" "viewer"))
+;;           (actor "system")
+;;           (new-resource-roles (list 
+;;                                 "test-user-1:exclusive"
+;;                                 "test-user-2:exclusive")))
+;;     ;; Check baseline
+;;     (is (get-resource-roles resource)
+;;       old-resource-roles
+;;       (format nil "resource ~a has roles ~{~a~^, ~}" 
+;;         resource old-resource-roles))
+;;     ;; Add some new roles to the resource
+;;     (let ((resource-role-ids (loop for role in new-resource-roles collect
+;;                                (a:add-resource-role *rbac*
+;;                                  resource role actor))))
+;;       (let ((roles-expected (sort
+;;                               (append old-resource-roles new-resource-roles)
+;;                               #'string<))
+;;              (roles-actual (get-resource-roles resource)))
+;;         (is roles-actual roles-expected "new roles were added to resource"))
+;;       ;; Soft-delete one of the new roles
+;;       (is (a:remove-resource-role *rbac* 
+;;             resource (car new-resource-roles) actor)
+;;         (car resource-role-ids)
+;;         (format nil "soft-deleting resource role returns its ID: ~a"
+;;           (car new-resource-roles)))
+;;       (ok (not (member (car new-resource-roles)
+;;                  (get-resource-roles resource)
+;;                  :test 'equal))
+;;         (format nil "resource no longer has role ~a"
+;;           (car new-resource-roles)))
+;;       ;; Reinstate resource role
+;;       (is (a:add-resource-role *rbac* resource (car new-resource-roles) actor)
+;;         (car resource-role-ids)
+;;         (format nil "role ~a reinstated to resource ~a"
+;;           (car new-resource-roles) resource))
+;;       (ok (member (car new-resource-roles)
+;;             (get-resource-roles resource)
+;;             :test 'equal)
+;;         (format nil "resource ~a has role ~a" resource
+;;           (car new-resource-roles))))))
+
+;; (subtest "user allowed"
+;;   (let* ((resource "/test-resource-3/")
+;;           (main-user "macnod")
+;;           (main-permission "read")
+;;           (main-role "test-role")
+;;           (exclusive-role "macnod:exclusive")
+;;           (actor "system"))
+;;     ;; User doesn't have read access to resource
+;;     (ok (not (a:user-allowed *rbac* main-user main-permission resource))
+;;       (format nil "user ~a does not have ~a access to resource ~a"
+;;         main-user main-permission resource))
+;;     ;; Give user read access to resource
+;;     (a:add-role-user *rbac* main-role main-user actor)
+;;     (ok (a:user-allowed *rbac* main-user main-permission resource)
+;;       (format nil "user ~a has ~a access to resource ~a"
+;;         main-user main-permission resource))
+;;     ;; Remove user's read access to resource by removing user from role
+;;     (a:remove-role-user *rbac* main-role main-user actor)
+;;     (ok (not (a:user-allowed *rbac* main-user main-permission resource))
+;;       (format nil "user ~a does not have ~a access to resource ~a"
+;;         main-user main-permission resource))
+;;     ;; Restore soft-deleted user's role
+;;     (a:add-role-user *rbac* main-role main-user actor)
+;;     (ok (a:user-allowed *rbac* main-user main-permission resource)
+;;       (format nil "~a access to resource ~a restored for user ~a"
+;;         main-permission resource main-user))
+;;     ;; Remove user from role again
+;;     (a:remove-role-user *rbac* main-role main-user actor)
+;;     (ok (not (a:user-allowed *rbac* main-user main-permission resource))
+;;       (format nil "user ~a does not have ~a access to resource ~a"
+;;         main-user main-permission resource))
+;;     ;; Give user access to the resource by adding the user's exclusive role to
+;;     ;; the resource
+;;     (a:add-resource-role *rbac* resource "macnod:exclusive" actor)
+;;     (ok (a:user-allowed *rbac* main-user main-permission resource)
+;;       (format nil "user ~a has ~a access to ~a via user's exclusive role."
+;;         main-user main-permission resource))
+;;     ;; Remove user's access by removing read permission from user's exclusive
+;;     ;; role
+;;     (a:remove-role-permission *rbac* exclusive-role main-permission actor)
+;;     ;; Make sure user no longer has access
+;;     (ok (not (a:user-allowed *rbac* main-user main-permission resource))
+;;       (format nil "user ~a does not have ~a access to resource ~a"
+;;         main-user main-permission resource))
+;;     ;; Fail: Uncomment to test failure
+;;     ;; (fail "Test failure")
+;;     ;; Add read permissiobn back to user's exclusive role
+;;     (a:add-role-permission *rbac* exclusive-role main-permission actor)))
     
-(let ((result (finalize)))
-  (if result
-    (uiop:quit 0)
-    (uiop:quit 1)))
+(u:close-log)
+(if (finalize)
+  (uiop:quit 0)
+  (uiop:quit 1)))

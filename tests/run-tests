@@ -5,9 +5,9 @@ RESULT=$?
 docker compose --progress quiet down
 echo
 if [[ $RESULT -eq 0 ]]; then
-    echo ">>>> SUCCESS <<<<"
+    echo ">>>> PASS <<<<"
 else
-    echo "\n>>>> FAIL <<<<\n"
+    echo ">>>> FAIL <<<<"
 fi
 echo
 exit $RESULT

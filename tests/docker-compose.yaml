@@ -1,7 +1,11 @@
 services:
   rbac:
     image: macnod/rbac-test:latest
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - FORCE_REBUILD=true
     volumes:
       - ../:/rbac/
     command: >
