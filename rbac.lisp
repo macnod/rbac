@@ -1598,38 +1598,47 @@ resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
 ;;     "Returns the user ID if USERNAME exists and PASSWORD is correct. If the password
 ;; is incorrect or the user doesn't exist, this function returns NIL."
 
-(defgeneric user-allowed (rbac username user-id permission resource)
+(defgeneric user-allowed (rbac username permission resource)
   (:method ((rbac rbac-pg)
              (username string)
-             (user-id string)
              (permission string)
              (resource string))
-    "Returns T if the user with USER-ID is a member of a role that has PERMISSION on
-RESOURCE. Otherwise, returns NIL."
-    (let* (errors
-            (user-id (check errors
-                       (get-id rbac "id" user-id)
-                       "User '~a' not found." username))
-            (permission-id (check errors (get-id rbac "permissions" permission)
-                             "Permission '~a' not found." permission))
-            (resource-id (check errors (get-id rbac "resources" resource)
-                           "Resource '~a' not found." resource)))
-      (report-errors errors)
-      (with-rbac (rbac)
+    "Returns a list of plists showing how the user USERNAME has PERMISSION access to
+RESOURCE. If the list is empty, the user does not have access."
+    (with-rbac (rbac)
         (db:query
-          "select exists (
-          select 1
-          from role_permissions rp
-            join role_users ru on rp.role_id = ru.role_id
-            join resource_roles rr on rp.role_id = rr.role_id
-          where
-            rp.deleted_at is null
-            and ru.deleted_at is null
-            and rr.deleted_at is null
-            and ru.user_id = $1
-            and rp.permission_id = $2
-            and rr.resource_id = $3)"
-          user-id permission-id resource-id :single))))
+          "select
+             rp.id,
+             rp.deleted_at,
+             u.username,
+             u.deleted_at,
+             r.role_name,
+             r.deleted_at,
+             p.permission_name,
+             s.resource_name
+           from
+             users u
+             join role_users ru1 on ru1.user_id = u.id
+             join roles r on ru1.role_id = r.id
+             join role_permissions rp on rp.role_id = r.id
+             join permissions p on rp.permission_id = p.id
+             join resource_roles rr on rr.role_id = r.id
+             join resources s on rr.resource_id = s.id
+           where
+             rp.deleted_at is null
+             and u.deleted_at is null
+             and r.deleted_at is null
+             and p.deleted_at is null
+             and s.deleted_at is null
+             and u.username = $1
+             and s.resource_name = $2
+             and p.permission_name = $3
+           order by
+             u.username,
+             r.role_name,
+             p.permission_name,
+             s.resource_name"
+          username permission resource)))
   (:documentation "Determine if user with USER-ID has PERMISSION on RESOURCE."))
 
 (defgeneric audit (rbac details)
