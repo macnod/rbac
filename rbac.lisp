@@ -137,6 +137,11 @@ consists of the part of an SQL statement that specifies the tables and joins."
 (defun external-reference-field (external_table)
   (format nil "~a_id" (singular external_table)))
 
+(defun table-name-field (table)
+  (if (equal table "users")
+    "username"
+    (format nil "~a_name" (singular table))))
+
 ;;
 ;; Class definitions
 ;;
@@ -518,21 +523,20 @@ table that contains ROW. For internal use only."))
              (details hash-table)
              (delete-exclusive-role-sql list))
     (with-rbac (rbac)
-      (db:with-transaction (soft-delete)
-        ;; Soft delete the user
-        (rbac-query delete-target-sql)
-        (u:log-it :debug "delete-target: ~a" delete-target-sql)
-        ;; Soft delete all references to the target-record
-        (loop for delete-ref in delete-refs-sql
-          do 
-          (rbac-query delete-ref)
-          (u:log-it :debug "delete-ref: ~a" delete-ref))
-        ;; If the target is a user, then delete the user's exclusive role
-        (when delete-exclusive-role-sql
-          (rbac-query delete-exclusive-role-sql)
-          (u:log-it :debug "deleted-exclusive-role: ~a" delete-exclusive-role-sql))
-        ;; Audit the deletion
-        (audit rbac details))))
+      ;; Soft delete the user
+      (rbac-query delete-target-sql)
+      (u:log-it :debug "delete-target: ~a" delete-target-sql)
+      ;; Soft delete all references to the target-record
+      (loop for delete-ref in delete-refs-sql
+        do 
+        (u:log-it :debug "delete-ref: ~a" delete-ref)
+        (rbac-query delete-ref))
+      ;; If the target is a user, then delete the user's exclusive role
+      (when delete-exclusive-role-sql
+        (rbac-query delete-exclusive-role-sql)
+        (u:log-it :debug "deleted-exclusive-role: ~a" delete-exclusive-role-sql))
+      ;; Audit the deletion
+      (audit rbac details)))
   (:documentation "Executes the given SQL statements in a transaction, to soft
 delete a row and references to that row, updating the audit table."))
 
@@ -749,6 +753,23 @@ field set to a non-null value, then the existing role is reinstanted by
 setting deleted_at to null and updating the updated_at and updated_by fields.
 Returns the new role's ID. For internal use only."))
 
+(defgeneric insert-exclusive-role (rbac username actor-id)
+  (:method ((rbac rbac-pg)
+             (username string)
+             (actor-id string))
+    (loop 
+      with role = (format nil "~a:exclusive" username)
+      with description = (format nil "Exclusive role for user ~a." username)
+      with role-id = (insert-role rbac role description t actor-id)
+      with user-id = (get-id rbac "users" username)
+      with permission-ids = (get-permission-ids rbac *default-permissions*)
+      for permission-name being the hash-keys of permission-ids
+      using (hash-value permission-id)
+      do (upsert-link rbac "roles" "permissions" role-id permission-id actor-id)
+      finally
+      (upsert-link rbac "roles" "users" role-id user-id actor-id)
+      (return role))))
+
 (defgeneric insert-permission (rbac permission description actor-id)
   (:method ((rbac rbac-pg)
              (permission string)
@@ -888,6 +909,15 @@ function will make the following concrete assumptions:
              (id-2 string)
              (actor-id string))
     (let ((sql (upsert-link-sql table-1 table-2)))
+      (u:log-it-lazy
+        :debug
+        (lambda ()
+          (let ((name-1 (get-value rbac table-1 (table-name-field table-1)
+                         "id" id-1))
+                 (name-2 (get-value rbac table-2 (table-name-field table-2)
+                           "id" id-2)))
+            (format nil "Upsert-link [~a -> ~a] SQL: ~a; (~a, ~a, ~a)"
+              name-1 name-2 sql id-1 id-2 actor-id))))
       (db:query sql id-1 id-2 actor-id :single))))
 
 (defgeneric add-user (rbac username email password roles actor)
@@ -897,18 +927,17 @@ function will make the following concrete assumptions:
              (password string)
              (roles list)
              (actor string))
-    (multiple-value-bind (actor-id role-ids)
-      (validate-add-user-params
-        rbac
-        username
-        email
-        password
-        (append roles *default-roles*)
-        actor)
-      (with-rbac (rbac)
-        (db:with-transaction (add-user)
+    (let ((all-roles (append roles *default-roles*)))
+      (multiple-value-bind (actor-id role-ids)
+        (validate-add-user-params rbac username email password all-roles actor)
+        (with-rbac (rbac)
+          ;; Add the user
+          (insert-user rbac username email password actor-id)
+          ;; Create the user's exclusive role and add the user to it
+          (insert-exclusive-role rbac username actor-id)
+          ;; Add the user to the rest of the roles
           (loop
-            with user-id = (insert-user rbac username email password actor-id)
+            with user-id = (get-id rbac "users" username)
             with details = (ds:ds `(:map
                                      :title "Created user"
                                      :username ,username
@@ -918,22 +947,16 @@ function will make the following concrete assumptions:
                                                   :salt username :size 32)
                                      :actor ,actor
                                      :actor_id ,actor-id))
-            with exclusive-role = (format nil "~a:exclusive" username)
-            initially
-            (setf (gethash exclusive-role role-ids)
-              (add-exclusive-role rbac username actor))
-            (push exclusive-role roles)
-            for role being the hash-keys in role-ids using (hash-value role-id)
+            for role-name being the hash-keys in role-ids 
+            using (hash-value role-id)
             do (upsert-link rbac "roles" "users" role-id user-id actor-id)
             finally
-            (return
-              (progn
-                (setf (gethash :roles details) role-ids)
-                (audit rbac details)
-                user-id)))))))
+            (setf (gethash :roles details) role-ids)
+            (audit rbac details)
+            (return user-id))))))
   (:documentation "Add a new user. This creates an exclusive role, which is
-for this user only, and adds the user to the guest and logged-in roles.
-Returns the new user's ID."))
+for this user only, and adds the user to the guest and logged-in roles
+(given by *default-roles*). Returns the new user's ID."))
 
 (defgeneric remove-user (rbac username actor)
   (:method ((rbac rbac-pg)
@@ -1229,7 +1252,8 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       (with-rbac (rbac)
         (db:with-transaction (remove-role-permission)
           (audit rbac details)
-          (rbac-query params)))))
+          (rbac-query params)
+          permission-id))))
   (:documentation "Remove (soft delete) a permission from a role."))
 
 (defgeneric list-role-permissions (rbac role page page-size)
@@ -1290,6 +1314,17 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
             role-user-id)))))
   (:documentation "Add a user to a role."))
 
+(defgeneric add-new-user-roles (rbac user roles actor)
+  (:method ((rbac rbac-pg)
+             (user string)
+             (roles list)
+             (actor string))
+    (loop
+      with role-ids = (get-role-ids rbac roles)
+      for role being the hash-keys in role-ids using (hash-value role-id)
+      do (add-role-user rbac role user actor)
+      finally (return role-ids))))
+
 (defgeneric remove-role-user (rbac role user actor)
   (:method ((rbac rbac-pg)
              (role string)
@@ -1301,29 +1336,31 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
             (role-id (check errors (get-id rbac "roles" role)
                        "Role '~a' doesn't exist." role))
             (user-id (check errors (get-id rbac "users" user)
-                       "User '~a' doesn't exist." user))
-            (params (soft-delete-sql
-                      rbac
-                      "role_users"
-                      (list "role_id" role-id "user_id" user-id)
-                      actor-id))
-            (details (ds:ds `(:map
-                               :title "Deleted role user"
-                               :role ,role
-                               :role_id ,role-id
-                               :user ,user
-                               :user_id ,user-id
-                               :actor ,actor
-                               :actor_id ,actor-id))))
-      (check errors (get-value rbac "role_users" "id"
-                      "role_id" role-id
-                      "user_id" user-id)
-        "Role '~a' does not include user '~a'." role user)
+                       "User '~a' doesn't exist." user)))
       (report-errors errors)
-      (with-rbac (rbac)
-        (db:with-transaction (remove-role-user)
-          (audit rbac details)
-          (rbac-query-single params)))))
+      (let* ((params (soft-delete-sql
+                       rbac
+                       "role_users"
+                       (list "role_id" role-id "user_id" user-id)
+                       actor-id))
+              (details (ds:ds `(:map
+                                 :title "Deleted role user"
+                                 :role ,role
+                                 :role_id ,role-id
+                                 :user ,user
+                                 :user_id ,user-id
+                                 :actor ,actor
+                                 :actor_id ,actor-id))))
+        (check errors (get-value rbac "role_users" "id"
+                        "role_id" role-id
+                        "user_id" user-id)
+          "Role '~a' does not include user '~a'." role user)
+        (report-errors errors)
+        (with-rbac (rbac)
+          (db:with-transaction (remove-role-user)
+            (audit rbac details)
+            (rbac-query-single params)
+            (list role-id user-id))))))
   (:documentation "Remove (soft delete) a user from a role."))
 
 (defgeneric list-role-users (rbac role page page-size)
@@ -1605,6 +1642,9 @@ resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
              (resource string))
     "Returns a list of plists showing how the user USERNAME has PERMISSION access to
 RESOURCE. If the list is empty, the user does not have access."
+    (format t
+      "Checking if user '~a' has permission '~a' on resource '~a'~%"
+      username permission resource)
     (with-rbac (rbac)
         (db:query
           "select
@@ -1612,21 +1652,25 @@ RESOURCE. If the list is empty, the user does not have access."
              rp.deleted_at,
              u.username,
              u.deleted_at,
+             ru.id as role_user_id,
+             ru.deleted_at,
              r.role_name,
              r.deleted_at,
              p.permission_name,
              s.resource_name
            from
              users u
-             join role_users ru1 on ru1.user_id = u.id
-             join roles r on ru1.role_id = r.id
+             join role_users ru on ru.user_id = u.id
+             join roles r on ru.role_id = r.id
              join role_permissions rp on rp.role_id = r.id
              join permissions p on rp.permission_id = p.id
-             join resource_roles rr on rr.role_id = r.id
-             join resources s on rr.resource_id = s.id
+             join resource_roles sr on sr.role_id = r.id
+             join resources s on sr.resource_id = s.id
            where
              rp.deleted_at is null
              and u.deleted_at is null
+             and ru.deleted_at is null
+             and rp.deleted_at is null
              and r.deleted_at is null
              and p.deleted_at is null
              and s.deleted_at is null
@@ -1638,7 +1682,7 @@ RESOURCE. If the list is empty, the user does not have access."
              r.role_name,
              p.permission_name,
              s.resource_name"
-          username permission resource)))
+          username resource permission :plists)))
   (:documentation "Determine if user with USER-ID has PERMISSION on RESOURCE."))
 
 (defgeneric audit (rbac details)

@@ -219,15 +219,13 @@ begin
             from role_users ru
             where ru.role_id = new.role_id
             and ru.user_id != new.user_id
-            and ru.deleted_at is null
         ) then
             raise exception 'exclusive role % can only have one user', new.role_id;
         end if;
         -- Get the username of the associated user
         select u.username into associated_username
         from users u
-        where u.id = new.user_id
-        and u.deleted_at is null;
+        where u.id = new.user_id;
         if associated_username is null then
             raise exception 'no valid user found for user_id %', new.user_id;
         end if;
@@ -242,7 +240,6 @@ begin
             and r.role_name = expected_role_name
             and r.role_description = expected_role_description
             and r.exclusive = true
-            and r.deleted_at is null
         ) then
             raise exception 'Exclusive role % must have role_name ''%'' and role_description ''%''', 
                 new.role_id, expected_role_name, expected_role_description;
