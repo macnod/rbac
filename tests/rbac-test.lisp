@@ -64,7 +64,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 33)
+(plan 34)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1264,7 +1264,7 @@
           for resource-roles = (mapcar
                                  (lambda (rr) (getf rr :role-name))
                                  (a:list-resource-roles *rbac* resource 1 100))
-          do (u:log-it :info "~a roles: ~{~a~^, ~}" resource resource-roles)
+          do (u:log-it :debug "~a roles: ~{~a~^, ~}" resource resource-roles)
           always (equal resource-roles (gethash resource existing-resource-roles)))
       "All resources have expected roles")
     ;; Add some resources
@@ -1411,6 +1411,38 @@
     (ok (not (a:user-allowed *rbac* main-user main-permission resource))
       (format nil "13. user ~a does not have ~a access to resource ~a"
         main-user main-permission resource))))
+
+(subtest "add user, add role, add resource, add role to user & resource"
+  (ok (a:d-add-role *rbac* "re-role") "Create role re-role")
+  (ok (a:d-add-user *rbac* "re-user" "password-1234") "Add user re-user")
+  (ok (a:d-add-resource *rbac* "/re-dir/") "Add resource /re-dir/")
+  (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
+    "User re-user forbidden create access to /re-dir/ (1)")
+  (ok (a:d-add-user-role *rbac* "re-user" "re-role")
+    "Add role re-role to user re-user (1)")
+  (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
+    "User re-user forbiden create access to /re-dir/ (2)")
+  (ok (a:d-add-resource-role *rbac* "/re-dir/" "re-role")
+    "Add role re-role to resource /re-dir/")
+  (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
+    "User re-user has create access to /re-dir/ (1)")
+  (ok (a:d-remove-user-role *rbac* "re-user" "re-role")
+    "Remove role re-role from user re-user")
+  (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
+    "User re-user forbiden create access to /re-dir/ (3)")
+  (ok (a:d-add-user-role *rbac* "re-user" "re-role")
+    "Add role re-role to user re-user (2)")
+  (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
+    "User re-user has create access to /re-dir/ (2)")
+  (ok (a:d-remove-role-permission *rbac* "re-role" "create")
+    "Remove create permission from role re-role")
+  (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
+    "User re-user forbiden create access to /re-dir/ (4)")
+  (ok (a:d-add-role-permission *rbac* "re-role" "create")
+    "Add create permission to role re-role")
+  (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
+    "User re-user has create access to /re-dir/ (2)"))
+
 
 (u:close-log)
 (if (finalize)
