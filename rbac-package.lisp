@@ -20,11 +20,13 @@
     check
 
     ;; Functions
-    rbac-query-single
+    password-hash
     rbac-query
+    rbac-query-single
     report-errors
-    usql
     sql-next-placeholder
+    table-name-field
+    usql
 
     ;; Classses
     rbac

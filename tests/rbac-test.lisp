@@ -121,15 +121,15 @@
 (subtest "check"
   (let* (errors
           (x (a:check errors "x" "x failed")))
-    (ok (null (a:report-errors errors))
+    (ok (null (a::report-errors errors))
       "no error for condition 'x'")
     (let ((y (a:check errors (equal x "y") "y failed."))
            (z (a:check errors (equal x "z") "z failed.")))
       (ok (null y) "y remains null for (equal x 'y')")
       (ok (null z) "z remains null for (equal x 'z')")
-      (is-error (a:report-errors errors) 'simple-error
+      (is-error (a::report-errors errors) 'simple-error
         "check (equal x 'y') and (equal x 'z') failed")
-      (handler-case (a:report-errors errors)
+      (handler-case (a::report-errors errors)
         (error (e)
           (is (format nil "~a" e) "Errors: y failed. z failed."))
         (t (e)
@@ -742,7 +742,7 @@
         username
         (format nil "Username for user ID ~a is correct" user-id))
       (is (a:get-value *rbac* "users" "password_hash" "id" user-id)
-        (u:hash-string password :salt username :size 32)
+        (a:password-hash username password)
         (format nil "Password for user ~a is correct" username))
       (let ((new-roles (a:with-rbac (*rbac*)
                          (db:query "select role_name

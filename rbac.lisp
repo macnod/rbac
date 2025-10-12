@@ -134,13 +134,18 @@ consists of the part of an SQL statement that specifies the tables and joins."
 (defun singular (string)
   (re:regex-replace "s$" string ""))
 
-(defun external-reference-field (external_table)
-  (format nil "~a_id" (singular external_table)))
+(defun external-reference-field (external-table)
+  (format nil "~a_id" (singular external-table)))
 
 (defun table-name-field (table)
   (if (equal table "users")
     "username"
     (format nil "~a_name" (singular table))))
+
+(defun password-hash (username password)
+  "Returns the hash of PASSWORD, using USERNAME as the salt. This is how RBAC
+stores the password in the database."
+  (u:hash-string password :salt username :size 32))
 
 ;;
 ;; Class definitions
@@ -714,7 +719,7 @@ there's a problem."))
      returning id"
       username
       email
-      (u:hash-string password :salt username :size 32)
+      (password-hash username password)
       actor-id
       :single))
   (:documentation "Inserts a new user into the users table without validating
@@ -943,8 +948,8 @@ function will make the following concrete assumptions:
                                      :username ,username
                                      :user_id ,user-id
                                      :email ,email
-                                     :password ,(u:hash-string password
-                                                  :salt username :size 32)
+                                     :password ,(password-hash 
+                                                  username password)
                                      :actor ,actor
                                      :actor_id ,actor-id))
             for role-name being the hash-keys in role-ids 
@@ -1753,7 +1758,7 @@ list: (function-name documentation list-function return-key extra-arg)"
              &key
              (description role)
              exclusive
-             (permissions '("create" "read" "update" "delete"))
+             (permissions *default-permissions*)
              (actor "system"))
     (add-role rbac role description exclusive permissions actor)))
 
