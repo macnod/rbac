@@ -71,7 +71,9 @@ of setting a variable, for example."
   "If ERRORS is not NIL, this function signals an error with a message that
 consists the strings in ERRORS, separated by spaces."
   (when errors
-    (error (format nil "Error~p: ~{~a~^ ~}" (length errors) (reverse errors)))))
+    (let ((error-message (format nil "Error~p: ~{~a~^ ~}" (length errors) (reverse errors))))
+      (u:log-it :error error-message)
+      (error error-message))))
 
 (defun rbac-query-single (sql-template-and-parameters)
   "Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a single
@@ -264,6 +266,7 @@ hash table represents a row."))
     "Generates an SQL statement that selects a list of records, according to the
 documentation for the generic function. However, this function expects the main
 table to be the first table in TABLES, and the main table must have an alias."
+    (u:log-it :debug "sql-for-list")
     (let* (errors
             (limit page-size)
             (offset (* (1- page) page-size))
@@ -277,9 +280,9 @@ table to be the first table in TABLES, and the main table must have an alias."
       (check errors (> page 0) "Page must be greater than 0, got ~a." page)
       (report-errors errors)
       (push (format nil "~adeleted_at is null" alias) where-clauses)
-      (cons
-        (usql
-          (format nil "
+      (let ((query (cons
+                     (usql
+                       (format nil "
         select
           ~{~a~^,~%          ~}
         from
@@ -288,13 +291,15 @@ table to be the first table in TABLES, and the main table must have an alias."
           ~{~a~^~%          and ~}
         ~aoffset ~d
         limit ~d"
-            select-fields
-            tables
-            where-clauses
-            order-by
-            offset
-            limit))
-        values)))
+                         select-fields
+                         tables
+                         where-clauses
+                         order-by
+                         offset
+                         limit))
+                     values)))
+        (u:log-it :debug "sql-for-list: ~a" query)
+        query)))
   (:documentation "Generates an SQL statement that selects a list of records,
 each containing SELECT-FIELDS, from TABLES. SELECT-FIELDS is a list of field
 names to select. TABLES is a table name, or a string representing the tables to
@@ -325,6 +330,7 @@ records, i.e. records where the deleted_at field is not null."))
              (order-by-fields list)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-rows")
     (let ((params (sql-for-list
                     rbac
                     select-fields
@@ -434,14 +440,16 @@ ROLE must:
       for index = (sql-next-placeholder sql-before-where) then (1+ index)
       collect (format nil "~a = $~d" key index) into sql-clauses
       collect value into values
-      finally (return
-               (append
-                 (list
-                   (usql
-                     (format nil
-                       "~a where ~adeleted_at is null~%  and ~{~a~^~%  and ~}~%"
-                       nice-sql alias sql-clauses)))
-                 (append first-values values)))))
+      finally
+      (let ((result (append
+                      (list
+                        (usql
+                          (format nil
+                            "~a where ~adeleted_at is null~%  and ~{~a~^~%  and ~}~%"
+                            nice-sql alias sql-clauses)))
+                      (append first-values values))))
+        (u:log-it :debug "make-search-clause: ~a" result)
+        (return result))))
   (:documentation "Generates an SQL statement that selects rows.
 SQL-BEFORE-WHERE is a string that contains the part of the SQL statement that
 comes before the WHERE clause, such as 'select id, username from users', or
@@ -455,6 +463,7 @@ pass the values for those placeholders via FIRST-VALUES."))
              (target-table string)
              (target-row list)
              (actor-id string))
+    (u:log-it :debug "soft-delete-sql")
     (make-search-clause
       rbac
       (format nil
@@ -480,6 +489,7 @@ a an SQL string followed by values that are used to replace the placeholders"))
              (target-table string)
              (target-record-id string)
              (actor-id string))
+    (u:log-it :debug "referencing-soft-delete-sql")
     (make-search-clause
       rbac
       (format nil
@@ -495,6 +505,7 @@ a an SQL string followed by values that are used to replace the placeholders"))
 
 (defgeneric referencing-tables (rbac table)
   (:method ((rbac rbac) (table string))
+    (u:log-it :debug "referencing-tables")
     (with-rbac (rbac)
       (db:query *referencing-tables-sql* table :column)))
   (:documentation "Returns a list of tables that reference TABLE with a foreign
@@ -503,6 +514,7 @@ strings, where each string is the name of a table that references TABLE."))
 
 (defgeneric delete-refs-sql (rbac table row actor-id)
   (:method ((rbac rbac) (table string) (row list) (actor-id string))
+    (u:log-it :debug "delete-refs-sql")
     (let* ((ref-tables (referencing-tables rbac table))
             (row-id (apply #'get-value (append (list rbac table "id") row))))
       (loop for ref-table in ref-tables
@@ -527,6 +539,7 @@ table that contains ROW. For internal use only."))
              (delete-refs-sql list)
              (details hash-table)
              (delete-exclusive-role-sql list))
+    (u:log-it :debug "soft-delete")
     (with-rbac (rbac)
       ;; Soft delete the user
       (rbac-query delete-target-sql)
@@ -550,6 +563,7 @@ delete a row and references to that row, updating the audit table."))
              (table string)
              (field string)
              &rest search)
+    (u:log-it :debug "get-value")
     (let (errors
            (params (make-search-clause rbac
                      (format nil "select ~a from ~a"
@@ -568,6 +582,7 @@ names and values that identify the row uniquely."))
   (:method ((rbac rbac-pg)
              (table string)
              (name string))
+    (u:log-it :debug "get-id")
     (let ((name-field (if (equal table "users")
                         "username"
                         (format nil "~a_name" (singular table)))))
@@ -577,6 +592,7 @@ names and values that identify the row uniquely."))
 (defgeneric get-role-ids (rbac roles)
   (:method ((rbac rbac) (roles list))
     (loop
+      initially (u:log-it :debug "get-role-ids")
       with errors
       and roles = (if roles
                     roles
@@ -598,6 +614,7 @@ that doesn't exist, this function signals an error."))
 (defgeneric get-permission-ids (rbac permissions)
   (:method ((rbac rbac) (permissions list))
     (loop
+      initially (u:log-it :debug "get-permission-ids")
       with errors
       and permissions = (if permissions
                           permissions
@@ -626,6 +643,7 @@ an error."))
              (password string)
              (roles list)
              (actor string))
+    (u:log-it :debug "validate-add-user-params")
     (let* ((errors nil)
             (distinct-roles (u:distinct-elements roles))
             (actor-id (check errors (get-id rbac "users" actor)
@@ -653,6 +671,7 @@ as values."))
              (permission string)
              (description string)
              (actor string))
+    (u:log-it :debug "validate-add-permission-params")
     (let (errors actor-id)
       ;; Make sure the strings conform to standards
       (check errors (valid-permission-p rbac permission)
@@ -683,6 +702,7 @@ if there's a problem."))
              exclusive
              (permissions list)
              (actor string))
+    (u:log-it :debug "validate-add-role-params")
     (let (errors
            actor-id
            (permission-ids (get-permission-ids rbac permissions)))
@@ -713,6 +733,8 @@ there's a problem."))
              (email string)
              (password string)
              (actor-id string))
+    (u:log-it :debug "insert-user username=~a email=~a actor-id=~a"
+      username email actor-id)
     (db:query
       "insert into users (username, email, password_hash, updated_by)
      values ($1, $2, $3, $4)
@@ -735,23 +757,24 @@ any of the parameters. Returns the new user's ID. For internal use only."))
                    where role_name = $1
                      and deleted_at is not null"
           role :single)
-      (db:query
-        "update roles set
-           role_description = $1,
-           updated_at = now(),
-           deleted_at = null,
-           updated_by = $2
-         where role_name = $3
-         returning id"
-        description
-        actor-id
-        role
-        :single)
-      (db:query
-        "insert into roles (role_name, role_description, exclusive, updated_by)
-         values ($1, $2, $3, $4)
-         returning id"
-        role description exclusive actor-id :single)))
+      (progn
+        (u:log-it :debug "insert-role: Reinstating deleted role '~a'" role)
+        (db:query
+          "update roles set
+             role_description = $1,
+             updated_at = now(),
+             deleted_at = null,
+             updated_by = $2
+           where role_name = $3
+           returning id"
+          description actor-id role :single))
+      (progn
+        (u:log-it :debug "insert-role: Inserting new role '~a'" role)
+        (db:query
+          "insert into roles (role_name, role_description, exclusive, updated_by)
+             values ($1, $2, $3, $4)
+             returning id"
+          role description exclusive actor-id :single))))
   (:documentation "Inserts a new role into the roles table without validating
 any of the parameters. If the role exists already, but has the deleted_at
 field set to a non-null value, then the existing role is reinstanted by
@@ -763,6 +786,7 @@ Returns the new role's ID. For internal use only."))
              (username string)
              (actor-id string))
     (loop 
+      initially (u:log-it :debug "insert-exclusive-role username=~a" username)
       with role = (format nil "~a:exclusive" username)
       with description = (format nil "Exclusive role for user ~a." username)
       with role-id = (insert-role rbac role description t actor-id)
@@ -780,6 +804,7 @@ Returns the new role's ID. For internal use only."))
              (permission string)
              (description string)
              (actor-id string))
+    (u:log-it :debug "insert-permission ~a" permission)
     (if (db:query "select id from permissions
                    where permission_name = $1
                      and deleted_at is not null"
@@ -812,6 +837,7 @@ use only."))
              (resource string)
              (description string)
              (actor-id string))
+    (u:log-it :debug "insert-resource ~a" resource)
     (if (db:query "select id from resources
                    where resource_name = $1
                      and deleted_at is not null"
@@ -839,6 +865,7 @@ validating any of the parameters. Returns the new resource's ID. For internal"))
 
 (defgeneric upsert-link-sql (table-1 table-2)
   (:method ((table-1 string) (table-2 string))
+    (u:log-it :debug "upsert-link-sql ~a ~a" table-1 table-2)
     (let* ((link-table (format nil "~a_~a" (singular table-1) table-2))
             (id-1-field (format nil "~a_id" (singular table-1)))
             (id-2-field (format nil "~a_id" (singular table-2))))
@@ -913,6 +940,8 @@ function will make the following concrete assumptions:
              (id-1 string)
              (id-2 string)
              (actor-id string))
+    (u:log-it :debug "upsert-link ~a ~a ~a ~a"
+      table-1 table-2 id-1 id-2)
     (let ((sql (upsert-link-sql table-1 table-2)))
       (u:log-it-lazy
         :debug
@@ -932,6 +961,7 @@ function will make the following concrete assumptions:
              (password string)
              (roles list)
              (actor string))
+    (u:log-it :debug "add-user '~a'" username)
     (let ((all-roles (append roles *default-roles*)))
       (multiple-value-bind (actor-id role-ids)
         (validate-add-user-params rbac username email password all-roles actor)
@@ -967,7 +997,7 @@ for this user only, and adds the user to the guest and logged-in roles
   (:method ((rbac rbac-pg)
              (username string)
              (actor string))
-    (u:log-it :debug "Removing user '~a' by actor '~a'~%" username actor)
+    (u:log-it :debug "remove-user '~a'" username)
     (let* (errors
             (user-id (check errors (get-id rbac "users" username)
                        "User '~a' not found." username))
@@ -1018,6 +1048,7 @@ for this user only, and adds the user to the guest and logged-in roles
   (:method ((rbac rbac-pg)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-users")
     (list-rows
       rbac
       (list "id" "username" "email" "created_at" "updated_at")
@@ -1037,6 +1068,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
              (permission string)
              (description string)
              (actor string))
+    (u:log-it :debug "add-permission '~a'" permission)
     (with-rbac (rbac)
       (db:with-transaction (add-permission)
         (let* ((actor-id (validate-add-permission-params
@@ -1057,6 +1089,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
   (:method ((rbac rbac-pg)
              (permission string)
              (actor string))
+    (u:log-it :debug "remove-permission '~a'" permission)
     (let* (errors
             (permission-id ;; We have to use plain SQL because the
                            ;; permission might be soft-deleted
@@ -1094,6 +1127,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
   (:method ((rbac rbac-pg)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-permissions")
     (list-rows
       rbac
       (list "id" "permission_name" "permission_description" "created_at"
@@ -1114,6 +1148,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              exclusive
              (permissions list)
              (actor string))
+    (u:log-it :debug "add-role '~a'" role)
     (multiple-value-bind (actor-id permission-ids)
       (validate-add-role-params
         rbac role description exclusive permissions actor)
@@ -1137,6 +1172,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric remove-role (rbac role actor)
   (:method ((rbac rbac-pg) (role string) (actor string))
+    (u:log-it :debug "remove-role '~a'" role)
     (let* (errors
             (role-id (check errors (get-id rbac "roles" role)
                        "Role '~a' doesn't exist." role))
@@ -1161,6 +1197,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric add-exclusive-role (rbac username actor)
   (:method ((rbac rbac-pg) (username string) (actor string))
+    (u:log-it :debug "add-exclusive-role '~a'" username)
     (let ((errors nil)
            (role (format nil "~a:exclusive" username))
            (description (format nil "Exclusive role for user ~a." username)))
@@ -1175,6 +1212,7 @@ role"))
   (:method ((rbac rbac-pg)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-roles")
     (list-rows
       rbac
       (list "id" "role_name" "role_description" "exclusive" "created_at"
@@ -1193,6 +1231,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (role string)
              (permission string)
              (actor string))
+    (u:log-it :debug "add-role-permission '~a' to role '~a'" permission role)
     (let* (errors
             (actor-id (check errors  (get-id rbac "users" actor)
                         "User '~a' doesn't exist" actor))
@@ -1225,6 +1264,8 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (role string)
              (permission string)
              (actor string))
+    (u:log-it :debug "remove-role-permission '~a' from role '~a'" 
+      permission role)
     (let* (errors
             (actor-id (check errors (get-id rbac "users" actor)
                         "Actor '~a' doesn't exist." actor))
@@ -1266,6 +1307,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (role string)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-role-permissions '~a'" role)
     (list-rows
       rbac
       (list "rp.id as role_permission_id"
@@ -1290,6 +1332,7 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
              (role string)
              (user string)
              (actor string))
+    (u:log-it :debug "add-role-user role '~a' user '~a'" role user)
     (let* (errors
             (actor-id (check errors (get-id rbac "users" actor)
                         "Actor '~a' doesn't exist." actor))
@@ -1324,6 +1367,7 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
              (user string)
              (roles list)
              (actor string))
+    (u:log-it :debug "add-new-user-roles user '~a' roles ~{~a~^, ~}" user roles)
     (loop
       with role-ids = (get-role-ids rbac roles)
       for role being the hash-keys in role-ids using (hash-value role-id)
@@ -1335,6 +1379,7 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
              (role string)
              (user string)
              (actor string))
+    (u:log-it :debug "remove-role-user role '~a' user '~a'" role user)
     (let* (errors
             (actor-id (check errors (get-id rbac "users" actor)
                         "Actor '~a' doesn't exist." actor))
@@ -1373,6 +1418,7 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
              (role string)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-role-users '~a'" role)
     (list-rows
       rbac
       (list
@@ -1398,6 +1444,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (user string)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-user-roles '~a'" user)
     (list-rows
       rbac
       (list
@@ -1431,6 +1478,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
              (description string)
              (roles list)
              (actor string))
+    (u:log-it :debug "add-resource '~a'" resource)
     (let* (errors
             (actor-id (check errors (get-id rbac "users" actor)
                         "Actor '~a' doesn't exist." actor))
@@ -1464,6 +1512,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
 
 (defgeneric remove-resource (rbac resource actor)
   (:method ((rbac rbac-pg) (resource string) (actor string))
+    (u:log-it :debug "remove-resource '~a'" resource)
     (let* (errors
             (resource-id (check errors
                            (get-id rbac "resources" resource)
@@ -1495,6 +1544,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
   (:method ((rbac rbac-pg)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-resources")
     (list-rows
       rbac
       (list "id" "resource_name" "resource_description" "created_at"
@@ -1513,6 +1563,7 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (resource string)
              (role string)
              (actor string))
+    (u:log-it :debug "add-resource-role resource '~a' role '~a'" resource role)
     (let* (errors
             (resource-id (check errors
                            (get-id rbac "resources" resource)
@@ -1547,6 +1598,8 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (resource string)
              (role string)
              (actor string))
+    (u:log-it :debug "remove-resource-role resource '~a' role '~a'" 
+      resource role)
     (let* (errors
             (resource-id (check errors
                            (get-id rbac "resources" resource)
@@ -1587,6 +1640,7 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (resource string)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-resource-roles '~a'" resource)
     (list-rows
       rbac
       (list
@@ -1612,6 +1666,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              (role string)
              (page integer)
              (page-size integer))
+    (u:log-it :debug "list-role-resources '~a'" role)
     (list-rows
       rbac
       (list
@@ -1692,6 +1747,7 @@ RESOURCE. If the list is empty, the user does not have access."
 
 (defgeneric audit (rbac details)
   (:method ((rbac rbac) (details hash-table))
+    (u:log-it :debug "audit")
     (unless (gethash :actor details)
       (error "No actor: ~a" (ds:human details)))
     (unless (gethash :title details)
@@ -1718,6 +1774,7 @@ list: (function-name documentation list-function return-key extra-arg)"
                               (:method ((rbac ,rbac-type) 
                                         (,extra-arg string)
                                         &key (page 1) (page-size *default-page-size*))
+                                (u:log-it :debug "~(~a~)" ',func-name)
                                 (mapcar
                                   (lambda (r) (getf r ,return-key))
                                   (,list-func rbac ,extra-arg page page-size))))
@@ -1726,6 +1783,7 @@ list: (function-name documentation list-function return-key extra-arg)"
                               (:documentation ,documentation)
                               (:method ((rbac ,rbac-type) 
                                         &key (page 1) (page-size *default-page-size*))
+                                (u:log-it :debug "~(~a~)" ',func-name)
                                 (mapcar
                                   (lambda (r) (getf r ,return-key))
                                   (,list-func rbac page page-size)))))))))

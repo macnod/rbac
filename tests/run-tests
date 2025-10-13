@@ -1,5 +1,10 @@
 #!/bin/bash
 
+#
+# IMPORTANT: Must be run from tests directory
+# 
+
+mkdir -p logs && chmod 777 logs
 docker compose --progress quiet up --abort-on-container-exit
 RESULT=$?
 docker compose --progress quiet down

@@ -41,7 +41,7 @@
 (in-package :test-database)
 
 (setf prove:*enable-colors* t)
-(u:open-log nil :severity-threshold :info)
+(u:open-log "/logs/rbac.log" :severity-threshold :debug :append nil)
 
 (defparameter *rbac* (make-instance 'a:rbac-pg
                        :host cl-user::*host*
@@ -1436,13 +1436,20 @@
     "User re-user has create access to /re-dir/ (2)")
   (ok (a:d-remove-role-permission *rbac* "re-role" "create")
     "Remove create permission from role re-role")
+  (ok (not (member "create" (a:list-role-permission-names *rbac* "re-role")
+             :test 'equal))
+    "Role re-role no longer has create permission")
   (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
     "User re-user forbiden create access to /re-dir/ (4)")
   (ok (a:d-add-role-permission *rbac* "re-role" "create")
     "Add create permission to role re-role")
+  (ok (member "create" (a:list-role-permission-names *rbac* "re-role")
+        :test 'equal)
+    "Role re-role has create permission once again")
   (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
-    "User re-user has create access to /re-dir/ (2)"))
-
+    "User re-user has create access to /re-dir/ (2)")
+  (ok (a:list-role-permission-names *rbac* "re-role")
+    "Role re-role has permissions"))
 
 (u:close-log)
 (if (finalize)

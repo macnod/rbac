@@ -8,8 +8,9 @@ services:
         - FORCE_REBUILD=true
     volumes:
       - ../:/rbac/
+      - ./logs/:/logs/
     command: >
-      ros run -- --load "/rbac/tests/rbac-test.lisp"
+      ros run -- --disable-debugger --load "/rbac/tests/rbac-test.lisp"
     depends_on:
       - pgtest
   pgtest:
