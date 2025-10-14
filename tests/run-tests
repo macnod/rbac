@@ -3,6 +3,11 @@
 #
 # IMPORTANT: Must be run from tests directory
 # 
+current_dir=$(pwd)
+if [[ ! "$current_dir" =~ /tests$ ]]; then
+    echo "ERROR: This script must be run from the tests directory, where it resides."
+    exit 1
+fi
 
 mkdir -p logs && chmod 777 logs
 docker compose --progress quiet up --abort-on-container-exit
