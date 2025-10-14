@@ -64,7 +64,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 34)
+(plan 35)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1450,6 +1450,35 @@
     "User re-user has create access to /re-dir/ (2)")
   (ok (a:list-role-permission-names *rbac* "re-role")
     "Role re-role has permissions"))
+
+(subtest "add user, log in"
+  (ok (a:d-add-user *rbac* "user-1" "password-1") "add user-1")
+  (is (a:get-value *rbac* "users" "last_login" "username" "user-1") 
+    :null
+    "last_login null before user login")
+  (like
+    (a:with-rbac (*rbac*) (a:d-login *rbac* "user-1" "password-1"))
+    *uuid-regex*
+    "first login successful")
+  (a:with-rbac (*rbac*)
+    (let ((login-1 (db:query "select last_login from users where username = $1"
+                     "user-1" :single))
+           (now (db:query "select now()" :single)))
+      (ok (<= login-1 now) "last_login properly set after user login")
+      (like
+        (a:d-login *rbac* "user-1" "password-1")
+        *uuid-regex*
+        "second login successful")
+      (ok (<= 
+            (db:query "select last_login from users where username = $1"
+              "user-1" :single)
+            (db:query "select now()" :single))
+        "second login happened in the past")
+      (ok (<=
+            login-1
+            (db:query "select last_login from users where username = $1"
+              "user-1" :single))
+        "second login happened after first login"))))
 
 (u:close-log)
 (if (finalize)

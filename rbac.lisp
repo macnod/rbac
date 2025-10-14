@@ -651,8 +651,7 @@ an error."))
             (role-ids (get-role-ids rbac distinct-roles)))
       (check errors (valid-username-p rbac username)
         "Invalid username '~a'." username)
-      (check errors (valid-password-p rbac password)
-        "Invalid password '~a'." password)
+      (check errors (valid-password-p rbac password) "Invalid password.")
       (check errors (valid-email-p rbac email)
         "Invalid email '~a'." email)
       (check errors (not (get-id rbac "users" username))
@@ -665,6 +664,23 @@ an error."))
   (:documentation "Validates add-user parameters and signals and error if
 there's a problem. Returns ACTOR-ID (a string) and ROLE-IDS (a hash table)
 as values."))
+
+(defgeneric validate-login-params (rbac username password actor)
+  (:method ((rbac rbac-pg)
+             (username string)
+             (password string)
+             (actor string))
+    (u:log-it :debug "validate-login-params")
+    (let* ((errors nil)
+            (actor-id (check errors (get-id rbac "users" actor)
+                        "Actor with username '~a' not found" actor)))
+      (check errors (valid-username-p rbac username)
+        "Invalid username '~a'." username)
+      (check errors (valid-password-p rbac password) "Invalid password.")
+      (report-errors errors)
+      actor-id))
+  (:documentation "Validates login parameters and signals an error if there's
+a problem. Returns ACTOR-ID (a string) as value."))
 
 (defgeneric validate-add-permission-params (rbac permission description actor)
   (:method ((rbac rbac-pg)
@@ -1688,13 +1704,6 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
 1000."))
     
-;; (defgeneric user-login (rbac username password)
-;;   (:method ((rbac rback-pg)
-;;              (username string)
-;;              (password string))
-;;     "Returns the user ID if USERNAME exists and PASSWORD is correct. If the password
-;; is incorrect or the user doesn't exist, this function returns NIL."
-
 (defgeneric user-allowed (rbac username permission resource)
   (:method ((rbac rbac-pg)
              (username string)
@@ -1744,6 +1753,31 @@ RESOURCE. If the list is empty, the user does not have access."
              s.resource_name"
           username resource permission :plists)))
   (:documentation "Determine if user with USER-ID has PERMISSION on RESOURCE."))
+
+(defgeneric login (rbac username password actor)
+  (:method ((rbac rbac-pg)
+             (username string)
+             (password string)
+             (actor string))
+    (u:log-it :debug "login '~a'" username)
+    (validate-login-params rbac username password actor)
+    (let* ((hash (password-hash username password))
+            (user-id (get-value rbac "users" "id"
+                        "username" username
+                        "password_hash" hash)))
+      (if user-id
+        (progn
+          (u:log-it :debug "login successful for user '~a'" username)
+          (with-rbac (rbac)
+            (db:query
+              "update users set last_login = now() where id = $1"
+              user-id))
+          user-id)
+        (progn
+          (u:log-it :debug "login failed for user '~a'" username)
+          nil))))
+  (:documentation "If USERNAME exists and PASSWORD is correct, update last_login
+for USERNAME and return the user ID. Otherwise, return NIL."))
 
 (defgeneric audit (rbac details)
   (:method ((rbac rbac) (details hash-table))
@@ -1911,3 +1945,11 @@ list: (function-name documentation list-function return-key extra-arg)"
   (:documentation "Remove a user with defaults.")
   (:method ((rbac rbac-pg) (username string) &key (actor "system"))
     (remove-user rbac username actor)))
+
+(defgeneric d-login (rbac username password &key actor)
+  (:documentation "Log in user.")
+  (:method ((rbac rbac-pg)
+             (username string)
+             (password string)
+             &key (actor "system"))
+    (login rbac username password actor)))

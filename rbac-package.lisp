@@ -70,6 +70,7 @@
     list-roles
     list-rows
     list-users
+    login
     remove-permission
     remove-resource
     remove-resource-role
@@ -99,6 +100,7 @@
     d-add-role-user
     d-add-user
     d-add-user-role
+    d-login
     d-remove-permission
     d-remove-resource
     d-remove-resource-role
