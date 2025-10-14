@@ -1069,7 +1069,7 @@ for this user only, and adds the user to the guest and logged-in roles
       rbac
       (list "id" "username" "email" "created_at" "updated_at")
       "users"
-      nil
+      (list "deleted_at is null")
       nil
       '("username")
       page
@@ -1149,7 +1149,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
       (list "id" "permission_name" "permission_description" "created_at"
         "updated_at")
       "permissions"
-      nil
+      (list "deleted_at is null")
       nil
       (list "permission_name")
       page
@@ -1234,7 +1234,7 @@ role"))
       (list "id" "role_name" "role_description" "exclusive" "created_at"
         "updated_at")
       "roles"
-      nil
+      (list "deleted_at is null")
       nil
       (list "role_name")
       page
@@ -1335,7 +1335,11 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "role_permissions rp
        join roles ro on rp.role_id = ro.id
        join permissions p on rp.permission_id = p.id"
-      (list "ro.role_name = $1")
+      (list 
+        "ro.role_name = $1"
+        "ro.deleted_at is null"
+        "p.deleted_at is null"
+        "rp.deleted_at is null")
       (list role)
       (list "p.permission_name")
       page
@@ -1447,7 +1451,10 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
       "role_users ru
        join roles ro on ru.role_id = ro.id
        join users u on ru.user_id = u.id"
-      (list "ro.role_name = $1")
+      (list "ro.role_name = $1"
+        "ro.deleted_at is null"
+        "u.deleted_at is null"
+        "ru.deleted_at is null")
       (list role)
       (list "u.username")
       page
@@ -1472,7 +1479,10 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "role_users ru
        join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
-      (list "u.username = $1")
+      (list "u.username = $1"
+        "u.deleted_at is null"
+        "r.deleted_at is null"
+        "ru.deleted_at is null")
       (list user)
       (list "r.role_name")
       page
@@ -1480,13 +1490,6 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (:documentation "List the roles for a given user, returning PAGE-SIZE roles
 starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
 1000."))
-
-;; (defgeneric user-has-role (rbac username role-name)
-;;   (:method ((rbac rbac-pg) (username string) (role-name string))
-;;     (member 
-;;       (mapcar
-;;         (lambda (r) (getf r :username))
-;;         (list-role-users rbac username 
 
 (defgeneric add-resource (rbac name description roles actor)
   (:method ((rbac rbac-pg)
@@ -1566,13 +1569,44 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
       (list "id" "resource_name" "resource_description" "created_at"
         "updated_at" "updated_by")
       "resources"
-      nil
+      (list "deleted_at is null")
       nil
       (list "resource_name")
       page
       page-size))
   (:documentation "List resources, returning PAGE-SIZE resources starting on
 page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-user-resources (rbac user page page-size)
+  (:method ((rbac rbac-pg)
+             (user string)
+             (page integer)
+             (page-size integer))
+    (u:log-it :debug "list-user-resources '~a'" user)
+    (list-rows
+      rbac
+      (list
+        "distinct s.id as resource_id"
+        "s.resource_name"
+        "s.resource_description")
+      "resources s
+         join resource_roles sr on s.id = sr.resource_id
+         join roles r on sr.role_id = r.id
+         join role_users ru on r.id = ru.role_id
+         join users u on ru.user_id = u.id"
+      (list 
+        "u.username = $1"
+        "u.deleted_at is null"
+        "s.deleted_at is null"
+        "sr.deleted_at is null"
+        "ru.deleted_at is null"
+        "r.deleted_at is null")
+      (list user)
+      (list "s.resource_name")
+      page
+      page-size))
+  (:documentation "List the resources that USER has access to, returning PAGE-SIZE rows from
+PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric add-resource-role (rbac resource role actor)
   (:method ((rbac rbac-pg)
@@ -1669,7 +1703,10 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "resource_roles rr
      join resources re on rr.resource_id = re.id
      join roles ro on rr.role_id = ro.id"
-      (list "re.resource_name = $1")
+      (list "re.resource_name = $1"
+        "re.deleted_at is null"
+        "ro.deleted_at is null"
+        "rr.deleted_at is null")
       (list resource)
       (list "ro.role_name")
       page
@@ -1695,7 +1732,10 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "resource_roles rr
        join resources re on rr.resource_id = re.id
        join roles ro on rr.role_id = ro.id"
-      (list "ro.role_name = $1")
+      (list "ro.role_name = $1"
+        "ro.deleted_at is null"
+        "re.deleted_at is null"
+        "rr.deleted_at is null")
       (list role)
       (list "ro.resource_name")
       page
@@ -1809,18 +1849,22 @@ list: (function-name documentation list-function return-key extra-arg)"
                                         (,extra-arg string)
                                         &key (page 1) (page-size *default-page-size*))
                                 (u:log-it :debug "~(~a~)" ',func-name)
-                                (mapcar
-                                  (lambda (r) (getf r ,return-key))
-                                  (,list-func rbac ,extra-arg page page-size))))
+                                (sort
+                                  (mapcar
+                                    (lambda (r) (getf r ,return-key))
+                                    (,list-func rbac ,extra-arg page page-size))
+                                  #'string<)))
                            ;; Function without additional parameter
                            `(defgeneric ,func-name (,rbac-type &key page page-size)
                               (:documentation ,documentation)
                               (:method ((rbac ,rbac-type) 
                                         &key (page 1) (page-size *default-page-size*))
                                 (u:log-it :debug "~(~a~)" ',func-name)
-                                (mapcar
-                                  (lambda (r) (getf r ,return-key))
-                                  (,list-func rbac page page-size)))))))))
+                                (sort
+                                  (mapcar
+                                    (lambda (r) (getf r ,return-key))
+                                    (,list-func rbac page page-size))
+                                  #'string<))))))))
 
 (define-list-functions rbac
   ;; Functions without extra args
@@ -1841,7 +1885,9 @@ list: (function-name documentation list-function return-key extra-arg)"
   (list-resource-role-names "List roles for resource" 
     list-resource-roles :role-name resource)
   (list-role-resource-names "List resources for role" 
-    list-role-resources :resource-name role))
+    list-role-resources :resource-name role)
+  (list-user-resource-names "List resources for user"
+    list-user-resources :resource-name user))
 
 (defgeneric d-add-role (rbac role &key description exclusive permissions actor)
   (:documentation "Add a role with defaults.")

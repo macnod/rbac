@@ -70,6 +70,7 @@
     list-roles
     list-rows
     list-users
+    list-user-resources
     login
     remove-permission
     remove-resource
@@ -112,6 +113,7 @@
 
     ;; Simple list functions
     list-usernames
+    list-user-resource-names
     list-role-names
     list-permission-names
     list-resource-names

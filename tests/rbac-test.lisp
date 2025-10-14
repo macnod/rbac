@@ -64,7 +64,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 35)
+(plan 36)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1479,6 +1479,32 @@
             (db:query "select last_login from users where username = $1"
               "user-1" :single))
         "second login happened after first login"))))
+
+(subtest "list user resources"
+  (ok (a:d-add-role *rbac* "role-ur") "add role role-ur")
+  (ok (a:d-add-user *rbac* "user-ur" "password-1" :roles '("role-ur"))
+    "add user user-ur with role role-ur")
+  (is (a:list-user-role-names *rbac* "user-ur") 
+    '("guest" "logged-in" "role-ur" "user-ur:exclusive"))
+  (ok (a:d-add-resource *rbac* "/resource-2-1/" :roles '("role-ur"))
+    "add /resource-2-1/ with role-ur")
+  (ok (a:d-add-resource *rbac* "/resource-2-2/" :roles '("role-ur"))
+    "add /resource-2-2/ with role-ur")
+  (is (a:list-resource-role-names *rbac* "/resource-2-1/") '("role-ur")
+    "resource /resource-2-1/ has single role role-ur")
+  (is (a:list-resource-role-names *rbac* "/resource-2-2/") '("role-ur")
+    "resource /resource-2-2/ has single role role-ur")
+  (let ((user-resources (list "/re-dir/" "/resource-2-1/" "/resource-2-2/")))
+    (is (a:list-user-resource-names *rbac* "user-ur") user-resources
+      (format nil "list-user-resource-names return ~{~a~^, ~}" user-resources))
+    (pop user-resources)
+    ;; The logged-in role is assigned automatically to all users and could
+    ;; give a user access to other resources. We want to limit access to
+    ;; the resources with the role-ur role only.
+    (ok (a:d-remove-user-role *rbac* "user-ur" "logged-in")
+      "remove role logged-in from user user-ur")
+    (is (a:list-user-resource-names *rbac* "user-ur") user-resources
+      (format nil "list-user-resource-names return ~{~a~^, ~}" user-resources))))
 
 (u:close-log)
 (if (finalize)
