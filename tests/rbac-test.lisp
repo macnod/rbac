@@ -1454,4 +1454,4 @@
 (u:close-log)
 (if (finalize)
   (uiop:quit 0)
-  (uiop:quit 1)))
+  (uiop:quit 1))
