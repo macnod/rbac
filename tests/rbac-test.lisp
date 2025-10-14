@@ -42,6 +42,7 @@
 
 (setf prove:*enable-colors* t)
 (u:open-log "/logs/rbac.log" :severity-threshold :debug :append nil)
+;; (u:open-log *standard-output* :severity-threshold :debug)
 
 (defparameter *rbac* (make-instance 'a:rbac-pg
                        :host cl-user::*host*
@@ -116,7 +117,18 @@
 
   ;; Check that admin user has new admin role
   (ok (member "admin" (a:list-user-role-names *rbac* "admin") :test 'equal)
-    "User admin has role admin"))
+    "User admin has role admin")
+
+  ;; Add a user that will be immediately soft-deleted
+  (let* ((id-1 (a:d-add-user *rbac* "soft-user" "password-1"))
+          (id-2 (a:get-id *rbac* "users" "soft-user")))
+    (is id-1 id-2 "d-add-user and get-id return same user id")
+    ;; Soft-delete the user
+    (a:d-remove-user *rbac* "soft-user")
+    
+    ;; Ensure get-id doesn't return the soft-deleted user's ID
+    (ok (not (a:get-id *rbac* "users" "soft-user"))
+      "get-id returns nil for soft-deleted user")))
 
 (subtest "check"
   (let* (errors
@@ -137,7 +149,9 @@
 
 (subtest "rbac-query-single"
   (a:with-rbac (*rbac*)
-    (is (a:rbac-query-single (list "select count(*) from users")) 2
+    (is (a:rbac-query-single
+          (list "select count(*) from users where deleted_at is null"))
+      2
       "User count (no parameters)")
     (like (a:rbac-query-single
             (list "select id from users where username = $1" "admin"))
@@ -153,7 +167,8 @@
 (subtest "rbac-query"
   (a:with-rbac (*rbac*)
     (is (a:rbac-query
-          (list "select username from users order by username"))
+          (list "select username from users
+                 where deleted_at is null order by username"))
       '((:username "admin") (:username "system"))
       "Usernames (no parameters)")
     (is (a:rbac-query
