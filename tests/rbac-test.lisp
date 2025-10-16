@@ -100,24 +100,24 @@
   ;; Add admin role
   (ok (setf *admin-role-id* (a:d-add-role *rbac* "admin")) "Add admin role")
   (ok (member "admin" (a:list-role-names *rbac*) :test 'equal)
-    "New admin role exists")
+    "new admin role exists")
 
   ;; Add editor role
   (like (setf *editor-role-id* 
           (a:d-add-role *rbac* "editor" :permissions '("read" "update")))
     *uuid-regex*
-    "Add new editor role.")
+    "add new editor role.")
 
   ;; Add admin user
   (like 
     (setf *admin-id* 
       (a:d-add-user *rbac* "admin" "weasel-1234" :roles '("admin")))
     *uuid-regex*
-    "Add admin user with new admin role")
+    "add admin user with new admin role")
 
   ;; Check that admin user has new admin role
   (ok (member "admin" (a:list-user-role-names *rbac* "admin") :test 'equal)
-    "User admin has role admin")
+    "user admin has role admin")
 
   ;; Add a user that will be immediately soft-deleted
   (let* ((id-1 (a:d-add-user *rbac* "soft-user" "password-1"))
@@ -143,26 +143,27 @@
         "check (equal x 'y') and (equal x 'z') failed")
       (handler-case (a::report-errors errors)
         (error (e)
-          (is (format nil "~a" e) "Errors: y failed. z failed."))
+          (is (format nil "~a" e) "Errors: y failed. z failed."
+            "error reported correctly"))
         (t (e)
-          (fail (format nil "Unexpected error condition: ~a" e)))))))
+          (fail (format nil "unexpected error condition: ~a" e)))))))
 
 (subtest "rbac-query-single"
   (a:with-rbac (*rbac*)
     (is (a:rbac-query-single
           (list "select count(*) from users where deleted_at is null"))
       2
-      "User count (no parameters)")
+      "user count (no parameters)")
     (like (a:rbac-query-single
             (list "select id from users where username = $1" "admin"))
       *uuid-regex*
-      "User ID (username parameter)")
+      "user id (username parameter)")
     (like (a:rbac-query-single
           (list "select id from users where username = $1 and email = $2"
             "admin"
             *admin-email*))
       *uuid-regex*
-      "User ID (username and email parameters")))
+      "user id (username and email parameters")))
 
 (subtest "rbac-query"
   (a:with-rbac (*rbac*)
@@ -170,14 +171,14 @@
           (list "select username from users
                  where deleted_at is null order by username"))
       '((:username "admin") (:username "system"))
-      "Usernames (no parameters)")
+      "usernames (no parameters)")
     (is (a:rbac-query
           (list "select username from users
                  where length(username) = $1
                  order by username"
             5))
       '((:username "admin"))
-      "Usernames (1 parameter)")))
+      "usernames (1 parameter)")))
 
 (subtest "usql"
   (is (a:usql "select
@@ -207,9 +208,9 @@
 (subtest "classes"
   (let ((rbac (make-instance 'a:rbac))
          (rbac-pg (make-instance 'a:rbac-pg :password "password")))
-    (is (type-of rbac) 'a:rbac "Base class instance has type 'rbac")
+    (is (type-of rbac) 'a:rbac "base class instance has type 'rbac")
     (is (type-of rbac-pg) 'a:rbac-pg
-      "Postgres rbac class instance has type 'rbac-pg")
+      "postgres rbac class instance has type 'rbac-pg")
     (is (a:username rbac-pg) "cl-user" "rbac-pg username is correct")
     (is (a:password rbac-pg) "password" "rbac-pg password is correct")
     (is (a:host rbac-pg) "postgres" "rbac-pg host is correct")
@@ -224,7 +225,7 @@
     "3-field str-alist converts to hash table")
   (is (ds:human (a:to-hash-table *rbac* nil))
     (ds:human (make-hash-table))
-    "Empty result returns an empty hash table"))
+    "empty result returns an empty hash table"))
 
 (subtest "to-hash-tables"
   (is (ds:human
@@ -264,7 +265,7 @@
           "and a.fielda = $1 and a.fieldb = $2"
           "offset 0 limit 10"))
       "one" "two")
-    "Joined tables, values, no order-by-fields")
+    "joined tables, values, no order-by-fields")
   (is (a:sql-for-list
         *rbac*
         (list "fielda" "fieldb" "fieldc")
@@ -282,7 +283,7 @@
           "and fielda = $1 and fieldb = $2"
           "offset 0 limit 10"))
       "one" "two")
-    "Single table, values, no order-by-fields")
+    "single table, values, no order-by-fields")
   (is (a:sql-for-list
         *rbac*
         (list "fielda" "fieldb" "fieldc")
@@ -301,7 +302,7 @@
           "order by fielda, fieldb desc"
           "offset 0 limit 10"))
       "one" "two")
-    "Single table, values, order-by-fields"))
+    "single table, values, order-by-fields"))
 
 (subtest "list-rows"
   (is (a:list-rows
@@ -336,7 +337,7 @@
        (:ROLE-NAME "admin:exclusive" :PERMISSION-NAME "delete")
        (:ROLE-NAME "admin:exclusive" :PERMISSION-NAME "read")
        (:ROLE-NAME "admin:exclusive" :PERMISSION-NAME "update"))
-    "List-rows with 4 table joins, a where clause, and a value"))
+    "list-rows with 4 table joins, a where clause, and a value"))
 
 (subtest "upsert-link-sql"
   (is (a::upsert-link-sql "roles" "permissions")
@@ -367,7 +368,7 @@
     for message = (if (= (length username) (a:username-length-max *rbac*))
                     (format nil "a username with ~d characters is valid"
                       (a:username-length-max *rbac*))
-                    (format nil "~s is valid" username))
+                    (format nil "username ~s is valid" username))
     do (ok (a:valid-username-p *rbac* username) message))
   (loop
     with invalid-usernames = (list
@@ -397,7 +398,7 @@
                              "--~0Tc"
                              "-wUi^DT6VMe&u.f9D}hC[<*=^v1oOz&Q-:LU'SgPlc9(xSorY~&ul2&[z`E(|b}P")
     for password in valid-passwords
-    for message = (format nil "~s is valid" password)
+    for message = (format nil "password ~s is valid" password)
     do (ok (a:valid-password-p *rbac* password) message))
   (loop
     with invalid-passwords = (list
@@ -433,7 +434,7 @@
     for email in valid-emails
     for message = (if (= (length email) (a:email-length-max *rbac*))
                     "a proper email address can have length of up to 128 characters"
-                    (format nil "~s is valid" email))
+                    (format nil "email ~s is valid" email))
     do (ok (a:valid-email-p *rbac* email) message))
   (loop
     with invalid-emails = (list
@@ -530,7 +531,7 @@
                     (format nil 
                       "a valid permission can have up to ~d characters"
                       (a:permission-length-max *rbac*))
-                    (format nil "~s is valid" permission))
+                    (format nil "permission ~s is valid" permission))
     do (ok (a:valid-permission-p *rbac* permission) message))
   (loop
     with invalid-permissions = (list
@@ -749,16 +750,16 @@
       do
       (is (a:get-id *rbac* "users" username)
         user-id
-        (format nil "User ID for ~a is correct" username))
+        (format nil "user id for ~a is correct" username))
       (is (a:get-value *rbac* "users" "email" "username" username)
         email
-        (format nil "Email for ~a is correct" username))
+        (format nil "email for ~a is correct" username))
       (is (a:get-value *rbac* "users" "username" "id" user-id)
         username
-        (format nil "Username for user ID ~a is correct" user-id))
+        (format nil "username for user id ~a is correct" user-id))
       (is (a:get-value *rbac* "users" "password_hash" "id" user-id)
         (a:password-hash username password)
-        (format nil "Password for user ~a is correct" username))
+        (format nil "password for user ~a is correct" username))
       (let ((new-roles (a:with-rbac (*rbac*)
                          (db:query "select role_name
                                   from roles r
@@ -768,16 +769,16 @@
         (ok (every (lambda (role)
                      (member role new-roles :test #'string=))
               all-applicable-roles)
-          (format nil "User ~a has roles ~{~a~^, ~}"
+          (format nil "user ~a has roles ~{~a~^, ~}"
             username (append roles a::*default-roles*)))))
     (is-error (a:add-user *rbac* "test-user-1" 
                 (bogus-email-address "test-user-4")
                 "test-user-4-password" roles actor)
       'simple-error
-      "Username must be unique")
+      "username must be unique")
     (ok (not (a:get-value *rbac* "users" "id"
                "email" (bogus-email-address "test-user-4")))
-      "Duplicate username addition does not create a user")
+      "duplicate username addition does not create a user")
     (ok (a:add-user *rbac* "test-user-5" (bogus-email-address "test-user-1")
           "test-user-5-password" roles actor)
       "Multple users can have the same email address")
@@ -1256,7 +1257,7 @@
     (loop for resource in existing-resources
       for resource-id = (a:d-add-resource *rbac* resource :roles roles)
       do (like resource-id *uuid-regex* 
-           (format nil "added resource ~a (~a)" resource resource-id)))
+           (format nil "add resource ~a (~a)" resource resource-id)))
     ;; Check baseline
     (is (get-resources :resource-name) (get-resources-with-sql)
       "get-resources matches sql query result")
@@ -1267,7 +1268,7 @@
       "All existing resources updated by system")
     (ok (loop for new-resource in new-resources
           never (member new-resource existing-resources :test 'equal))
-      "None of the new resources exist yet")
+      "none of the new resources exist yet")
     (ok (loop 
           with existing-resource-roles = 
           (ds:ds 
@@ -1281,7 +1282,7 @@
                                  (a:list-resource-roles *rbac* resource 1 100))
           do (u:log-it :debug "~a roles: ~{~a~^, ~}" resource resource-roles)
           always (equal resource-roles (gethash resource existing-resource-roles)))
-      "All resources have expected roles")
+      "all resources have expected roles")
     ;; Add some resources
     (diag "Adding new resources")
     (let ((new-resource-ids (loop
@@ -1291,18 +1292,19 @@
       ;; Check that new resource exist now
       (is (get-resources :resource-name)
         (sort (append existing-resources new-resources) #'string<)
-        "New resources in database")
+        "new resources in database")
       ;; All resources, including the new ones, updated by system
       (is (sort (u:distinct-values (get-resources :updated-by)) #'string<)
-        (list actor-id))
+        (list actor-id)
+        "all resources updated by user system")
       ;; Soft-delete test-resource-1
-      (diag "Soft-deleting test-resource-1")
+      (diag "soft-deleting test-resource-1")
       (a:remove-resource *rbac* (car new-resources) actor)
       ;; Resource is no longer listed
       (ok (not (member (car new-resources)
                  (get-resources :resource-name) 
                  :test 'equal))
-        (format nil "Resource ~a no longer listed" (car new-resources)))
+        (format nil "resource ~a no longer listed" (car new-resources)))
       ;; Check deleted_at on soft-deleted resource
       (ok (< (- (get-universal-time)
                (get-resource-value (car new-resources) :deleted-at))
@@ -1319,51 +1321,45 @@
         "correctly reinstated soft-deleted resource"))))
 
 (defun get-resource-roles (resource)
-  (mapcar (lambda (r) (getf r :role-name))
-    (a:list-resource-roles *rbac* resource 1 100)))
+  (sort
+    (mapcar (lambda (r) (getf r :role-name))
+      (a:list-resource-roles *rbac* resource 1 100))
+    #'string<))
 
 (subtest "resource roles"
   (let* ((resource "/test-resource-1/")
           (old-resource-roles (list "editor" "test-role" "viewer"))
           (actor "system")
-          (new-resource-roles (list 
-                                "test-user-1:exclusive"
-                                "test-user-2:exclusive")))
+          (new-rr1 "test-user-1:exclusive")
+          (new-rr2 "test-user-2:exclusive"))
     ;; Check baseline
     (is (get-resource-roles resource)
       old-resource-roles
       (format nil "resource ~a has roles ~{~a~^, ~}" 
         resource old-resource-roles))
     ;; Add some new roles to the resource
-    (let ((resource-role-ids (loop for role in new-resource-roles collect
-                               (a:add-resource-role *rbac*
-                                 resource role actor))))
-      (let ((roles-expected (sort
-                              (append old-resource-roles new-resource-roles)
+    (let* ((new-rr1-id (progn
+                         (a:add-resource-role *rbac* resource new-rr2 actor)
+                         (a:add-resource-role *rbac* resource new-rr1 actor)))
+            (roles-expected (sort
+                              (append
+                                old-resource-roles
+                                (list new-rr1 new-rr2))
                               #'string<))
-             (roles-actual (get-resource-roles resource)))
-        (is roles-actual roles-expected "new roles were added to resource"))
+            (roles-actual (get-resource-roles resource)))
+      (is roles-actual roles-expected "new roles were added to resource")
       ;; Soft-delete one of the new roles
-      (is (a:remove-resource-role *rbac* 
-            resource (car new-resource-roles) actor)
-        (car resource-role-ids)
-        (format nil "soft-deleting resource role returns its ID: ~a"
-          (car new-resource-roles)))
-      (ok (not (member (car new-resource-roles)
-                 (get-resource-roles resource)
-                 :test 'equal))
-        (format nil "resource no longer has role ~a"
-          (car new-resource-roles)))
+      (is (a:remove-resource-role *rbac* resource new-rr1 actor) new-rr1-id
+        "soft-deleting resource role returns deleted ID")
+      (ok (not (member new-rr1 (get-resource-roles resource) :test 'equal))
+        (format nil "resource no longer has role ~a" new-rr1))
       ;; Reinstate resource role
-      (is (a:add-resource-role *rbac* resource (car new-resource-roles) actor)
-        (car resource-role-ids)
-        (format nil "role ~a reinstated to resource ~a"
-          (car new-resource-roles) resource))
-      (ok (member (car new-resource-roles)
-            (get-resource-roles resource)
-            :test 'equal)
+      (is (a:add-resource-role *rbac* resource new-rr1 actor)
+        new-rr1-id
+        (format nil "role ~a reinstated to resource ~a" new-rr1 resource))
+      (ok (member new-rr1 (get-resource-roles resource) :test 'equal)
         (format nil "resource ~a has role ~a" resource
-          (car new-resource-roles))))))
+          new-rr1)))))
 
 (subtest "user allowed"
   (let* ((resource "/test-resource-3/")
@@ -1432,39 +1428,39 @@
   (ok (a:d-add-user *rbac* "re-user" "password-1234") "Add user re-user")
   (ok (a:d-add-resource *rbac* "/re-dir/") "Add resource /re-dir/")
   (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
-    "User re-user forbidden create access to /re-dir/ (1)")
+    "user re-user forbidden create access to /re-dir/ (1)")
   (ok (a:d-add-user-role *rbac* "re-user" "re-role")
-    "Add role re-role to user re-user (1)")
+    "add role re-role to user re-user (1)")
   (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
-    "User re-user forbiden create access to /re-dir/ (2)")
+    "user re-user forbiden create access to /re-dir/ (2)")
   (ok (a:d-add-resource-role *rbac* "/re-dir/" "re-role")
-    "Add role re-role to resource /re-dir/")
+    "add role re-role to resource /re-dir/")
   (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
-    "User re-user has create access to /re-dir/ (1)")
+    "user re-user has create access to /re-dir/ (1)")
   (ok (a:d-remove-user-role *rbac* "re-user" "re-role")
-    "Remove role re-role from user re-user")
+    "remove role re-role from user re-user")
   (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
-    "User re-user forbiden create access to /re-dir/ (3)")
+    "user re-user forbiden create access to /re-dir/ (3)")
   (ok (a:d-add-user-role *rbac* "re-user" "re-role")
-    "Add role re-role to user re-user (2)")
+    "add role re-role to user re-user (2)")
   (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
-    "User re-user has create access to /re-dir/ (2)")
+    "user re-user has create access to /re-dir/ (2)")
   (ok (a:d-remove-role-permission *rbac* "re-role" "create")
-    "Remove create permission from role re-role")
+    "remove create permission from role re-role")
   (ok (not (member "create" (a:list-role-permission-names *rbac* "re-role")
              :test 'equal))
-    "Role re-role no longer has create permission")
+    "role re-role no longer has create permission")
   (ok (not (a:user-allowed *rbac* "re-user" "create" "/re-dir/"))
-    "User re-user forbiden create access to /re-dir/ (4)")
+    "user re-user forbiden create access to /re-dir/ (4)")
   (ok (a:d-add-role-permission *rbac* "re-role" "create")
-    "Add create permission to role re-role")
+    "add create permission to role re-role")
   (ok (member "create" (a:list-role-permission-names *rbac* "re-role")
         :test 'equal)
-    "Role re-role has create permission once again")
+    "role re-role has create permission once again")
   (ok (a:user-allowed *rbac* "re-user" "create" "/re-dir/")
-    "User re-user has create access to /re-dir/ (2)")
+    "user re-user has create access to /re-dir/ (2)")
   (ok (a:list-role-permission-names *rbac* "re-role")
-    "Role re-role has permissions"))
+    "role re-role has permissions"))
 
 (subtest "add user, log in"
   (ok (a:d-add-user *rbac* "user-1" "password-1") "add user-1")
@@ -1500,7 +1496,8 @@
   (ok (a:d-add-user *rbac* "user-ur" "password-1" :roles '("role-ur"))
     "add user user-ur with role role-ur")
   (is (a:list-user-role-names *rbac* "user-ur") 
-    '("guest" "logged-in" "role-ur" "user-ur:exclusive"))
+    '("guest" "logged-in" "role-ur" "user-ur:exclusive")
+    "user-ur has expected roles")
   (ok (a:d-add-resource *rbac* "/resource-2-1/" :roles '("role-ur"))
     "add /resource-2-1/ with role-ur")
   (ok (a:d-add-resource *rbac* "/resource-2-2/" :roles '("role-ur"))
@@ -1522,6 +1519,7 @@
       (format nil "list-user-resource-names return ~{~a~^, ~}" user-resources))))
 
 (u:close-log)
+
 (if (finalize)
   (uiop:quit 0)
   (uiop:quit 1))

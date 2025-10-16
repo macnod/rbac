@@ -967,12 +967,14 @@ function will make the following concrete assumptions:
       (u:log-it-lazy
         :debug
         (lambda ()
-          (let ((name-1 (get-value rbac table-1 (table-name-field table-1)
-                          "id" id-1))
-                 (name-2 (get-value rbac table-2 (table-name-field table-2)
-                           "id" id-2)))
-            (format nil "Upsert-link [~a -> ~a] SQL: ~a; (~a, ~a, ~a)"
-              name-1 name-2 sql id-1 id-2 actor-id))))
+          (let ((name-1 (or (get-value rbac table-1 (table-name-field table-1)
+                              "id" id-1)
+                          "(not yet available)"))
+                 (name-2 (or (get-value rbac table-2 (table-name-field table-2)
+                               "id" id-2)
+                           "(not yet available)")))
+            (format nil "Upsert-link [~a:~a -> ~a:~a] SQL: ~a; (~a, ~a, ~a)"
+              table-1 name-1 table-2 name-2 sql id-1 id-2 actor-id))))
       (db:query sql id-1 id-2 actor-id :single))))
 
 (defgeneric add-user (rbac username email password roles actor)
@@ -1134,7 +1136,8 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
                                 :permission_id ,permission-id
                                 :actor ,actor
                                 :actor_id ,actor-id))))
-        (soft-delete rbac delete-permission-sql delete-refs-sql details nil))))
+        (soft-delete rbac delete-permission-sql delete-refs-sql details nil)
+        permission-id)))
   (:documentation "Remove (soft delete) PERMISSION from the database."))
 
 (defgeneric list-permissions (rbac page page-size)
@@ -1638,7 +1641,8 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
                                      :resource-role-id ,id
                                      :actor ,actor
                                      :actor_id ,actor-id))))
-            (audit rbac details))))))
+            (audit rbac details)
+            id)))))
   (:documentation "Add a role permission to a resource."))
 
 (defgeneric remove-resource-role (rbac resource role actor)
@@ -1680,7 +1684,8 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       (with-rbac (rbac)
         (db:with-transaction (remove-resource-role)
           (rbac-query params)
-          (audit rbac details)))))
+          (audit rbac details)
+          resource-role-id))))
   (:documentation "Remove (soft delete) a role permission from a resource."))
 
 (defgeneric list-resource-roles (rbac resource page page-size)
@@ -1824,10 +1829,8 @@ for USERNAME and return the user ID. Otherwise, return NIL."))
       (error "No actor: ~a" (ds:human details)))
     (unless (gethash :title details)
       (error "No title"))
-    (db:execute
-      "insert into audit_logs (title, details) values ($1, $2)"
-      (gethash :title details)
-      (ds:to-json details))))
+    (u:log-it :info (ds:to-json details))
+    nil))
 
 (defmacro define-list-functions (rbac-type &rest function-specs)
   "Define multiple list functions with common structure. Each spec is a

@@ -99,14 +99,6 @@ create table resource_roles (
     unique(resource_id, role_id)
 );
 
--- Audit log
-create table audit_logs (
-    id uuid primary key default uuid_generate_v4(),
-    created_at timestamp not null default now(),
-    title text not null,
-    details jsonb
-);
-
 --
 -- Indexes for soft deletes
 --
