@@ -67,13 +67,14 @@ of setting a variable, for example."
 ;;
 ;; Global functions
 ;;
-(defun report-errors (errors)
+(defun report-errors (errors &optional (fail-on-error t))
   "If ERRORS is not NIL, this function signals an error with a message that
 consists the strings in ERRORS, separated by spaces."
   (when errors
     (let ((error-message (format nil "Error~p: ~{~a~^ ~}" (length errors) (reverse errors))))
       (u:log-it :error error-message)
-      (error error-message))))
+      (when fail-on-error
+        (error error-message)))))
 
 (defun rbac-query-single (sql-template-and-parameters)
   "Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a single
@@ -682,7 +683,7 @@ as values."))
       (check errors (valid-username-p rbac username)
         "Invalid username '~a'." username)
       (check errors (valid-password-p rbac password) "Invalid password.")
-      (report-errors errors)
+      (report-errors errors nil)
       actor-id))
   (:documentation "Validates login parameters and signals an error if there's
 a problem. Returns ACTOR-ID (a string) as value."))
