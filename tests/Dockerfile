@@ -36,10 +36,16 @@ WORKDIR /
 RUN rm -rf $ROSWELL_SRC_DIR
 RUN $ROSWELL setup
 
-RUN $ROSWELL install macnod/dc-ds
-RUN $ROSWELL install macnod/dc-dlist
-RUN $ROSWELL install macnod/dc-eclectic
-RUN $ROSWELL install postmodern
-RUN $ROSWELL install prove
+# Stable packages
+RUN $ROSWELL install postmodern && \
+    $ROSWELL install prove && \
+    $ROSWELL install cl-csv && \
+    $ROSWELL install trivial-utf-8 && \
+    $ROSWELL install ironclad
+
+ARG CACHEBUST=1
+RUN $ROSWELL install macnod/dc-ds && \
+    $ROSWELL install macnod/dc-dlist && \
+    $ROSWELL install macnod/dc-eclectic
 
 CMD ["/roswell/bin/ros", "run", "--", "--eval", "(format t \"Welcome to cl-rbac-test, a Common Lisp container for testing cl-rbac.\")"]

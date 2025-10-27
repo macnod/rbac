@@ -65,7 +65,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 36)
+(plan 37)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1517,6 +1517,46 @@
       "remove role logged-in from user user-ur")
     (is (a:list-user-resource-names *rbac* "user-ur") user-resources
       (format nil "list-user-resource-names return ~{~a~^, ~}" user-resources))))
+
+(subtest "list resource users"
+  (let ((users (mapcar 
+                 (lambda (n) (format nil "user-read-~2,'0d" n))
+                 (u:range 1 10)))
+         (role-read "role-read")
+         (role-create "role-create")
+         (resource "/ro-444/"))
+    (ok (a:d-add-role *rbac* role-read :permissions '("read"))
+      (format nil "add role ~a" role-read))
+    (ok (a:d-add-role *rbac* role-create :permissions '("create"))
+      (format nil "add role ~a" role-create))
+    (ok (a:d-add-user *rbac* (car users) (car users)
+          :roles (list role-read role-create))
+      (format nil "add user ~a" (car users)))
+    (ok (a:d-add-resource *rbac* resource)
+      (format nil "add resource ~a" resource))
+    (ok (not (a:user-allowed *rbac* (car users) "read" resource))
+      (format nil "user ~a does not have read access to resource ~a"
+        (car users) resource))
+    (ok (a:d-add-resource-role *rbac* resource role-create)
+      (format nil "add role ~a to resource ~a" role-create resource))
+    (ok (not (a:user-allowed *rbac* (car users) "read" resource))
+      (format nil "user ~a does not have 'read' permission on resource ~a"
+        (car users) resource))
+    (ok (a:d-add-resource-role *rbac* resource role-read)
+      (format nil "add role ~a to resource ~a" role-read resource))
+    (ok (a:user-allowed *rbac* (car users) "read" resource)
+      (format nil "user ~a has 'read' permission on resource ~a"
+        (car users) resource))
+    (is (a:list-resource-usernames *rbac* resource "read")
+      (list (car users))
+      (format nil "list-resource-users ~a ~a: ~a"
+        resource "read" (car users)))
+    (loop for user in (cdr users)
+      do (ok (a:d-add-user *rbac* user user :roles (list role-read))
+           (format nil "Added user ~a with role ~a" user role-read)))
+    (is (a:list-resource-usernames *rbac* resource "read") users
+      (format nil "~d users have access to resource ~a"
+        (length users) resource))))
 
 (u:close-log)
 

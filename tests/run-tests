@@ -1,5 +1,20 @@
 #!/bin/bash
 
+SCRIPT_NAME=$(basename $0)
+
+function usage {
+    echo "Usage: $SCRIPT_NAME [options]"
+    echo "Options:"
+    echo "  --build    build the macnod/rbac-test image that the tests use"
+    echo "  --cache    Use the cache normally when building the image"
+    echo "  --help     Display this help screen"
+    if [ "$HELP" = true ]; then
+        exit 0
+    else
+        exit 1
+    fi
+}
+
 #
 # IMPORTANT: Must be run from tests directory
 # 
@@ -7,6 +22,42 @@ current_dir=$(pwd)
 if [[ ! "$current_dir" =~ /tests$ ]]; then
     echo "ERROR: This script must be run from the tests directory, where it resides."
     exit 1
+fi
+
+CACHE=false
+BUILD=false
+HELP=false
+
+# Parse options
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --cache)
+            CACHE="--cache"
+            ;;
+        --build)
+            BUILD=true
+            ;;
+        --help)
+            HELP=true
+            usage
+            ;;
+        *)
+            usage
+            ;;
+    esac
+    shift
+done
+
+if [ $BUILD = true ]; then
+    if [ "$CACHE" = false ]; then
+        ./build.sh
+    else
+        ./build.sh --cache
+    fi
+    if [[ ! $? -eq 0 ]]; then
+        echo "Error building docker image for test"
+        exit 1
+    fi
 fi
 
 mkdir -p logs && chmod 777 logs

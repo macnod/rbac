@@ -1610,6 +1610,46 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (:documentation "List the resources that USER has access to, returning PAGE-SIZE rows from
 PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
+(defgeneric list-resource-users
+  (rbac resource permission page page-size)
+  (:method ((rbac rbac-pg)
+             (resource string)
+             (permission string)
+             (page integer)
+             (page-size integer))
+    (u:log-it-pairs :debug 
+      :details "list-resource-users"
+      :resource resource 
+      :permission permission)
+    (list-rows
+      rbac
+      (list
+        "distinct u.id as user_id"
+        "u.username")
+      "users u
+         join role_users ru on u.id = ru.user_id
+         join roles r on ru.role_id = r.id
+         join role_permissions rp on r.id = rp.role_id
+         join permissions p on rp.permission_id = p.id
+         join resource_roles sr on r.id = sr.role_id
+         join resources s on sr.resource_id = s.id"
+      (list
+        "s.resource_name = $1"
+        "p.permission_name = $2"
+        "u.deleted_at is null"
+        "r.deleted_at is null"
+        "s.deleted_at is null"
+        "sr.deleted_at is null"
+        "ru.deleted_at is null"
+        "rp.deleted_at is null"
+        "p.deleted_at is null")
+      (list resource permission)
+      (list "u.username")
+      page
+      page-size))
+  (:documentation "List the users have PERMISSION on RESOURCE, returning PAGE-SIZE rows
+from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
 (defgeneric add-resource-role (rbac resource role actor)
   (:method ((rbac rbac-pg)
              (resource string)
@@ -1869,7 +1909,7 @@ list: (function-name documentation list-function return-key extra-arg)"
                             #'string<))))))))
 
 (define-list-functions rbac
-  ;; Functions without extra args
+  ;; Functions without extra arg
   (list-usernames "List all usernames" list-users :username)
   (list-role-names "List all roles" list-roles :role-name)
   (list-permission-names "List all permissions"
@@ -1877,7 +1917,7 @@ list: (function-name documentation list-function return-key extra-arg)"
   (list-resource-names "List all resources"
     list-resources :resource-name)
 
-  ;; Functions with extra args
+  ;; Functions with extra arg
   (list-role-usernames "List users for role"
     list-role-users :username role)
   (list-user-role-names "List roles for user"
@@ -1890,6 +1930,22 @@ list: (function-name documentation list-function return-key extra-arg)"
     list-role-resources :resource-name role)
   (list-user-resource-names "List resources for user"
     list-user-resources :resource-name user))
+
+(defgeneric list-resource-usernames
+  (rbac resource permission &key page page-size)
+  (:documentation "List usernames that have PERMISSION on RESOURCE.")
+  (:method ((rbac rbac-pg)
+             (resource string)
+             (permission string)
+             &key
+             (page 1)
+             (page-size *default-page-size*))
+    (u:log-it :debug "list-resource-usernames")
+    (sort
+      (mapcar
+        (lambda (r) (getf r :username))
+        (list-resource-users rbac resource permission page page-size))
+      #'string<)))
 
 (defgeneric d-add-role (rbac role &key description exclusive permissions actor)
   (:documentation "Add a role with defaults.")

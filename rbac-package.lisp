@@ -64,6 +64,7 @@
     get-value
     list-permissions
     list-resource-roles
+    list-resource-users
     list-resources
     list-role-permissions
     list-role-users
@@ -117,6 +118,7 @@
     list-role-names
     list-permission-names
     list-resource-names
+    list-resource-usernames
     list-role-usernames
     list-user-role-names
     list-role-permission-names
