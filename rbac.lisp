@@ -1936,7 +1936,7 @@ list: (function-name documentation list-function return-key extra-arg)"
   (:documentation "List usernames that have PERMISSION on RESOURCE.")
   (:method ((rbac rbac-pg)
              (resource string)
-             (permission string)
+             permission
              &key
              (page 1)
              (page-size *default-page-size*))
