@@ -1075,7 +1075,7 @@ for this user only, and adds the user to the guest and logged-in roles
     (u:log-it :debug "list-users")
     (list-rows
       rbac
-      (list "id" "username" "email" "created_at" "updated_at")
+      (list "id" "username" "email" "created_at" "updated_at" "last_login")
       "users"
       (list "deleted_at is null")
       nil
