@@ -1614,7 +1614,7 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (rbac resource permission page page-size)
   (:method ((rbac rbac-pg)
              (resource string)
-             (permission string)
+             permission
              (page integer)
              (page-size integer))
     (u:log-it-pairs :debug 
@@ -1635,7 +1635,7 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
          join resources s on sr.resource_id = s.id"
       (list
         "s.resource_name = $1"
-        "p.permission_name = $2"
+        (if permission "p.permission_name = $2" "1=1")
         "u.deleted_at is null"
         "r.deleted_at is null"
         "s.deleted_at is null"
@@ -1643,7 +1643,7 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "ru.deleted_at is null"
         "rp.deleted_at is null"
         "p.deleted_at is null")
-      (list resource permission)
+      (remove-if-not #'identity (list resource permission))
       (list "u.username")
       page
       page-size))

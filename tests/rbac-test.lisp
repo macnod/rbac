@@ -1524,11 +1524,14 @@
                  (u:range 1 10)))
          (role-read "role-read")
          (role-create "role-create")
+         (role-update "role-update")
          (resource "/ro-444/"))
     (ok (a:d-add-role *rbac* role-read :permissions '("read"))
       (format nil "add role ~a" role-read))
     (ok (a:d-add-role *rbac* role-create :permissions '("create"))
       (format nil "add role ~a" role-create))
+    (ok (a:d-add-role *rbac* role-update :permissions '("update"))
+      (format nil "add role ~a" role-update))
     (ok (a:d-add-user *rbac* (car users) (car users)
           :roles (list role-read role-create))
       (format nil "add user ~a" (car users)))
@@ -1551,12 +1554,28 @@
       (list (car users))
       (format nil "list-resource-users ~a ~a: ~a"
         resource "read" (car users)))
+    ;; Add the rest of the users with read access
     (loop for user in (cdr users)
       do (ok (a:d-add-user *rbac* user user :roles (list role-read))
-           (format nil "Added user ~a with role ~a" user role-read)))
+           (format nil "add user ~a with role ~a" user role-read)))
+    ;; Add a new user with only update access
+    (ok (a:d-add-user *rbac* "user-write-01" "user-write-01" 
+          :roles (list role-update))
+      (format nil "add user-write-01 with role ~a" role-update))
+    ;; Add role-update to the resource
+    (ok (a:d-add-resource-role *rbac* resource role-update)
+      (format nil "add role '~a' to resource '~a'" role-update resource))
+    ;; This should include only users that have read access. The last user
+    ;; we added should not be included.
     (is (a:list-resource-usernames *rbac* resource "read") users
-      (format nil "~d users have access to resource ~a"
-        (length users) resource))))
+      (format nil "~d users have read access to resource ~a"
+        (length users) resource))
+    ;; This should include users that have any access. The last user we
+    ;; added should be included.
+    (is (length (a:list-resource-users *rbac* resource nil 1 20))
+      (1+ (length users))
+      (format nil "~d users have any access to resource ~a"
+        (1+ (length users)) resource))))
 
 (u:close-log)
 
