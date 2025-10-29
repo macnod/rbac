@@ -65,7 +65,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 37)
+(plan 38)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -246,11 +246,11 @@
 (subtest "sql-for-list"
   (is (a:sql-for-list
         *rbac*
-        (list "a.fielda" "b.fieldb" "c.fieldc")
-        "tablea a
-           join tableb b on a.tableb_id b.id
-           join tablec c on a.tablec_id c.id"
-        (list "a.fielda = $1" "a.fieldb = $2")
+        (list "a.username" "b.role_name" "c.permission_name")
+        "users a
+           join roles b on whatever
+           join permissions c on whatever"
+        (list "a.id = $1" "b.id = $2")
         (list "one" "two")
         nil
         1
@@ -258,19 +258,19 @@
     (list
       (format nil "~{~a~^ ~}"
         (list
-          "select a.fielda, b.fieldb, c.fieldc"
-          "from tablea a join tableb b on a.tableb_id b.id"
-          "join tablec c on a.tablec_id c.id"
+          "select a.username, b.role_name, c.permission_name"
+          "from users a join roles b on whatever"
+          "join permissions c on whatever"
           "where a.deleted_at is null"
-          "and a.fielda = $1 and a.fieldb = $2"
+          "and a.id = $1 and b.id = $2"
           "offset 0 limit 10"))
       "one" "two")
     "joined tables, values, no order-by-fields")
   (is (a:sql-for-list
         *rbac*
-        (list "fielda" "fieldb" "fieldc")
-        "tablea"
-        (list "fielda = $1" "fieldb = $2")
+        (list "username" "role_name" "permission_name")
+        "users"
+        (list "id = $1" "id = $2")
         (list "one" "two")
         nil
         1
@@ -278,28 +278,28 @@
     (list
       (format nil "~{~a~^ ~}"
         (list
-          "select fielda, fieldb, fieldc from tablea"
+          "select username, role_name, permission_name from users"
           "where deleted_at is null"
-          "and fielda = $1 and fieldb = $2"
+          "and id = $1 and id = $2"
           "offset 0 limit 10"))
       "one" "two")
     "single table, values, no order-by-fields")
   (is (a:sql-for-list
         *rbac*
-        (list "fielda" "fieldb" "fieldc")
-        "tablea"
-        (list "fielda = $1" "fieldb = $2")
+        (list "id" "username" "password_hash")
+        "users"
+        (list "id = $1" "username = $2")
         (list "one" "two")
-        (list "fielda" "fieldb desc")
+        (list "username" "id desc")
         1
         10)
     (list
       (format nil "~{~a~^ ~}"
         (list
-          "select fielda, fieldb, fieldc from tablea"
+          "select id, username, password_hash from users"
           "where deleted_at is null"
-          "and fielda = $1 and fieldb = $2"
-          "order by fielda, fieldb desc"
+          "and id = $1 and username = $2"
+          "order by username, id desc"
           "offset 0 limit 10"))
       "one" "two")
     "single table, values, order-by-fields"))
@@ -1580,6 +1580,20 @@
       (1+ (length users))
       (format nil "~d users have any access to resource ~a (usernames)"
         (1+ (length users)) resource))))
+
+(subtest "list-users-filtered"
+  (is (mapcar
+        (lambda (plist) (getf plist :username))
+        (a:list-users-filtered
+          *rbac* "username" nil '(("username" "like" "user-read-%")) 1 1000))
+    (mapcar (lambda (u) (format nil "user-read-~2,'0d" u)) (u:range 1 10))
+    "list-users-filtered like user-read-%")
+  (ok (not (member 
+             "user-read-1"
+             (a:list-users-filtered
+               *rbac* "username" nil '(("username" "not like" "user-read-%"))
+               1 1000)))
+    "list-users-filtered not like user-read-% does not include user-read-1"))
 
 (u:close-log)
 

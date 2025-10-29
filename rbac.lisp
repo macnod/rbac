@@ -36,6 +36,8 @@
 
 (defparameter *default-page-size* 20)
 
+;; Caches
+(defparameter *table-fields* nil)
 
 ;;
 ;; Macros
@@ -230,6 +232,54 @@ that exists in the users database."))
 ;; Generic functions
 ;;
 
+(defgeneric table-fields (rbac &optional cache)
+  (:method ((rbac rbac) &optional (cache t))
+    (if (and *table-fields* cache)
+      *table-fields*
+      (with-rbac (rbac)
+        (u:log-it-pairs :debug :details "table-fields from database")
+        (loop
+          with sql = "select table_name
+                    from information_schema.tables
+                    where table_schema = 'public'
+                      and table_type = 'BASE TABLE'
+                    order by table_name"
+          with table-fields = (make-hash-table :test 'equal)
+          for table in (db:query sql :column)
+          for fields = (db:query
+                         "select column_name from information_schema.columns
+                        where table_schema = 'public'
+                          and table_name = $1"
+                         table
+                         :column)
+          do (setf (gethash table table-fields) fields)
+          finally (return (setf *table-fields* table-fields))))))
+  (:documentation "Returns a hash table where the keys are table names and the
+values are lists of field names for each table."))
+
+(defgeneric table-exists-p (rbac table)
+  (:method ((rbac rbac) (table string))
+    (when (gethash table (table-fields rbac)) t))
+  (:documentation "Returns T if TABLE exists in the database."))
+
+(defgeneric table-field-exists-p (rbac table field)
+  (:method ((rbac rbac) (table string) (field string))
+    (when (and
+            (table-exists-p rbac table)
+            (member field
+              (gethash table (table-fields rbac))
+              :test 'equal))
+      t))
+  (:documentation "Returns T if FIELD exists in TABLE in the database."))
+
+(defgeneric field-exists-p (rbac field)
+  (:method ((rbac rbac) (field string))
+    (let ((all-fields (loop for fields being the hash-values of
+                        (table-fields rbac)
+                        append fields)))
+      (when (member field all-fields :test 'equal) t)))
+  (:documentation "Returns T if FIELD exists in any table in the database."))
+
 (defgeneric to-hash-table (rbac row)
   (:method ((rbac rbac) (row list))
     (loop
@@ -247,6 +297,62 @@ values."))
   (:documentation "Convert a list of rows representing the result of a
 database query from the :STR-ALISTS format into a list of hash tables where each
 hash table represents a row."))
+
+(defgeneric name-id-index (rbac table)
+  (:method ((rbac rbac) (table string))
+    (u:log-it-pairs :debug :detail "name-id-index" :table table)
+    (let* (errors
+            (name-field (table-name-field table))
+            (index (make-hash-table :test 'equal))
+            (sql (format nil "select ~a, id from ~a
+                             where deleted_at is null
+                             order by ~a"
+                   name-field table name-field)))
+      (check errors (table-exists-p rbac table)
+        "Table '~a' does not exist." table)
+      (check errors (table-field-exists-p rbac table name-field)
+        "Field '~a' does not exist in table '~a'." name-field table)
+      (report-errors errors)
+      (with-rbac (rbac)
+        (loop with result = (db:query sql)
+          for (key value) in result
+          do (setf (gethash key index) value)
+          finally (return index)))))
+  (:documentation "Returns a hash table where the keys consists of the names and
+the values consist of the IDs from TABLE."))
+
+(defun tables-from-join (join)
+  (loop for table-ref in (re:split "join" join)
+    for table = (first (re:split "\\s+" (u:trim table-ref)))
+    collect table))
+
+(defun field-no-prefix (field)
+  (if (re:scan "\\." field)
+    (second (re:split "\\." field))
+    field))
+
+(defun fields-from-refs (select)
+  "Given a list of field references that looks like this:
+      (list
+        \"rr.id as resource_role_id\"
+        \"rr.created_at\"
+        \"ro.role_description\")
+This function returns a list of field names that looks like this:
+      (list
+        \"resource_role_id\"
+        \"created_at\"
+        \"role_description\""
+  (loop for field-ref in select
+    for field-with-prefix = (u:trim
+                              (first
+                                (remove-if
+                                  (lambda (s) (string= s ""))
+                                  (re:split
+                                    "\\s+"
+                                    (re:regex-replace-all
+                                      "distinct|\(|\)" field-ref "")))))
+    for field = (field-no-prefix field-with-prefix)
+    unless (re:scan "^distinct" field) collect field))
 
 (defgeneric sql-for-list (rbac
                            select-fields
@@ -275,6 +381,14 @@ table to be the first table in TABLES, and the main table must have an alias."
             (order-by (if order-by-fields
                         (format nil "order by ~{~a~^, ~}~%" order-by-fields)
                         "")))
+      (check errors (every
+                      (lambda (table) (table-exists-p rbac table))
+                      (tables-from-join tables))
+        "One or more tables in TABLES do not exist: ~a." tables)
+      (check errors (every
+                      (lambda (field) (field-exists-p rbac field))
+                      (fields-from-refs select-fields))
+        "One or more fields in SELECT-FIELDS do not exist: ~a." select-fields)
       (check errors (and (> page-size 0)
                       (<= page-size 1000))
         "Page size must be between 1 and 1000, got ~a." page-size)
@@ -564,31 +678,40 @@ delete a row and references to that row, updating the audit table."))
              (table string)
              (field string)
              &rest search)
-    (u:log-it :debug "get-value")
-    (let (errors
-           (params (make-search-clause rbac
-                     (format nil "select ~a from ~a"
-                       field
-                       table)
-                     search)))
-      (check errors (and search params) "No search conditions provided.")
+    (u:log-it-pairs :debug :detail "get-value"
+      :table table :field field
+      :search (format nil "~{~a=~a~^; ~}" search))
+    (let* (errors
+            (query-params (make-search-clause rbac
+                            (format nil "select ~a from ~a"
+                              field
+                              table)
+                            search)))
+      (check errors (table-exists-p rbac table)
+        "Table '~a' does not exist." table)
+      (check errors (table-field-exists-p rbac table field)
+        "Field '~a' does not exist in table '~a'." field table)
+      (loop for key in search by #'cddr
+        do (check errors (table-field-exists-p rbac table key)
+             "Seach Field '~a' does not exist in table '~a'." key table))
+      (check errors (and search query-params) "No search conditions provided.")
       (report-errors errors)
       (with-rbac (rbac)
-        (rbac-query-single params))))
+        (rbac-query-single query-params))))
   (:documentation "Retrieves the value from FIELD in TABLE where SEARCH points
 to a unique row. TABLE and FIELD are strings, and SEARCH is a series of field
-names and values that identify the row uniquely."))
+names and values that identify the row uniquely. TABLE, FIELD, and the field
+names in SEARCH must exist in the database. If no row is found, this function
+returns NIL."))
 
 (defgeneric get-id (rbac table name)
   (:method ((rbac rbac-pg)
              (table string)
              (name string))
     (u:log-it :debug "get-id")
-    (let ((name-field (if (equal table "users")
-                        "username"
-                        (format nil "~a_name" (singular table)))))
-      (u:log-it :debug "get-id table=~a; field=~a; value=~a"
-        table name-field name)
+    (let ((name-field (table-name-field table)))
+      (u:log-it-pairs :debug :detail "get-id"
+        :table table :name-field name-field :name name)
       (get-value rbac table "id" name-field name)))
   (:documentation "Returns the ID associated with NAME in TABLE."))
 
@@ -1086,6 +1209,63 @@ for this user only, and adds the user to the guest and logged-in roles
 from PAGE. SORT-BY is a list of fields, where each field string consists of the
 name of a field optionally followed by ASC or DESC. :PAGE is the page number,
 starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-users-filtered (rbac sort-by descending filters page page-size)
+  (:method ((rbac rbac-pg)
+             (sort-by string)
+             descending
+             (filters list)
+             (page integer)
+             (page-size integer))
+    (u:log-it-pairs :debug :detail "list-users-sorted" :sort-by sort-by)
+    (let (errors)
+      (check errors (table-field-exists-p rbac "users" sort-by)
+        "SORT-BY field '~a' does not exist in the users table." sort-by)
+      (check errors
+        (every
+          (lambda (filter)
+            (and
+              (listp filter)
+              (= (length filter) 3)
+              (field-exists-p rbac (field-no-prefix (car filter)))))
+          filters)
+        "One or more filter fields do not exist in the users table: ~a"
+        filters)
+      (check errors
+        (every
+          (lambda (filter)
+            (member
+              (cadr filter)
+              '("=" "<>" "<" ">" "<=" ">="
+                 "like" "ilike" "not like" "not ilike")
+              :test 'equal))
+          filters)
+        "One or more filter operators are invalid: ~a." filters)
+      (report-errors errors))
+    (loop
+      for (field operator value) in filters
+      collect (format nil "~a ~a $1" field operator) into where
+      collect value into values
+      finally (return
+                (list-rows
+                  rbac
+                  (list "id" "username" "email" "created_at" "updated_at"
+                    "last_login")
+                  "users"
+                  (append (list "deleted_at is null") where)
+                  values
+                  (list (format nil "~a ~a"
+                          sort-by
+                          (if descending "desc" "asc")))
+                  page
+                  page-size))))
+  (:documentation "List users sorted by SORT-BY and filtered by FILTERS.
+SORT-BY is a string consisting of the name of a field. DESCENDING is a boolean
+that indicates whether the sort is descending or not. FILTERS is a list of
+filters, where each filter is a list of three elements: field name, operator,
+and value. The supported operators are =, <>, <, >, <=, >=, like, ilike, not
+like, and not ilike. Return PAGE-SIZE users starting from PAGE. PAGE starts from
+1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric add-permission (rbac permission description actor)
   (:method ((rbac rbac-pg)
@@ -1617,9 +1797,9 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              permission
              (page integer)
              (page-size integer))
-    (u:log-it-pairs :debug 
+    (u:log-it-pairs :debug
       :details "list-resource-users"
-      :resource resource 
+      :resource resource
       :permission permission)
     (list-rows
       rbac

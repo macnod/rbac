@@ -1,6 +1,6 @@
 (defpackage :rbac
   (:use :cl)
-  (:local-nicknames 
+  (:local-nicknames
     (:ds :dc-ds)
     (:u :dc-eclectic)
     (:re :ppcre)
@@ -14,7 +14,7 @@
     *resource-regex*
     *role-regex*
     *username-regex*
-    
+
     ;; Macros
     with-rbac
     check
@@ -71,6 +71,7 @@
     list-roles
     list-rows
     list-users
+    list-users-filtered
     list-user-resources
     login
     remove-permission
