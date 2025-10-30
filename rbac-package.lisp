@@ -81,6 +81,10 @@
     list-users-count
     list-users-filtered
     list-users-filtered-count
+    list-user-roles
+    list-user-roles-count
+    list-user-roles-regular
+    list-user-roles-regular-count
     list-user-resources
     list-user-resources-count
     login
@@ -132,6 +136,7 @@
     list-resource-usernames
     list-role-usernames
     list-user-role-names
+    list-user-role-names-regular
     list-role-permission-names
     list-resource-role-names
     list-role-resource-names

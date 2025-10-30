@@ -137,12 +137,18 @@ consists of the part of an SQL statement that specifies the tables and joins."
           "")))))
 
 (defun singular (string)
+  "If a STRING ends with an 's', this function returns the string without
+the 's'at the end."
   (re:regex-replace "s$" string ""))
 
 (defun external-reference-field (external-table)
+  "Creates a field name that references the id field in EXTERNAL-TABLE."
   (format nil "~a_id" (singular external-table)))
 
 (defun table-name-field (table)
+  "Returns the name field for TABLE. If TABLE is 'users', the name field is
+'username'. For all other tables, the name field is the singular form of the
+table name, with '_name' appended."
   (if (equal table "users")
     "username"
     (format nil "~a_name" (singular table))))
@@ -322,11 +328,18 @@ hash table represents a row."))
 the values consist of the IDs from TABLE."))
 
 (defun tables-from-join (join)
+  "Given a string that represents the tables and joins part of an SQL statement,
+this function returns a list of the table names involved in the join. This also
+works if JOIN is just a single table name."
   (loop for table-ref in (re:split "join" join)
     for table = (first (re:split "\\s+" (u:trim table-ref)))
     collect table))
 
 (defun field-no-prefix (field)
+  "In SQL query strings, fields are often prefixed with the table alias, such as
+'r.id' or 'rs.created_at'. This function removes the prefix and the dot, so that
+it returns just the field name, such as 'id' or 'created_at'. If FIELD doesn't
+have a prefix, it is returned unchanged."
   (if (re:scan "\\." field)
     (second (re:split "\\." field))
     field))
@@ -476,7 +489,12 @@ plist."))
                   tables
                   where-clauses)))
       (with-rbac (rbac)
-        (rbac-query-single (cons sql values))))))
+        (rbac-query-single (cons sql values)))))
+  (:documentation "Returns the count of rows in TABLES that satisfy the
+conditions in WHERE-CLAUSES. TABLES is a table name, or a string representing
+the tables to select from, including any join SQL syntax. WHERE-CLAUSES is a
+list of conditions, in SQL syntax, that must all be true for a record to be
+selected."))
 
 (defgeneric valid-username-p (rbac username)
   (:method ((rbac rbac) (username string))
@@ -634,7 +652,9 @@ a an SQL string followed by values that are used to replace the placeholders"))
       (list
         (format nil "~a_id" (string-right-trim "s" target-table))
         target-record-id)
-      actor-id)))
+      actor-id))
+  (:documentation "Generates a SQL statement that soft deletes rows from
+REFERENCING-TABLE that reference TARGET-RECORD-ID in TARGET-TABLE."))
 
 (defgeneric referencing-tables (rbac table)
   (:method ((rbac rbac) (table string))
@@ -960,7 +980,11 @@ Returns the new role's ID. For internal use only."))
       do (upsert-link rbac "roles" "permissions" role-id permission-id actor-id)
       finally
       (upsert-link rbac "roles" "users" role-id user-id actor-id)
-      (return role))))
+      (return role)))
+  (:documentation "Inserts an exclusive role for the user with USERNAME.
+Every user has an exclusive role that is named {username}:exclusive, and
+this function creates that role, assigns it to the user, and grants it the
+default permissions. Returns the name of the exclusive role."))
 
 (defgeneric insert-permission (rbac permission description actor-id)
   (:method ((rbac rbac-pg)
@@ -1117,7 +1141,12 @@ function will make the following concrete assumptions:
                            "(not yet available)")))
             (format nil "Upsert-link [~a:~a -> ~a:~a] SQL: ~a; (~a, ~a, ~a)"
               table-1 name-1 table-2 name-2 sql id-1 id-2 actor-id))))
-      (db:query sql id-1 id-2 actor-id :single))))
+      (db:query sql id-1 id-2 actor-id :single)))
+  (:documentation "Upserts a row into a link table that has fields that
+reference TABLE-1 and TABLE-2, creating a new link between rows in TABLE-1 and
+TABLE-2. The rows are given by ID-1 and ID-2. The name of the table that
+references TABLE-1 and TABLE-2 is derived from the names of TABLE-1 and TABLE-2,
+as described in the documentation for upsert-link-sql."))
 
 (defgeneric add-user (rbac username email password roles actor)
   (:method ((rbac rbac-pg)
@@ -1276,6 +1305,9 @@ like, not ilike, is, is not. Return PAGE-SIZE users starting from PAGE. PAGE
 starts from 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defun filter-structure-correct-p (rbac filters)
+  "Check that FILTERS is a list of filters, where each filter is a list of
+three elements: field name, operator, and value, and that the field names
+exist in the users table."
   (every
     (lambda (filter)
       (and
@@ -1285,6 +1317,9 @@ starts from 1. PAGE-SIZE is an integer between 1 and 1000."))
     filters))
 
 (defun filter-operators-valid-p (filters)
+  "Check that the operators in FILTERS are valid. A FILTER is a list of three
+elements: field name, operator, and value. This function ignores the field
+name and value, and checks that the operator is one of the supported operators."
   (every
     (lambda (filter)
       (member
@@ -1653,7 +1688,9 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
       with role-ids = (get-role-ids rbac roles)
       for role being the hash-keys in role-ids using (hash-value role-id)
       do (add-role-user rbac role user actor)
-      finally (return role-ids))))
+      finally (return role-ids)))
+  (:documentation "Add USER to the list of ROLES. Returns a hash table
+mapping role names to role IDs."))
 
 (defgeneric remove-role-user (rbac role user actor)
   (:method ((rbac rbac-pg)
@@ -1736,7 +1773,8 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "r.deleted_at is null"
         "u.deleted_at is null"
         "ru.deleted_at is null")
-      (list role))))
+      (list role)))
+  (:documentation "Return the count of users for a role."))
 
 (defgeneric list-user-roles (rbac user page page-size)
   (:method ((rbac rbac-pg)
@@ -1780,7 +1818,58 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
         "u.deleted_at is null"
         "r.deleted_at is null"
         "ru.deleted_at is null")
-      (list user))))
+      (list user)))
+  (:documentation "Return the count of roles for USER."))
+
+(defgeneric list-user-roles-regular (rbac user page page-size)
+  (:method ((rbac rbac-pg)
+             (user string)
+             (page integer)
+             (page-size integer))
+    (u:log-it-pairs :debug :detail "list-user-roles-regular" :user user)
+    (list-rows
+      rbac
+      (list
+        "ru.id as role_user_id"
+        "ru.created_at"
+        "ru.updated_at"
+        "r.id as role_id"
+        "r.role_name")
+      "role_users ru
+       join roles r on ru.role_id = r.id
+       join users u on ru.user_id = u.id"
+      (list "u.username = $1"
+        "r.role_name not in ('guest', 'logged-in')"
+        "r.role_name <> u.username || ':exclusive'"
+        "u.deleted_at is null"
+        "r.deleted_at is null"
+        "ru.deleted_at is null")
+      (list user)
+      (list "r.role_name")
+      page
+      page-size))
+  (:documentation "List the roles for USER excluding the user's exclusive
+role, the guest role, and the logged-in role, returning PAGE-SIZE roles starting
+on page PAGE."))
+
+(defgeneric list-user-roles-regular-count (rbac user)
+  (:method ((rbac rbac-pg) (user string))
+    (u:log-it-pairs :debug :detail "list-user-roles-regular-count" :user user)
+    (count-rows
+      rbac
+      "role_users ru
+       join roles r on ru.role_id = r.id
+       join users u on ru.user_id = u.id"
+      (list
+        "u.username = $1"
+        "r.role_name not in ('guest', 'logged-in')"
+        "r.role_name <> u.username || ':exclusive'"
+        "u.deleted_at is null"
+        "r.deleted_at is null"
+        "ru.deleted_at is null")
+      (list user)))
+  (:documentation "Return the count of roles for USER excluding the user's
+exclusive role, the guest role, and the logged-in role."))
 
 (defgeneric add-resource (rbac name description roles actor)
   (:method ((rbac rbac-pg)
@@ -2247,8 +2336,9 @@ for USERNAME and return the user ID. Otherwise, return NIL."))
       (error "No actor: ~a" (ds:human details)))
     (unless (gethash :title details)
       (error "No title"))
-    (u:log-it :info (ds:to-json details))
-    nil))
+    (u:log-it-pairs :info :details "audit" :data (ds:to-json details))
+    nil)
+  (:documentation "Log the DETAILS hash-table as an audit record."))
 
 (defmacro define-list-functions (rbac-type &rest function-specs)
   "Define multiple list functions with common structure. Each spec is a
@@ -2299,6 +2389,8 @@ list: (function-name documentation list-function return-key extra-arg)"
     list-role-users :username role)
   (list-user-role-names "List roles for user"
     list-user-roles :role-name user)
+  (list-user-role-names-regular "List regular roles for user"
+    list-user-roles-regular :role-name user)
   (list-role-permission-names "List permissions for role"
     list-role-permissions :permission-name role)
   (list-resource-role-names "List roles for resource"
@@ -2308,8 +2400,8 @@ list: (function-name documentation list-function return-key extra-arg)"
   (list-user-resource-names "List resources for user"
     list-user-resources :resource-name user))
 
-(defgeneric list-resource-usernames
-  (rbac resource permission &key page page-size)
+(defgeneric list-resource-usernames (rbac resource permission
+                                      &key page page-size)
   (:documentation "List usernames that have PERMISSION on RESOURCE.")
   (:method ((rbac rbac-pg)
              (resource string)

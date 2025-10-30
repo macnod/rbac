@@ -65,7 +65,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 39)
+(plan 40)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1604,7 +1604,18 @@
   (is (a:list-role-permissions-count *rbac* "role-read") 1
     "list-role-permissions-count")
   (is (a:list-role-users-count *rbac* "role-read") 10
-    "list-role-permissions-count"))
+    "list-role-permissions-count")
+  (is (a:list-user-roles-count *rbac* "user-read-01") 5
+    "list-user-roles-count")
+  (is (a:list-user-roles-regular-count *rbac* "user-read-01") 2
+    "list-user-roles-regular-count"))
+
+(subtest "regular roles"
+  (is (a:list-user-role-names-regular *rbac* "user-read-01" :page-size 100)
+    (remove-if
+      (lambda (r) (re:scan "^(guest|logged-in|.+:exclusive)$" r))
+      (a:list-user-role-names *rbac* "user-read-01" :page-size 100))
+    "Regular roles exclude guest, logged-in, and exclusive role"))
 
 (u:close-log)
 
