@@ -65,7 +65,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 38)
+(plan 39)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1588,12 +1588,23 @@
           *rbac* "username" nil '(("username" "like" "user-read-%")) 1 1000))
     (mapcar (lambda (u) (format nil "user-read-~2,'0d" u)) (u:range 1 10))
     "list-users-filtered like user-read-%")
-  (ok (not (member 
+  (ok (not (member
              "user-read-1"
              (a:list-users-filtered
                *rbac* "username" nil '(("username" "not like" "user-read-%"))
                1 1000)))
     "list-users-filtered not like user-read-% does not include user-read-1"))
+
+(subtest "counts"
+  (is (a:list-users-count *rbac*) 20 "list-users-count")
+  (is (a:list-users-filtered-count *rbac* '(("email" "=" "no-email"))) 17
+    "list-users-filtered-count")
+  (is (a:list-permissions-count *rbac*) 8 "list-permissions-count")
+  (is (a:list-roles-count *rbac*) 32 "list-roles-count")
+  (is (a:list-role-permissions-count *rbac* "role-read") 1
+    "list-role-permissions-count")
+  (is (a:list-role-users-count *rbac* "role-read") 10
+    "list-role-permissions-count"))
 
 (u:close-log)
 

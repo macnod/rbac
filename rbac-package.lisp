@@ -63,16 +63,26 @@
     get-role-ids
     get-value
     list-permissions
+    list-permissions-count
     list-resource-roles
+    list-resource-roles-count
     list-resource-users
+    list-resource-users-count
     list-resources
+    list-resources-count
     list-role-permissions
+    list-role-permissions-count
     list-role-users
+    list-role-users-count
     list-roles
+    list-roles-count
     list-rows
     list-users
+    list-users-count
     list-users-filtered
+    list-users-filtered-count
     list-user-resources
+    list-user-resources-count
     login
     remove-permission
     remove-resource

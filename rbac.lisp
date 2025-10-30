@@ -460,6 +460,24 @@ records, i.e. records where the deleted_at field is not null."))
   (:documentation "Returns a list of rows, with each row represented as a
 plist."))
 
+(defgeneric count-rows (rbac tables where-clauses values)
+  (:method ((rbac rbac-pg)
+             (tables string)
+             (where-clauses list)
+             (values list))
+    (u:log-it-pairs :debug :detail "count-rows"
+      :tables tables
+      :where-clauses (format nil "~{~a~^ and ~}" where-clauses)
+      :values (format nil "~{~a~^, ~}" values))
+    (let* ((sql (format nil "
+                   select count(*)
+                   from ~a
+                   where ~{~a~^ and ~}"
+                  tables
+                  where-clauses)))
+      (with-rbac (rbac)
+        (rbac-query-single (cons sql values))))))
+
 (defgeneric valid-username-p (rbac username)
   (:method ((rbac rbac) (username string))
     (when (and (<= (length username) (username-length-max rbac))
@@ -1210,6 +1228,12 @@ from PAGE. SORT-BY is a list of fields, where each field string consists of the
 name of a field optionally followed by ASC or DESC. :PAGE is the page number,
 starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
 
+(defgeneric list-users-count (rbac)
+  (:method ((rbac rbac-pg))
+    (u:log-it :debug "list-users-count")
+    (count-rows rbac "users" (list "deleted_at is null") nil))
+  (:documentation "Return the count of users in the database."))
+
 (defgeneric list-users-filtered (rbac sort-by descending filters page page-size)
   (:method ((rbac rbac-pg)
              (sort-by string)
@@ -1221,26 +1245,10 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
     (let (errors)
       (check errors (table-field-exists-p rbac "users" sort-by)
         "SORT-BY field '~a' does not exist in the users table." sort-by)
-      (check errors
-        (every
-          (lambda (filter)
-            (and
-              (listp filter)
-              (= (length filter) 3)
-              (field-exists-p rbac (field-no-prefix (car filter)))))
-          filters)
-        "One or more filter fields do not exist in the users table: ~a"
-        filters)
-      (check errors
-        (every
-          (lambda (filter)
-            (member
-              (cadr filter)
-              '("=" "<>" "<" ">" "<=" ">="
-                 "like" "ilike" "not like" "not ilike")
-              :test 'equal))
-          filters)
-        "One or more filter operators are invalid: ~a." filters)
+      (check errors (filter-structure-correct-p rbac filters)
+        "Bad filter field for users table: ~a" filters)
+      (check errors (filter-operators-valid-p filters)
+        "Bad filter operator: ~{~a~^, ~}." (mapcar #'second filters))
       (report-errors errors))
     (loop
       for (field operator value) in filters
@@ -1264,8 +1272,51 @@ SORT-BY is a string consisting of the name of a field. DESCENDING is a boolean
 that indicates whether the sort is descending or not. FILTERS is a list of
 filters, where each filter is a list of three elements: field name, operator,
 and value. The supported operators are =, <>, <, >, <=, >=, like, ilike, not
-like, and not ilike. Return PAGE-SIZE users starting from PAGE. PAGE starts from
-1. PAGE-SIZE is an integer between 1 and 1000."))
+like, not ilike, is, is not. Return PAGE-SIZE users starting from PAGE. PAGE
+starts from 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defun filter-structure-correct-p (rbac filters)
+  (every
+    (lambda (filter)
+      (and
+        (listp filter)
+        (= (length filter) 3)
+        (field-exists-p rbac (field-no-prefix (car filter)))))
+    filters))
+
+(defun filter-operators-valid-p (filters)
+  (every
+    (lambda (filter)
+      (member
+        (cadr filter)
+        '("=" "<>" "<" ">" "<=" ">=" "is" "is not"
+           "like" "ilike" "not like" "not ilike")
+        :test 'equal))
+    filters))
+
+(defgeneric list-users-filtered-count (rbac filters)
+  (:method ((rbac rbac-pg) (filters list))
+    (u:log-it :debug "list-users-filtered-count")
+    (let (errors)
+      (check errors (filter-structure-correct-p rbac filters)
+        "Bad filter field for users table: ~a" filters)
+      (check errors (filter-operators-valid-p filters)
+        "Bad filter operator: ~{~a~^, ~}." (mapcar #'second filters))
+      (report-errors errors))
+    (loop
+      for (field operator value) in filters
+      collect (format nil "~a ~a $1" field operator) into where
+      collect value into values
+      finally (return
+                (count-rows
+                  rbac
+                  "users"
+                  (append (list "deleted_at is null") where)
+                  values))))
+  (:documentation "Returns the count of users filtered by FILTERS. FILTERS is
+a list of filters, where each filter is a list of three elements: field name,
+operator, and value. The supported operators are =, <>, <, >, <=, >=, like,
+ilike, not like, not ilike, is, is not."))
 
 (defgeneric add-permission (rbac permission description actor)
   (:method ((rbac rbac-pg)
@@ -1338,6 +1389,12 @@ like, and not ilike. Return PAGE-SIZE users starting from PAGE. PAGE starts from
       page-size))
   (:documentation "List permissions, returning PAGE-SIZE permissions starting
 on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-permissions-count (rbac)
+  (:method ((rbac rbac-pg))
+    (u:log-it :debug "list-permissions-count")
+    (count-rows rbac "permissions" (list "deleted_at is null") nil))
+  (:documentation "Return the count of permissions in the database."))
 
 (defgeneric add-role (rbac role description exclusive permissions actor)
   (:method ((rbac rbac-pg)
@@ -1423,6 +1480,12 @@ role"))
       page-size))
   (:documentation "List roles, returning PAGE-SIZE roles starting on page PAGE.
 PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-roles-count (rbac)
+  (:method ((rbac rbac-pg))
+    (u:log-it :debug "list-roles-count")
+    (count-rows rbac "roles" (list "deleted_at is null") nil))
+  (:documentation "Return the count of roles in the database."))
 
 (defgeneric add-role-permission (rbac role permission actor)
   (:method ((rbac rbac-pg)
@@ -1515,11 +1578,11 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "p.permission_name"
         "p.permission_description")
       "role_permissions rp
-       join roles ro on rp.role_id = ro.id
+       join roles r on rp.role_id = r.id
        join permissions p on rp.permission_id = p.id"
       (list
-        "ro.role_name = $1"
-        "ro.deleted_at is null"
+        "r.role_name = $1"
+        "r.deleted_at is null"
         "p.deleted_at is null"
         "rp.deleted_at is null")
       (list role)
@@ -1528,6 +1591,22 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       page-size))
   (:documentation "List permissions for a role, returning PAGE-SIZE permissions
 starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and"))
+
+(defgeneric list-role-permissions-count (rbac role)
+  (:method ((rbac rbac-pg) (role string))
+    (u:log-it-pairs :debug :detail "list-role-permissions-count" :role role)
+    (count-rows
+      rbac
+      "role_permissions rp
+       join roles r on rp.role_id = r.id
+       join permissions p on rp.permission_id = p.id"
+      (list
+        "r.role_name = $1"
+        "r.deleted_at is null"
+        "p.deleted_at is null"
+        "rp.deleted_at is null")
+      (list role)))
+  (:documentation "Return the count of permissions for a role."))
 
 (defgeneric add-role-user (rbac role user actor)
   (:method ((rbac rbac-pg)
@@ -1631,10 +1710,10 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
         "u.username"
         "u.email")
       "role_users ru
-       join roles ro on ru.role_id = ro.id
+       join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
-      (list "ro.role_name = $1"
-        "ro.deleted_at is null"
+      (list "r.role_name = $1"
+        "r.deleted_at is null"
         "u.deleted_at is null"
         "ru.deleted_at is null")
       (list role)
@@ -1643,6 +1722,21 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
       page-size))
   (:documentation "List users for a role, returning PAGE-SIZE users starting
 on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-role-users-count (rbac role)
+  (:method ((rbac rbac-pg) (role string))
+    (u:log-it-pairs :debug :detail "list-role-users-count" :role role)
+    (count-rows
+      rbac
+      "role_users ru
+       join roles r on ru.role_id = r.id
+       join users u on ru.user_id = u.id"
+      (list
+        "r.role_name = $1"
+        "r.deleted_at is null"
+        "u.deleted_at is null"
+        "ru.deleted_at is null")
+      (list role))))
 
 (defgeneric list-user-roles (rbac user page page-size)
   (:method ((rbac rbac-pg)
@@ -1672,6 +1766,21 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (:documentation "List the roles for a given user, returning PAGE-SIZE roles
 starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
 1000."))
+
+(defgeneric list-user-roles-count (rbac user)
+  (:method ((rbac rbac-pg) (user string))
+    (u:log-it-pairs :debug :detail "list-user-roles-count" :user user)
+    (count-rows
+      rbac
+      "role_users ru
+       join roles r on ru.role_id = r.id
+       join users u on ru.user_id = u.id"
+      (list
+        "u.username = $1"
+        "u.deleted_at is null"
+        "r.deleted_at is null"
+        "ru.deleted_at is null")
+      (list user))))
 
 (defgeneric add-resource (rbac name description roles actor)
   (:method ((rbac rbac-pg)
@@ -1759,6 +1868,12 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
   (:documentation "List resources, returning PAGE-SIZE resources starting on
 page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
+(defgeneric list-resources-count (rbac)
+  (:method ((rbac rbac-pg))
+    (u:log-it :debug "list-resources-count")
+    (count-rows rbac "resources" (list "deleted_at is null") nil))
+  (:documentation "Return the count of resources in the database."))
+
 (defgeneric list-user-resources (rbac user page page-size)
   (:method ((rbac rbac-pg)
              (user string)
@@ -1789,6 +1904,26 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       page-size))
   (:documentation "List the resources that USER has access to, returning PAGE-SIZE rows from
 PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-user-resources-count (rbac user)
+  (:method ((rbac rbac-pg) (user string))
+    (u:log-it-pairs :debug :detail "list-user-resources-count" :user user)
+    (count-rows
+      rbac
+      "resources s
+         join resource_roles sr on s.id = sr.resource_id
+         join roles r on sr.role_id = r.id
+         join role_users ru on r.id = ru.role_id
+         join users u on ru.user_id = u.id"
+      (list
+        "u.username = $1"
+        "u.deleted_at is null"
+        "s.deleted_at is null"
+        "sr.deleted_at is null"
+        "ru.deleted_at is null"
+        "r.deleted_at is null")
+      (list user)))
+  (:documentation "Return the count of resources that USER has access to."))
 
 (defgeneric list-resource-users
   (rbac resource permission page page-size)
@@ -1829,6 +1964,36 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       page-size))
   (:documentation "List the users have PERMISSION on RESOURCE, returning PAGE-SIZE rows
 from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+
+(defgeneric list-resource-users-count (rbac resource permission)
+  (:method ((rbac rbac-pg)
+             (resource string)
+             permission)
+    (u:log-it-pairs :debug
+      :details "list-resource-users-count"
+      :resource resource
+      :permission permission)
+    (count-rows
+      rbac
+      "users u
+         join role_users ru on u.id = ru.user_id
+         join roles r on ru.role_id = r.id
+         join role_permissions rp on r.id = rp.role_id
+         join permissions p on rp.permission_id = p.id
+         join resource_roles sr on r.id = sr.role_id
+         join resources s on sr.resource_id = s.id"
+      (list
+        "s.resource_name = $1"
+        (if permission "p.permission_name = $2" "1=1")
+        "u.deleted_at is null"
+        "r.deleted_at is null"
+        "s.deleted_at is null"
+        "sr.deleted_at is null"
+        "ru.deleted_at is null"
+        "rp.deleted_at is null"
+        "p.deleted_at is null")
+      (remove-if-not #'identity (list resource permission))))
+  (:documentation "Return the count of users who have PERMISSION on RESOURCE."))
 
 (defgeneric add-resource-role (rbac resource role actor)
   (:method ((rbac rbac-pg)
@@ -1938,6 +2103,22 @@ from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (:documentation "List roles for a resource, returning PAGE-SIZE roles starting
 on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
+(defgeneric list-resource-roles-count (rbac resource)
+  (:method ((rbac rbac-pg) (resource string))
+    (u:log-it-pairs :debug :detail "list-resource-roles-count" :resource resource)
+    (count-rows
+      rbac
+      "resource_roles rr
+     join resources re on rr.resource_id = re.id
+     join roles r on rr.role_id = r.id"
+      (list
+        "re.resource_name = $1"
+        "re.deleted_at is null"
+        "r.deleted_at is null"
+        "rr.deleted_at is null")
+      (list resource)))
+  (:documentation "Return the count of roles for a resource."))
+
 (defgeneric list-role-resources (rbac role page page-size)
   (:method ((rbac rbac-pg)
              (role string)
@@ -1967,6 +2148,22 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (:documentation "List resources associated with ROLE, returning PAGE-SIZE
 resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
 1000."))
+
+(defgeneric list-role-resources-count (rbac role)
+  (:method ((rbac rbac-pg) (role string))
+    (u:log-it-pairs :debug :detail "list-role-resources-count" :role role)
+    (count-rows
+      rbac
+      "resource_roles rr
+       join resources re on rr.resource_id = re.id
+       join roles r on rr.role_id = r.id"
+      (list
+        "r.role_name = $1"
+        "r.deleted_at is null"
+        "re.deleted_at is null"
+        "rr.deleted_at is null")
+      (list role)))
+  (:documentation "Return the count of resources associated with ROLE."))
 
 (defgeneric user-allowed (rbac username permission resource)
   (:method ((rbac rbac-pg)
