@@ -1522,6 +1522,41 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
     (count-rows rbac "roles" (list "deleted_at is null") nil))
   (:documentation "Return the count of roles in the database."))
 
+(defgeneric list-roles-regular (rbac page page-size)
+  (:method ((rbac rbac-pg)
+             (page integer)
+             (page-size integer))
+    (u:log-it :debug "list-roles-regular")
+    (list-rows
+      rbac
+      (list "id" "role_name" "role_description" "exclusive" "created_at"
+        "updated_at")
+      "roles"
+      (list 
+        "deleted_at is null"
+        "exclusive = false"
+        "role_name not like '%:exclusive'"
+        "role_name not in ('guest', 'logged-in')")
+      nil
+      (list "role_name")
+      page
+      page-size))
+  (:documentation "List non-exclusive roles, returning PAGE-SIZE roles starting"))
+
+(defgeneric list-roles-regular-count (rbac)
+  (:method ((rbac rbac-pg))
+    (u:log-it :debug "list-roles-regular-count")
+    (count-rows
+      rbac
+      "roles"
+      (list 
+        "deleted_at is null"
+        "exclusive = false"
+        "role_name not like '%:exclusive'"
+        "role_name not in ('guest', 'logged-in')")
+      nil))
+  (:documentation "Return the count of regular roles in the database."))
+
 (defgeneric add-role-permission (rbac role permission actor)
   (:method ((rbac rbac-pg)
              (role string)
@@ -1839,8 +1874,9 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
        join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
       (list "u.username = $1"
+        "r.exclusive = false"
+        "r.role_name not like '%:exclusive'"
         "r.role_name not in ('guest', 'logged-in')"
-        "r.role_name <> u.username || ':exclusive'"
         "u.deleted_at is null"
         "r.deleted_at is null"
         "ru.deleted_at is null")

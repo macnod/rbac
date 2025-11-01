@@ -76,6 +76,8 @@
     list-role-users-count
     list-roles
     list-roles-count
+    list-roles-regular
+    list-roles-regular-count
     list-rows
     list-users
     list-users-count
