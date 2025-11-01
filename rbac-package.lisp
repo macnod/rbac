@@ -131,6 +131,7 @@
     list-usernames
     list-user-resource-names
     list-role-names
+    list-role-names-regular
     list-permission-names
     list-resource-names
     list-resource-usernames

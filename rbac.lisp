@@ -2379,6 +2379,8 @@ list: (function-name documentation list-function return-key extra-arg)"
   ;; Functions without extra arg
   (list-usernames "List all usernames" list-users :username)
   (list-role-names "List all roles" list-roles :role-name)
+  (list-role-names-regular "List all regular roles"
+    list-roles-regular :role-name)
   (list-permission-names "List all permissions"
     list-permissions :permission-name)
   (list-resource-names "List all resources"
