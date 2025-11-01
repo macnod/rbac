@@ -1536,7 +1536,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "deleted_at is null"
         "exclusive = false"
         "role_name not like '%:exclusive'"
-        "role_name not in ('guest', 'logged-in')")
+        "role_name not in ('guest', 'logged-in', 'system')")
       nil
       (list "role_name")
       page
@@ -1553,7 +1553,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "deleted_at is null"
         "exclusive = false"
         "role_name not like '%:exclusive'"
-        "role_name not in ('guest', 'logged-in')")
+        "role_name not in ('guest', 'logged-in', 'system')")
       nil))
   (:documentation "Return the count of regular roles in the database."))
 
@@ -1876,7 +1876,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
       (list "u.username = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('guest', 'logged-in')"
+        "r.role_name not in ('guest', 'logged-in', 'system')"
         "u.deleted_at is null"
         "r.deleted_at is null"
         "ru.deleted_at is null")
@@ -1898,8 +1898,9 @@ on page PAGE."))
        join users u on ru.user_id = u.id"
       (list
         "u.username = $1"
-        "r.role_name not in ('guest', 'logged-in')"
-        "r.role_name <> u.username || ':exclusive'"
+        "r.exclusive = false"
+        "r.role_name not like '%:exclusive'"
+        "r.role_name not in ('guest', 'logged-in', 'system')"
         "u.deleted_at is null"
         "r.deleted_at is null"
         "ru.deleted_at is null")

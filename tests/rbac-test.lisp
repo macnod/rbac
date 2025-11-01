@@ -1601,7 +1601,7 @@
     "list-users-filtered-count")
   (is (a:list-permissions-count *rbac*) 8 "list-permissions-count")
   (is (a:list-roles-count *rbac*) 32 "list-roles-count")
-  (is (a:list-roles-regular-count *rbac*) 10 "list-roles-regular-count")
+  (is (a:list-roles-regular-count *rbac*) 9 "list-roles-regular-count")
   (is (a:list-role-permissions-count *rbac* "role-read") 1
     "list-role-permissions-count")
   (is (a:list-role-users-count *rbac* "role-read") 10
