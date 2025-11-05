@@ -65,7 +65,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 40)
+(plan 41)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1617,6 +1617,28 @@
       (lambda (r) (re:scan "^(guest|logged-in|.+:exclusive)$" r))
       (a:list-user-role-names *rbac* "user-read-01" :page-size 100))
     "Regular roles exclude guest, logged-in, and exclusive role"))
+
+(subtest "regular resource roles"
+  (ok (a:d-add-role *rbac* "rrr-1") "add role rrr-1")
+  (ok (a:d-add-role *rbac* "rrr-2") "add-role rrr-2")
+  (ok (a:d-add-role *rbac* "rrr-3") "add-role rrr-3")
+  (ok (a:d-add-user *rbac* "rrr-user" "password-rrr-1"
+        :roles '("rrr-1" "rrr-2" "rrr-3"))
+    "create a user for the exclusive role")
+  (ok (a:d-add-resource *rbac* "/rrr-test/" :roles '("rrr-1" "rrr-2" "rrr-3"))
+    "add resource /rrr-test/")
+  (is (a:list-resource-role-names *rbac* "/rrr-test/")
+    (a:list-resource-role-names-regular *rbac* "/rrr-test/")
+    "at this point, all resource roles are regular roles")
+  (is (a:list-resource-role-names *rbac* "/rrr-test/")
+    '("rrr-1" "rrr-2" "rrr-3")
+    "resource has expected roles")
+  (ok (a:d-add-resource-role *rbac* "/rrr-test/" "rrr-user:exclusive"))
+  (is (a:list-resource-role-names *rbac* "/rrr-test/")
+    (sort
+      (cons "rrr-user:exclusive"
+        (a:list-resource-role-names-regular *rbac* "/rrr-test/"))
+      #'string<)))
 
 (u:close-log)
 

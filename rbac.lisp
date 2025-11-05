@@ -2216,8 +2216,8 @@ from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "ro.role_name"
         "ro.role_description")
       "resource_roles rr
-     join resources re on rr.resource_id = re.id
-     join roles ro on rr.role_id = ro.id"
+       join resources re on rr.resource_id = re.id
+       join roles ro on rr.role_id = ro.id"
       (list "re.resource_name = $1"
         "re.deleted_at is null"
         "ro.deleted_at is null"
@@ -2235,8 +2235,8 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
     (count-rows
       rbac
       "resource_roles rr
-     join resources re on rr.resource_id = re.id
-     join roles r on rr.role_id = r.id"
+       join resources re on rr.resource_id = re.id
+       join roles r on rr.role_id = r.id"
       (list
         "re.resource_name = $1"
         "re.deleted_at is null"
@@ -2244,6 +2244,57 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "rr.deleted_at is null")
       (list resource)))
   (:documentation "Return the count of roles for a resource."))
+
+(defgeneric list-resource-roles-regular (rbac resource page page-size)
+  (:method ((rbac rbac-pg)
+             (resource string)
+             (page integer)
+             (page-size integer))
+    (u:log-it :debug "list-resource-roles-regular '~a'" resource)
+    (list-rows
+      rbac
+      (list
+        "rr.id as resource_role_id"
+        "rr.created_at"
+        "rr.updated_at"
+        "ro.id as role_id"
+        "ro.role_name"
+        "ro.role_description")
+      "resource_roles rr
+       join resources re on rr.resource_id = re.id
+       join roles ro on rr.role_id = ro.id"
+      (list "re.resource_name = $1"
+        "ro.exclusive = false"
+        "ro.role_name not like '%:exclusive'"
+        "ro.role_name not in ('guest', 'logged-in', 'system')"
+        "re.deleted_at is null"
+        "ro.deleted_at is null"
+        "rr.deleted_at is null")
+      (list resource)
+      (list "ro.role_name")
+      page
+      page-size))
+  (:documentation "List non-exclusive roles for a resource, returning PAGE-SIZE"))
+
+(defgeneric list-resource-roles-regular-count (rbac resource)
+  (:method ((rbac rbac-pg) (resource string))
+    (u:log-it-pairs :debug :detail "list-resource-roles-regular-count"
+      :resource resource)
+    (count-rows
+      rbac
+      "resource_roles rr
+     join resources re on rr.resource_id = re.id
+     join roles r on rr.role_id = r.id"
+      (list
+        "re.resource_name = $1"
+        "r.exclusive = false"
+        "r.role_name not like '%:exclusive'"
+        "r.role_name not in ('guest', 'logged-in', 'system')"
+        "re.deleted_at is null"
+        "r.deleted_at is null"
+        "rr.deleted_at is null")
+      (list resource)))
+  (:documentation "Return the count of non-exclusive roles for a resource."))
 
 (defgeneric list-role-resources (rbac role page page-size)
   (:method ((rbac rbac-pg)
@@ -2434,6 +2485,8 @@ list: (function-name documentation list-function return-key extra-arg)"
     list-role-permissions :permission-name role)
   (list-resource-role-names "List roles for resource"
     list-resource-roles :role-name resource)
+  (list-resource-role-names-regular "List regular roles for resource"
+    list-resource-roles-regular :role-name resource)
   (list-role-resource-names "List resources for role"
     list-role-resources :resource-name role)
   (list-user-resource-names "List resources for user"

@@ -66,6 +66,8 @@
     list-permissions-count
     list-resource-roles
     list-resource-roles-count
+    list-resource-roles-regular
+    list-resource-roles-regular-count
     list-resource-users
     list-resource-users-count
     list-resources
@@ -142,5 +144,6 @@
     list-user-role-names-regular
     list-role-permission-names
     list-resource-role-names
+    list-resource-role-names-regular
     list-role-resource-names
     ))
