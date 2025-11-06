@@ -104,6 +104,7 @@
     to-hash-table
     to-hash-tables
     user-allowed
+    user-has-role
     valid-description-p
     valid-email-p
     valid-password-p

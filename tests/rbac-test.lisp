@@ -56,7 +56,7 @@
 (defparameter *read-id* (a:get-id *rbac* "permissions" "read"))
 (defparameter *admin-role-id* (a:get-id *rbac* "roles" "admin"))
 (defparameter *editor-role-id* (a:get-id *rbac* "roles" "editor"))
-(defparameter *roles* (list "admin" "admin:exclusive" "editor" "guest"
+(defparameter *roles* (list "admin" "admin:exclusive" "editor" "public"
                         "logged-in" "system" "system:exclusive"))
 (defparameter *permissions* (list "create" "delete" "read" "update"))
 (defparameter *uuid-regex* "^[a-f0-9]{8}-([a-f0-9]{4}-){3}[a-f0-9]{12}$")
@@ -65,7 +65,7 @@
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
 
-(plan 41)
+(plan 42)
 
 (subtest "next-placeholder"
   (is (a:sql-next-placeholder "select ... where c = $1") 2
@@ -1496,7 +1496,8 @@
   (ok (a:d-add-user *rbac* "user-ur" "password-1" :roles '("role-ur"))
     "add user user-ur with role role-ur")
   (is (a:list-user-role-names *rbac* "user-ur")
-    '("guest" "logged-in" "role-ur" "user-ur:exclusive")
+    (sort (copy-seq '("public" "logged-in" "role-ur" "user-ur:exclusive"))
+      #'string<)
     "user-ur has expected roles")
   (ok (a:d-add-resource *rbac* "/resource-2-1/" :roles '("role-ur"))
     "add /resource-2-1/ with role-ur")
@@ -1614,9 +1615,9 @@
 (subtest "regular roles"
   (is (a:list-user-role-names-regular *rbac* "user-read-01" :page-size 100)
     (remove-if
-      (lambda (r) (re:scan "^(guest|logged-in|.+:exclusive)$" r))
+      (lambda (r) (re:scan "^(public|logged-in|.+:exclusive)$" r))
       (a:list-user-role-names *rbac* "user-read-01" :page-size 100))
-    "Regular roles exclude guest, logged-in, and exclusive role"))
+    "Regular roles exclude public, logged-in, and exclusive role"))
 
 (subtest "regular resource roles"
   (ok (a:d-add-role *rbac* "rrr-1") "add role rrr-1")
@@ -1638,7 +1639,40 @@
     (sort
       (cons "rrr-user:exclusive"
         (a:list-resource-role-names-regular *rbac* "/rrr-test/"))
-      #'string<)))
+      #'string<)
+    "after adding exclusive role, list-resource-role-names includes it"))
+
+(subtest "user-has-role"
+  (ok (a:d-add-role *rbac* "uhr-role-1") "add role uhr-role-1")
+  (ok (a:d-add-role *rbac* "uhr-role-2") "add role uhr-role-2")
+  (ok (a:d-add-role *rbac* "uhr-role-3") "add role uhr-role-3")
+  (ok (a:d-add-role *rbac* "uhr-role-4") "add role uhr-role-4")
+  (ok (a:d-add-user *rbac* "uhr-user-1" "uhr-user-1-password")
+    "add user uhr-user-1")
+  (ok (a:d-add-user *rbac* "uhr-user-2" "uhr-user-2-password")
+    "add user uhr-user-2")
+  (ok (a:d-add-user-role *rbac* "uhr-user-1" "uhr-role-1")
+    "add role uhr-role-1 to user uhr-user-1")
+  (ok (a:d-add-user-role *rbac* "uhr-user-1" "uhr-role-2")
+    "add role uhr-role-2 to user uhr-user-1")
+  (ok (a:d-add-user-role *rbac* "uhr-user-1" "uhr-role-3")
+    "add role uhr-role-3 to user uhr-user-1")
+  (ok (a:d-add-user-role *rbac* "uhr-user-2" "uhr-role-3")
+    "add role uhr-role-3 to user uhr-user-2")
+  (ok (a:d-add-user-role *rbac* "uhr-user-2" "uhr-role-4")
+    "add role uhr-role-4 to user uhr-user-2")
+  (ok (a:user-has-role *rbac* "uhr-user-1" "uhr-role-1")
+    "user uhr-user-1 has role uhr-role-1")
+  (ok (a:user-has-role *rbac* "uhr-user-1" "uhr-role-2" "uhr-role-3")
+    "user uhr-user-1 has at least one of uhr-role-2 and uhr-role-3")
+  (ok (a:user-has-role *rbac* "uhr-user-1" "uhr-role-3" "uhr-role-4")
+    "user uhr-user-1 has at least one of uhr-role-3 and uhr-role-4")
+  (ok (not (a:user-has-role *rbac* "uhr-user-1" "uhr-role-4"))
+    "user uhr-user-1 does not have role uhr-role-4")
+  (ok (a:user-has-role *rbac* "uhr-user-2" "uhr-role-3" "uhr-role-4")
+    "user uhr-user-2 has at least one of uhr-role-3 and uhr-role-4")
+  (ok (not (a:user-has-role *rbac* "uhr-user-2" "uhr-role-1" "uhr-role-2"))
+    "user uhr-user-2 does not have access to uhr-role-1 or uhr-role-2"))
 
 (u:close-log)
 

@@ -32,7 +32,7 @@
    ORDER BY tc.table_name")
 
 ;; These roles are assigned to new users
-(defparameter *default-roles* (list "guest" "logged-in"))
+(defparameter *default-roles* (list "public" "logged-in"))
 
 (defparameter *default-page-size* 20)
 
@@ -57,7 +57,7 @@ needed. The connection is closed after BODY is executed."
 
 (defmacro check (errors condition &rest error-message-args)
   "Evaluates CONDITION. If the return value of CONDITION is NIL, this function
-pushes an error message onto ERRORS. The error message is created by using
+pushes an error message onto ERROS. The error message is created by using
 the format function with the arguments in ERROR-MESSAGE-ARGS. This function
 returns the result of evaluating CONDITION, so that it can be used as part
 of setting a variable, for example."
@@ -1184,7 +1184,7 @@ as described in the documentation for upsert-link-sql."))
             (audit rbac details)
             (return user-id))))))
   (:documentation "Add a new user. This creates an exclusive role, which is
-for this user only, and adds the user to the guest and logged-in roles
+for this user only, and adds the user to the public and logged-in roles
 (given by *default-roles*). Returns the new user's ID."))
 
 (defgeneric remove-user (rbac username actor)
@@ -1536,7 +1536,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "deleted_at is null"
         "exclusive = false"
         "role_name not like '%:exclusive'"
-        "role_name not in ('guest', 'logged-in', 'system')")
+        "role_name not in ('public', 'logged-in', 'system')")
       nil
       (list "role_name")
       page
@@ -1553,7 +1553,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "deleted_at is null"
         "exclusive = false"
         "role_name not like '%:exclusive'"
-        "role_name not in ('guest', 'logged-in', 'system')")
+        "role_name not in ('public', 'logged-in', 'system')")
       nil))
   (:documentation "Return the count of regular roles in the database."))
 
@@ -1876,7 +1876,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
       (list "u.username = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('guest', 'logged-in', 'system')"
+        "r.role_name not in ('public', 'logged-in', 'system')"
         "u.deleted_at is null"
         "r.deleted_at is null"
         "ru.deleted_at is null")
@@ -1885,7 +1885,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
       page
       page-size))
   (:documentation "List the roles for USER excluding the user's exclusive
-role, the guest role, and the logged-in role, returning PAGE-SIZE roles starting
+role, the public role, and the logged-in role, returning PAGE-SIZE roles starting
 on page PAGE."))
 
 (defgeneric list-user-roles-regular-count (rbac user)
@@ -1900,13 +1900,13 @@ on page PAGE."))
         "u.username = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('guest', 'logged-in', 'system')"
+        "r.role_name not in ('public', 'logged-in', 'system')"
         "u.deleted_at is null"
         "r.deleted_at is null"
         "ru.deleted_at is null")
       (list user)))
   (:documentation "Return the count of roles for USER excluding the user's
-exclusive role, the guest role, and the logged-in role."))
+exclusive role, the public role, and the logged-in role."))
 
 (defgeneric add-resource (rbac name description roles actor)
   (:method ((rbac rbac-pg)
@@ -2266,7 +2266,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       (list "re.resource_name = $1"
         "ro.exclusive = false"
         "ro.role_name not like '%:exclusive'"
-        "ro.role_name not in ('guest', 'logged-in', 'system')"
+        "ro.role_name not in ('public', 'logged-in', 'system')"
         "re.deleted_at is null"
         "ro.deleted_at is null"
         "rr.deleted_at is null")
@@ -2289,7 +2289,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "re.resource_name = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('guest', 'logged-in', 'system')"
+        "r.role_name not in ('public', 'logged-in', 'system')"
         "re.deleted_at is null"
         "r.deleted_at is null"
         "rr.deleted_at is null")
@@ -2391,6 +2391,34 @@ RESOURCE. If the list is empty, the user does not have access."
              s.resource_name"
         username resource permission :plists)))
   (:documentation "Determine if user with USER-ID has PERMISSION on RESOURCE."))
+
+(defgeneric user-has-role (rbac username &rest role)
+  (:method ((rbac rbac-pg)
+             (username string)
+              &rest role)
+    "Returns T if USERNAME has any of ROLE, NIL otherwise."
+    (u:log-it-pairs :debug :detail "user-has-role"
+      :username username
+      :roles role)
+    (with-rbac (rbac)
+      (let* ((place-holders (loop for a from 1 to (length role)
+                              collect (format nil "$~d" (1+ a))))
+              (query (format nil 
+                       "select count(*) from
+                         users u
+                         join role_users ru on ru.user_id = u.id
+                         join roles r on ru.role_id = r.id
+                       where
+                         u.username = $1
+                         and r.role_name in (~{~a~^, ~})
+                         and u.deleted_at is null
+                         and r.deleted_at is null
+                         and ru.deleted_at is null"
+                       place-holders))
+              (query-params (cons username role))
+              (count (rbac-query-single (cons query query-params))))
+        (> count 0))))
+  (:documentation "Check if USERNAME has any of the specified ROLE(s)."))
 
 (defgeneric login (rbac username password actor)
   (:method ((rbac rbac-pg)
