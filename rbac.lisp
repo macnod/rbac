@@ -32,7 +32,8 @@
    ORDER BY tc.table_name")
 
 ;; These roles are assigned to new users
-(defparameter *default-roles* (list "public" "logged-in"))
+(defparameter *default-user-roles* (list "public" "logged-in"))
+(defparameter *default-resource-roles* (list "admin" "system"))
 
 (defparameter *default-page-size* 20)
 
@@ -1155,37 +1156,45 @@ as described in the documentation for upsert-link-sql."))
              (password string)
              (roles list)
              (actor string))
-    (u:log-it :debug "add-user '~a'" username)
-    (let ((all-roles (append roles *default-roles*)))
-      (multiple-value-bind (actor-id role-ids)
-        (validate-add-user-params rbac username email password all-roles actor)
-        (with-rbac (rbac)
-          ;; Add the user
-          (insert-user rbac username email password actor-id)
-          ;; Create the user's exclusive role and add the user to it
-          (insert-exclusive-role rbac username actor-id)
-          ;; Add the user to the rest of the roles
-          (loop
-            with user-id = (get-id rbac "users" username)
-            with details = (ds:ds `(:map
-                                     :title "Created user"
-                                     :username ,username
-                                     :user_id ,user-id
-                                     :email ,email
-                                     :password ,(password-hash
-                                                  username password)
-                                     :actor ,actor
-                                     :actor_id ,actor-id))
-            for role-name being the hash-keys in role-ids
-            using (hash-value role-id)
-            do (upsert-link rbac "roles" "users" role-id user-id actor-id)
-            finally
-            (setf (gethash :roles details) role-ids)
-            (audit rbac details)
-            (return user-id))))))
+    (u:log-it-pairs :debug :detail "add-user" 
+      :username username
+      :email email
+      :password password
+      :roles roles
+      :all-roles (append roles *default-user-roles*)
+      :actor actor)
+    (multiple-value-bind (actor-id role-ids)
+      (validate-add-user-params 
+        rbac username email password 
+        (append roles *default-user-roles*)
+        actor)
+      (with-rbac (rbac)
+        ;; Add the user
+        (insert-user rbac username email password actor-id)
+        ;; Create the user's exclusive role and add the user to it
+        (insert-exclusive-role rbac username actor-id)
+        ;; Add the user to the rest of the roles
+        (loop
+          with user-id = (get-id rbac "users" username)
+          with details = (ds:ds `(:map
+                                   :title "Created user"
+                                   :username ,username
+                                   :user_id ,user-id
+                                   :email ,email
+                                   :password ,(password-hash
+                                                username password)
+                                   :actor ,actor
+                                   :actor_id ,actor-id))
+          for role-name being the hash-keys in role-ids
+          using (hash-value role-id)
+          do (upsert-link rbac "roles" "users" role-id user-id actor-id)
+          finally
+          (setf (gethash :roles details) role-ids)
+          (audit rbac details)
+          (return user-id)))))
   (:documentation "Add a new user. This creates an exclusive role, which is
 for this user only, and adds the user to the public and logged-in roles
-(given by *default-roles*). Returns the new user's ID."))
+(given by *default-user-roles*). Returns the new user's ID."))
 
 (defgeneric remove-user (rbac username actor)
   (:method ((rbac rbac-pg)
@@ -1914,11 +1923,16 @@ exclusive role, the public role, and the logged-in role."))
              (description string)
              (roles list)
              (actor string))
-    (u:log-it :debug "add-resource '~a'" resource)
+    (u:log-it-pairs :debug :detail "add-resource"
+      :resource resource
+      :description description
+      :roles roles
+      :all-roles (append *default-resource-roles* roles))
     (let* (errors
             (actor-id (check errors (get-id rbac "users" actor)
                         "Actor '~a' doesn't exist." actor))
-            (role-ids (get-role-ids rbac roles)))
+            (role-ids (get-role-ids rbac 
+                        (append *default-resource-roles* roles))))
       (check errors (valid-resource-p rbac resource)
         "Invalid resource name '~a'." resource)
       (check errors
@@ -2089,7 +2103,8 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       page
       page-size))
   (:documentation "List the users have PERMISSION on RESOURCE, returning PAGE-SIZE rows
-from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+from PAGE. If PERMISSION is nil, this function lists RESOURCE users with any
+permission. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-resource-users-count (rbac resource permission)
   (:method ((rbac rbac-pg)

@@ -60,10 +60,24 @@
                         "logged-in" "system" "system:exclusive"))
 (defparameter *permissions* (list "create" "delete" "read" "update"))
 (defparameter *uuid-regex* "^[a-f0-9]{8}-([a-f0-9]{4}-){3}[a-f0-9]{12}$")
+(defparameter *system-roles* (list "system" "admin"))
+(defparameter *system-users* (list "system" "admin"))
 
 (defun bogus-email-address (user)
   "Return a fake email address for the user"
   (format nil "~a@invalid-domain.com" user))
+
+(defun list-includes-all-p (reference-list test-list)
+  "Return T if REFERENCE-LIST includes all elements of TEST-LIST."
+  (every (lambda (item)
+           (member item reference-list :test 'equal))
+    test-list))
+
+(defun exclude (original-list items-to-remove)
+  "Return a copy of ORIGINAL-LIST with all ITEMS-TO-REMOVE removed."
+  (remove-if (lambda (item)
+               (member item items-to-remove :test 'equal))
+    original-list))
 
 (plan 42)
 
@@ -739,7 +753,7 @@
          (roles (list "admin" "editor"))
          (actor "system"))
     (loop
-      with all-applicable-roles = (append roles a::*default-roles*)
+      with all-applicable-roles = (append roles a::*default-user-roles*)
       for a from 1 to 3
       for username = (format nil "test-user-~d" a)
       for email = (bogus-email-address username)
@@ -770,12 +784,18 @@
                      (member role new-roles :test #'string=))
               all-applicable-roles)
           (format nil "user ~a has roles ~{~a~^, ~}"
-            username (append roles a::*default-roles*)))))
-    (is-error (a:add-user *rbac* "test-user-1"
-                (bogus-email-address "test-user-4")
-                "test-user-4-password" roles actor)
-      'simple-error
-      "username must be unique")
+            username (append roles a::*default-user-roles*)))))
+    (let ((reference-role-count (a:list-roles-count *rbac*))
+           (reference-user-count (a:list-users-count *rbac*)))
+      (is-error (a:add-user *rbac* "test-user-1"
+                  (bogus-email-address "test-user-4")
+                  "test-user-4-password" roles actor)
+        'simple-error
+        "username must be unique")
+      (is (a:list-users-count *rbac*) reference-user-count
+        "user count unchanged after duplicate username addition")
+      (is (a:list-roles-count *rbac*) reference-role-count
+        "role count unchanged after duplicate username addition"))
     (ok (not (a:get-value *rbac* "users" "id"
                "email" (bogus-email-address "test-user-4")))
       "duplicate username addition does not create a user")
@@ -1269,20 +1289,19 @@
     (ok (loop for new-resource in new-resources
           never (member new-resource existing-resources :test 'equal))
       "none of the new resources exist yet")
-    (ok (loop
-          with existing-resource-roles =
-          (ds:ds
-            '(:map
-               "/admin/" (:list "test-role" "viewer")
-               "/public/" (:list "test-role" "viewer")
-               "/user/" (:list "test-role" "viewer")))
-          for resource in existing-resources
-          for resource-roles = (mapcar
-                                 (lambda (rr) (getf rr :role-name))
-                                 (a:list-resource-roles *rbac* resource 1 100))
-          do (u:log-it :debug "~a roles: ~{~a~^, ~}" resource resource-roles)
-          always (equal resource-roles (gethash resource existing-resource-roles)))
-      "all resources have expected roles")
+    ;; Check that existing resources have expected roles
+    (ok (list-includes-all-p
+          (a:list-resource-role-names *rbac* "/admin/")
+          '("test-role" "viewer"))
+      "resource /admin/ has expected roles")
+    (ok (list-includes-all-p
+          (a:list-resource-role-names *rbac* "/public/")
+          '("test-role" "viewer"))
+      "resource /public/ has expected roles")
+    (ok (list-includes-all-p
+          (a:list-resource-role-names *rbac* "/user/")
+          '("test-role" "viewer"))
+      "resource /user/ has expected roles")
     ;; Add some resources
     (diag "Adding new resources")
     (let ((new-resource-ids (loop
@@ -1333,7 +1352,7 @@
           (new-rr1 "test-user-1:exclusive")
           (new-rr2 "test-user-2:exclusive"))
     ;; Check baseline
-    (is (get-resource-roles resource)
+    (is (exclude (a:list-resource-role-names *rbac* resource) *system-roles*)
       old-resource-roles
       (format nil "resource ~a has roles ~{~a~^, ~}"
         resource old-resource-roles))
@@ -1343,6 +1362,7 @@
                          (a:add-resource-role *rbac* resource new-rr1 actor)))
             (roles-expected (sort
                               (append
+                                *system-roles*
                                 old-resource-roles
                                 (list new-rr1 new-rr2))
                               #'string<))
@@ -1503,9 +1523,13 @@
     "add /resource-2-1/ with role-ur")
   (ok (a:d-add-resource *rbac* "/resource-2-2/" :roles '("role-ur"))
     "add /resource-2-2/ with role-ur")
-  (is (a:list-resource-role-names *rbac* "/resource-2-1/") '("role-ur")
+  (is (exclude (a:list-resource-role-names *rbac* "/resource-2-1/") 
+        *system-roles*)
+    '("role-ur")
     "resource /resource-2-1/ has single role role-ur")
-  (is (a:list-resource-role-names *rbac* "/resource-2-2/") '("role-ur")
+  (is (exclude (a:list-resource-role-names *rbac* "/resource-2-2/")
+        *system-roles*)
+    '("role-ur")
     "resource /resource-2-2/ has single role role-ur")
   (let ((user-resources (list "/re-dir/" "/resource-2-1/" "/resource-2-2/")))
     (is (a:list-user-resource-names *rbac* "user-ur") user-resources
@@ -1527,32 +1551,52 @@
          (role-create "role-create")
          (role-update "role-update")
          (resource "/ro-444/"))
+    ;; Create the roles
     (ok (a:d-add-role *rbac* role-read :permissions '("read"))
       (format nil "add role ~a" role-read))
     (ok (a:d-add-role *rbac* role-create :permissions '("create"))
       (format nil "add role ~a" role-create))
     (ok (a:d-add-role *rbac* role-update :permissions '("update"))
       (format nil "add role ~a" role-update))
+    (ok (a:d-add-permission *rbac* "bogus-permission") "add bogus-permission")
+    (ok (a:d-add-role *rbac* "bogus-role" :permissions '("bogus-permission"))
+      "add bogus-role with bogus-permission")
+    ;; First, create user user-read-01 with both role-read and role-create
     (ok (a:d-add-user *rbac* (car users) (car users)
           :roles (list role-read role-create))
       (format nil "add user ~a" (car users)))
-    (ok (a:d-add-resource *rbac* resource)
-      (format nil "add resource ~a" resource))
+    ;; Add the resource
+    (ok (a:d-add-resource *rbac* resource :roles '("bogus-role"))
+      (format nil "add resource ~a with bogus-role" resource))
+    ;; Remove admin role from the new resource
+    (ok (a:d-remove-resource-role *rbac* resource "admin")
+      (format nil "remove role admin from resource ~a" resource))
+    ;; The resourse should have no users at all
+    (is (a:list-resource-usernames *rbac* resource nil)
+      (list "system")
+      (format nil "resource ~a has no users" resource))
+    ;; Initially, the user should not have read access to the resource
     (ok (not (a:user-allowed *rbac* (car users) "read" resource))
       (format nil "user ~a does not have read access to resource ~a"
         (car users) resource))
+    ;; Add role-create to the resource
     (ok (a:d-add-resource-role *rbac* resource role-create)
       (format nil "add role ~a to resource ~a" role-create resource))
+    ;; The user should still not have read access to the resource
     (ok (not (a:user-allowed *rbac* (car users) "read" resource))
       (format nil "user ~a does not have 'read' permission on resource ~a"
         (car users) resource))
+    ;; Now add role-read to the resource
     (ok (a:d-add-resource-role *rbac* resource role-read)
       (format nil "add role ~a to resource ~a" role-read resource))
+    ;; The user should now have read access to the resource
     (ok (a:user-allowed *rbac* (car users) "read" resource)
       (format nil "user ~a has 'read' permission on resource ~a"
         (car users) resource))
+    ;; The list of users with read access should include only this user
+    ;; and the system users
     (is (a:list-resource-usernames *rbac* resource "read")
-      (list (car users))
+      (sort (list (car users) "system") #'string<)
       (format nil "list-resource-users ~a ~a: ~a"
         resource "read" (car users)))
     ;; Add the rest of the users with read access
@@ -1568,16 +1612,23 @@
       (format nil "add role '~a' to resource '~a'" role-update resource))
     ;; This should include only users that have read access. The last user
     ;; we added should not be included.
-    (is (a:list-resource-usernames *rbac* resource "read") users
+    (is (exclude 
+          (a:list-resource-usernames *rbac* resource "read")
+          *system-users*)
+      users
       (format nil "~d users have read access to resource ~a"
         (length users) resource))
     ;; This should include users that have any access. The last user we
     ;; added should be included.
-    (is (length (a:list-resource-users *rbac* resource nil 1 20))
-      (1+ (length users))
+    (is (length (exclude 
+                  (a:list-resource-users *rbac* resource nil 1 20)
+                  '("admin")))
+      (+ (length users) 2)
       (format nil "~d users have any access to resource ~a"
         (1+ (length users)) resource))
-    (is (length (a:list-resource-usernames *rbac* resource nil))
+    (is (length (exclude
+                  (a:list-resource-usernames *rbac* resource nil)
+                  *system-users*))
       (1+ (length users))
       (format nil "~d users have any access to resource ~a (usernames)"
         (1+ (length users)) resource))))
@@ -1600,9 +1651,9 @@
   (is (a:list-users-count *rbac*) 20 "list-users-count")
   (is (a:list-users-filtered-count *rbac* '(("email" "=" "no-email"))) 17
     "list-users-filtered-count")
-  (is (a:list-permissions-count *rbac*) 8 "list-permissions-count")
-  (is (a:list-roles-count *rbac*) 32 "list-roles-count")
-  (is (a:list-roles-regular-count *rbac*) 9 "list-roles-regular-count")
+  (is (a:list-permissions-count *rbac*) 9 "list-permissions-count")
+  (is (a:list-roles-count *rbac*) 33 "list-roles-count")
+  (is (a:list-roles-regular-count *rbac*) 10 "list-roles-regular-count")
   (is (a:list-role-permissions-count *rbac* "role-read") 1
     "list-role-permissions-count")
   (is (a:list-role-users-count *rbac* "role-read") 10
@@ -1629,16 +1680,24 @@
   (ok (a:d-add-resource *rbac* "/rrr-test/" :roles '("rrr-1" "rrr-2" "rrr-3"))
     "add resource /rrr-test/")
   (is (a:list-resource-role-names *rbac* "/rrr-test/")
-    (a:list-resource-role-names-regular *rbac* "/rrr-test/")
-    "at this point, all resource roles are regular roles")
+    (sort
+      (u:distinct-values
+        (append 
+          (a:list-resource-role-names-regular *rbac* "/rrr-test/")
+          *system-roles*))
+      #'string<)
+    "at this point, all resource roles are regular roles (plus system roles)")
   (is (a:list-resource-role-names *rbac* "/rrr-test/")
-    '("rrr-1" "rrr-2" "rrr-3")
+    (sort (append '("rrr-1" "rrr-2" "rrr-3") *system-roles*) #'string<)
     "resource has expected roles")
   (ok (a:d-add-resource-role *rbac* "/rrr-test/" "rrr-user:exclusive"))
   (is (a:list-resource-role-names *rbac* "/rrr-test/")
-    (sort
-      (cons "rrr-user:exclusive"
-        (a:list-resource-role-names-regular *rbac* "/rrr-test/"))
+    (sort 
+      (u:distinct-values
+        (append 
+          (list "rrr-user:exclusive")
+          *system-roles*
+          (a:list-resource-role-names-regular *rbac* "/rrr-test/")))
       #'string<)
     "after adding exclusive role, list-resource-role-names includes it"))
 
