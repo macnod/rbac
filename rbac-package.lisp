@@ -6,15 +6,6 @@
     (:re :ppcre)
     (:db :postmodern))
   (:export
-    *default-permissions*
-    *default-roles*
-    *email-regex*
-    *password-regexs*
-    *permission-regex*
-    *resource-regex*
-    *role-regex*
-    *username-regex*
-
     ;; Macros
     with-rbac
     check
