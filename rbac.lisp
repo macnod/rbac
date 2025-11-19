@@ -100,7 +100,7 @@ row in the result is a plist, where the keys represent the field names."
   "Converts SQL into a one-line string, removing extra spaces and newlines.
 This does not work correctly if SQL contains quoted field names or values that
 include multiple consecutive whitespace characters."
-  (u:trim (re:regex-replace-all "\\s\\s+" sql " ")))
+  (u:trim (re:regex-replace-all "\\s+" sql " ")))
 
 (defun sql-next-placeholder (sql)
   "Returns the biggest placeholder in SQL. This is useful when generating
