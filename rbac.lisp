@@ -97,9 +97,10 @@ row in the result is a plist, where the keys represent the field names."
   (eval (cons 'db:query (append sql-template-and-parameters (list :plists)))))
 
 (defun usql (sql)
-  "Converts SQL into a one-line string, removing extra spaces and newlines."
-  (re:regex-replace-all "^[ \\t\\n]+|[ \\t\\n]+$"
-    (re:regex-replace-all "[ \\t\\n]+" sql " ") ""))
+  "Converts SQL into a one-line string, removing extra spaces and newlines.
+This does not work correctly if SQL contains quoted field names or values that
+include multiple consecutive whitespace characters."
+  (u:trim (re:regex-replace-all "\\s\\s+" sql " ")))
 
 (defun sql-next-placeholder (sql)
   "Returns the biggest placeholder in SQL. This is useful when generating
