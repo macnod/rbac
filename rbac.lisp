@@ -245,7 +245,7 @@ that exists in the users database."))
     (if (and *table-fields* cache)
       *table-fields*
       (with-rbac (rbac)
-        (u:log-it-pairs :debug :details "table-fields from database")
+        (u:log-it-pairs :debug :in "table-fields from database")
         (loop
           with sql = "select table_name
                     from information_schema.tables
@@ -308,7 +308,7 @@ hash table represents a row."))
 
 (defgeneric name-id-index (rbac table)
   (:method ((rbac rbac) (table string))
-    (u:log-it-pairs :debug :detail "name-id-index" :table table)
+    (u:log-it-pairs :debug :in "name-id-index" :table table)
     (let* (errors
             (name-field (table-name-field table))
             (index (make-hash-table :test 'equal))
@@ -480,7 +480,7 @@ plist."))
              (tables string)
              (where-clauses list)
              (values list))
-    (u:log-it-pairs :debug :detail "count-rows"
+    (u:log-it-pairs :debug :in "count-rows"
       :tables tables
       :where-clauses (format nil "~{~a~^ and ~}" where-clauses)
       :values (format nil "~{~a~^, ~}" values))
@@ -718,7 +718,7 @@ delete a row and references to that row, updating the audit table."))
              (table string)
              (field string)
              &rest search)
-    (u:log-it-pairs :debug :detail "get-value"
+    (u:log-it-pairs :debug :in "get-value"
       :table table :field field
       :search (format nil "~{~a=~a~^; ~}" search))
     (let* (errors
@@ -750,7 +750,7 @@ returns NIL."))
              (name string))
     (u:log-it :debug "get-id")
     (let ((name-field (table-name-field table)))
-      (u:log-it-pairs :debug :detail "get-id"
+      (u:log-it-pairs :debug :in "get-id"
         :table table :name-field name-field :name name)
       (get-value rbac table "id" name-field name)))
   (:documentation "Returns the ID associated with NAME in TABLE."))
@@ -1157,7 +1157,7 @@ as described in the documentation for upsert-link-sql."))
              (password string)
              (roles list)
              (actor string))
-    (u:log-it-pairs :debug :detail "add-user" 
+    (u:log-it-pairs :debug :in "add-user"
       :username username
       :email email
       :password password
@@ -1280,7 +1280,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
              (filters list)
              (page integer)
              (page-size integer))
-    (u:log-it-pairs :debug :detail "list-users-sorted" :sort-by sort-by)
+    (u:log-it-pairs :debug :in "list-users-filtered" :sort-by sort-by)
     (let (errors)
       (check errors (table-field-exists-p rbac "users" sort-by)
         "SORT-BY field '~a' does not exist in the users table." sort-by)
@@ -1674,7 +1674,7 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
 
 (defgeneric list-role-permissions-count (rbac role)
   (:method ((rbac rbac-pg) (role string))
-    (u:log-it-pairs :debug :detail "list-role-permissions-count" :role role)
+    (u:log-it-pairs :debug :in "list-role-permissions-count" :role role)
     (count-rows
       rbac
       "role_permissions rp
@@ -1807,7 +1807,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-role-users-count (rbac role)
   (:method ((rbac rbac-pg) (role string))
-    (u:log-it-pairs :debug :detail "list-role-users-count" :role role)
+    (u:log-it-pairs :debug :in "list-role-users-count" :role role)
     (count-rows
       rbac
       "role_users ru
@@ -1852,7 +1852,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
 
 (defgeneric list-user-roles-count (rbac user)
   (:method ((rbac rbac-pg) (user string))
-    (u:log-it-pairs :debug :detail "list-user-roles-count" :user user)
+    (u:log-it-pairs :debug :in "list-user-roles-count" :user user)
     (count-rows
       rbac
       "role_users ru
@@ -1871,7 +1871,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
              (user string)
              (page integer)
              (page-size integer))
-    (u:log-it-pairs :debug :detail "list-user-roles-regular" :user user)
+    (u:log-it-pairs :debug :in "list-user-roles-regular" :user user)
     (list-rows
       rbac
       (list
@@ -1900,7 +1900,7 @@ on page PAGE."))
 
 (defgeneric list-user-roles-regular-count (rbac user)
   (:method ((rbac rbac-pg) (user string))
-    (u:log-it-pairs :debug :detail "list-user-roles-regular-count" :user user)
+    (u:log-it-pairs :debug :in "list-user-roles-regular-count" :user user)
     (count-rows
       rbac
       "role_users ru
@@ -1924,7 +1924,7 @@ exclusive role, the public role, and the logged-in role."))
              (description string)
              (roles list)
              (actor string))
-    (u:log-it-pairs :debug :detail "add-resource"
+    (u:log-it-pairs :debug :in "add-resource"
       :resource resource
       :description description
       :roles roles
@@ -2015,12 +2015,14 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
     (count-rows rbac "resources" (list "deleted_at is null") nil))
   (:documentation "Return the count of resources in the database."))
 
-(defgeneric list-user-resources (rbac user page page-size)
+(defgeneric list-user-resources (rbac user permission page page-size)
   (:method ((rbac rbac-pg)
              (user string)
+             permission
              (page integer)
              (page-size integer))
-    (u:log-it :debug "list-user-resources '~a'" user)
+    (u:log-it-pairs :debug :in "list-user-resources"
+      :user user :permission permission :page page :page-size page-size)
     (list-rows
       rbac
       (list
@@ -2031,40 +2033,49 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
          join resource_roles sr on s.id = sr.resource_id
          join roles r on sr.role_id = r.id
          join role_users ru on r.id = ru.role_id
-         join users u on ru.user_id = u.id"
+         join users u on ru.user_id = u.id
+         join role_permissions rp on rp.role_id = r.id
+         join permissions p on rp.permission_id = p.id"
       (list
         "u.username = $1"
+        (if permission "p.permission_name = $2" "1=1")
         "u.deleted_at is null"
         "s.deleted_at is null"
         "sr.deleted_at is null"
         "ru.deleted_at is null"
-        "r.deleted_at is null")
-      (list user)
+        "r.deleted_at is null"
+        "rp.deleted_at is null"
+        "p.deleted_at is null")
+      (remove-if-not #'identity (list user permission))
       (list "s.resource_name")
       page
       page-size))
-  (:documentation "List the resources that USER has access to, returning PAGE-SIZE rows from
-PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
+  (:documentation "List the resources that USER has access to with PERMISSION, returning
+PAGE-SIZE rows from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
-(defgeneric list-user-resources-count (rbac user)
-  (:method ((rbac rbac-pg) (user string))
-    (u:log-it-pairs :debug :detail "list-user-resources-count" :user user)
+(defgeneric list-user-resources-count (rbac user permission)
+  (:method ((rbac rbac-pg) (user string) permission)
+    (u:log-it-pairs :debug :in "list-user-resources-count"
+      :user user :permission permission)
     (count-rows
       rbac
       "resources s
          join resource_roles sr on s.id = sr.resource_id
          join roles r on sr.role_id = r.id
          join role_users ru on r.id = ru.role_id
-         join users u on ru.user_id = u.id"
+         join users u on ru.user_id = u.id
+         join role_permissions rp on rp.role_id = r.id
+         join permissions p on rp.permission_id = p.id"
       (list
         "u.username = $1"
+        (if permission "p.permission_name = $2" "1=1")
         "u.deleted_at is null"
         "s.deleted_at is null"
         "sr.deleted_at is null"
         "ru.deleted_at is null"
         "r.deleted_at is null")
-      (list user)))
-  (:documentation "Return the count of resources that USER has access to."))
+      (remove-if-not #'identity (list user permission))))
+  (:documentation "Return the count of resources that USER has access to with PERMISSION."))
 
 (defgeneric list-resource-users
   (rbac resource permission page page-size)
@@ -2073,8 +2084,7 @@ PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
              permission
              (page integer)
              (page-size integer))
-    (u:log-it-pairs :debug
-      :details "list-resource-users"
+    (u:log-it-pairs :debug :in "list-resource-users"
       :resource resource
       :permission permission)
     (list-rows
@@ -2111,8 +2121,7 @@ permission. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
   (:method ((rbac rbac-pg)
              (resource string)
              permission)
-    (u:log-it-pairs :debug
-      :details "list-resource-users-count"
+    (u:log-it-pairs :debug :in "list-resource-users-count"
       :resource resource
       :permission permission)
     (count-rows
@@ -2247,7 +2256,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-resource-roles-count (rbac resource)
   (:method ((rbac rbac-pg) (resource string))
-    (u:log-it-pairs :debug :detail "list-resource-roles-count" :resource resource)
+    (u:log-it-pairs :debug :in "list-resource-roles-count" :resource resource)
     (count-rows
       rbac
       "resource_roles rr
@@ -2294,7 +2303,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-resource-roles-regular-count (rbac resource)
   (:method ((rbac rbac-pg) (resource string))
-    (u:log-it-pairs :debug :detail "list-resource-roles-regular-count"
+    (u:log-it-pairs :debug :in "list-resource-roles-regular-count"
       :resource resource)
     (count-rows
       rbac
@@ -2344,7 +2353,7 @@ resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
 
 (defgeneric list-role-resources-count (rbac role)
   (:method ((rbac rbac-pg) (role string))
-    (u:log-it-pairs :debug :detail "list-role-resources-count" :role role)
+    (u:log-it-pairs :debug :in "list-role-resources-count" :role role)
     (count-rows
       rbac
       "resource_roles rr
@@ -2413,7 +2422,7 @@ RESOURCE. If the list is empty, the user does not have access."
              (username string)
               &rest role)
     "Returns T if USERNAME has any of ROLE, NIL otherwise."
-    (u:log-it-pairs :debug :detail "user-has-role"
+    (u:log-it-pairs :debug :in "user-has-role"
       :username username
       :roles role)
     (with-rbac (rbac)
@@ -2468,47 +2477,74 @@ for USERNAME and return the user ID. Otherwise, return NIL."))
       (error "No actor: ~a" (ds:human details)))
     (unless (gethash :title details)
       (error "No title"))
-    (u:log-it-pairs :info :details "audit" :data (ds:to-json details))
+    (u:log-it-pairs :info :in "audit" :data (ds:to-json details))
     nil)
   (:documentation "Log the DETAILS hash-table as an audit record."))
 
 (defmacro define-list-functions (rbac-type &rest function-specs)
   "Define multiple list functions with common structure. Each spec is a
-list: (function-name documentation list-function return-key extra-arg)"
+list: (function-name documentation list-function return-key arg-1 arg-2)
+where arg-1 and arg-2 are optional, for underlying list-functions that
+need them."
   `(progn
-     ,@(loop for spec in function-specs
-         collect (let ((func-name (first spec))
-                        (documentation (second spec))
-                        (list-func (third spec))
-                        (return-key (fourth spec))
-                        (extra-arg (fifth spec)))
-                   (if extra-arg
-                     ;; Function with additional parameter
-                     `(defgeneric ,func-name (,rbac-type ,extra-arg &key page page-size)
-                        (:documentation ,documentation)
-                        (:method ((rbac ,rbac-type)
-                                   (,extra-arg string)
-                                   &key (page 1) (page-size *default-page-size*))
-                          (u:log-it :debug "~(~a~)" ',func-name)
-                          (sort
-                            (mapcar
-                              (lambda (r) (getf r ,return-key))
-                              (,list-func rbac ,extra-arg page page-size))
-                            #'string<)))
-                     ;; Function without additional parameter
-                     `(defgeneric ,func-name (,rbac-type &key page page-size)
-                        (:documentation ,documentation)
-                        (:method ((rbac ,rbac-type)
-                                   &key (page 1) (page-size *default-page-size*))
-                          (u:log-it :debug "~(~a~)" ',func-name)
-                          (sort
-                            (mapcar
-                              (lambda (r) (getf r ,return-key))
-                              (,list-func rbac page page-size))
-                            #'string<))))))))
+     ,@(loop for spec in function-specs collect
+         (let ((func-name (first spec))
+                (documentation (second spec))
+                (list-func (third spec))
+                (return-key (fourth spec))
+                (arg-1 (fifth spec))
+                (arg-2 (sixth spec)))
+           (cond
+             (arg-2
+               ;; Function with arg-2
+               `(defgeneric ,func-name (,rbac-type ,arg-1 ,arg-2
+                                         &key page page-size)
+                  (:documentation ,documentation)
+                  (:method ((rbac ,rbac-type)
+                             (,arg-1 string)
+                             (,arg-2 string)
+                             &key (page 1) (page-size *default-page-size*))
+                    (u:log-it-pairs :debug :in (format nil "~(~a~)" ',func-name)
+                      :generated t
+                      :arg-1 ,arg-1
+                      :arg-2 ,arg-2)
+                    (sort
+                      (mapcar
+                        (lambda (r) (getf r ,return-key))
+                        (,list-func rbac ,arg-1 ,arg-2 page page-size))
+                      #'string<))))
+             (arg-1
+               ;; Function with arg-1
+               `(defgeneric ,func-name (,rbac-type ,arg-1 &key page page-size)
+                  (:documentation ,documentation)
+                  (:method ((rbac ,rbac-type)
+                             (,arg-1 string)
+                             &key (page 1) (page-size *default-page-size*))
+                    (u:log-it-pairs :debug :in (format nil "~(~a~)" ',func-name)
+                      :generated t
+                      :arg-1 ,arg-1)
+                    (sort
+                      (mapcar
+                        (lambda (r) (getf r ,return-key))
+                        (,list-func rbac ,arg-1 page page-size))
+                      #'string<))))
+             (t
+               ;; Function without additional args
+               `(defgeneric ,func-name (,rbac-type &key page page-size)
+                  (:documentation ,documentation)
+                  (:method ((rbac ,rbac-type)
+                             &key (page 1) (page-size *default-page-size*))
+                    (u:log-it-pairs :debug
+                      :in (format nil "~(~a~)" ',func-name)
+                      :generated t)
+                    (sort
+                      (mapcar
+                        (lambda (r) (getf r ,return-key))
+                        (,list-func rbac page page-size))
+                      #'string<)))))))))
 
 (define-list-functions rbac
-  ;; Functions without extra arg
+  ;; Functions without arguments
   (list-usernames "List all usernames" list-users :username)
   (list-role-names "List all roles" list-roles :role-name)
   (list-role-names-regular "List all regular roles"
@@ -2518,7 +2554,7 @@ list: (function-name documentation list-function return-key extra-arg)"
   (list-resource-names "List all resources"
     list-resources :resource-name)
 
-  ;; Functions with extra arg
+  ;; Functions with 1 argument
   (list-role-usernames "List users for role"
     list-role-users :username role)
   (list-user-role-names "List roles for user"
@@ -2533,24 +2569,12 @@ list: (function-name documentation list-function return-key extra-arg)"
     list-resource-roles-regular :role-name resource)
   (list-role-resource-names "List resources for role"
     list-role-resources :resource-name role)
-  (list-user-resource-names "List resources for user"
-    list-user-resources :resource-name user))
 
-(defgeneric list-resource-usernames (rbac resource permission
-                                      &key page page-size)
-  (:documentation "List usernames that have PERMISSION on RESOURCE.")
-  (:method ((rbac rbac-pg)
-             (resource string)
-             permission
-             &key
-             (page 1)
-             (page-size *default-page-size*))
-    (u:log-it :debug "list-resource-usernames")
-    (sort
-      (mapcar
-        (lambda (r) (getf r :username))
-        (list-resource-users rbac resource permission page page-size))
-      #'string<)))
+  ;; Functions with 2 arguments
+  (list-resource-usernames "List usernames that have PERMISSION on RESOURCE"
+    list-resource-users :username resource permission)
+  (list-user-resource-names "List resources where USER has PERMISSION"
+    list-user-resources :resource-name user permission))
 
 (defgeneric d-add-role (rbac role &key description exclusive permissions actor)
   (:documentation "Add a role with defaults.")

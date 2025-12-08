@@ -1531,17 +1531,9 @@
         *system-roles*)
     '("role-ur")
     "resource /resource-2-2/ has single role role-ur")
-  (let ((user-resources (list "/re-dir/" "/resource-2-1/" "/resource-2-2/")))
-    (is (a:list-user-resource-names *rbac* "user-ur") user-resources
-      (format nil "list-user-resource-names return ~{~a~^, ~}" user-resources))
-    (pop user-resources)
-    ;; The logged-in role is assigned automatically to all users and could
-    ;; give a user access to other resources. We want to limit access to
-    ;; the resources with the role-ur role only.
-    (ok (a:d-remove-user-role *rbac* "user-ur" "logged-in")
-      "remove role logged-in from user user-ur")
-    (is (a:list-user-resource-names *rbac* "user-ur") user-resources
-      (format nil "list-user-resource-names return ~{~a~^, ~}" user-resources))))
+  (let ((user-resources (list "/resource-2-1/" "/resource-2-2/")))
+    (is (a:list-user-resource-names *rbac* "user-ur" "read") user-resources
+      (format nil "user resources with read: ~{~a~^, ~}" user-resources))))
 
 (subtest "list resource users"
   (let ((users (mapcar
@@ -1572,7 +1564,7 @@
     (ok (a:d-remove-resource-role *rbac* resource "admin")
       (format nil "remove role admin from resource ~a" resource))
     ;; The resourse should have no users at all
-    (is (a:list-resource-usernames *rbac* resource nil)
+    (is (a:list-resource-usernames *rbac* resource "read")
       (list "system")
       (format nil "resource ~a has no users" resource))
     ;; Initially, the user should not have read access to the resource
@@ -1612,26 +1604,28 @@
       (format nil "add role '~a' to resource '~a'" role-update resource))
     ;; This should include only users that have read access. The last user
     ;; we added should not be included.
-    (is (exclude 
-          (a:list-resource-usernames *rbac* resource "read")
-          *system-users*)
-      users
-      (format nil "~d users have read access to resource ~a"
-        (length users) resource))
-    ;; This should include users that have any access. The last user we
-    ;; added should be included.
-    (is (length (exclude 
-                  (a:list-resource-users *rbac* resource nil 1 20)
-                  '("admin")))
-      (+ (length users) 2)
-      (format nil "~d users have any access to resource ~a"
-        (1+ (length users)) resource))
-    (is (length (exclude
-                  (a:list-resource-usernames *rbac* resource nil)
-                  *system-users*))
-      (1+ (length users))
-      (format nil "~d users have any access to resource ~a (usernames)"
-        (1+ (length users)) resource))))
+    (let ((users-read (exclude
+                        (a:list-resource-usernames *rbac* resource "read")
+                        *system-users*))
+           (users-create (exclude
+                           (a:list-resource-usernames *rbac* resource "create")
+                           *system-users*))
+           (users-create-1 (exclude
+                             (mapcar
+                               (lambda (user)
+                                 (getf user :username))
+                               (a:list-resource-users *rbac* resource "create"
+                                 1 20))
+                             *system-users*)))
+      (is users-read users
+        (format nil "~d users have read access to resource ~a"
+          (length users-read) resource))
+      (is users-create (list "user-read-01")
+        (format nil "create access to resource ~a: ~{~a~^, ~}"
+          resource users-create))
+      (is users-create-1 (list "user-read-01")
+        (format nil "create access to resource ~a (usernames): ~{~a~^, ~}"
+          resource users-create-1)))))
 
 (subtest "list-users-filtered"
   (is (mapcar
