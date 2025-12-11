@@ -1,0 +1,79 @@
+name: Run tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      disable-cache:
+        description: 'Disable all caching'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cl-user
+          POSTGRES_PASSWORD: cl-user-password
+          POSTGRES_DB: rbac
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        volumes:
+          - ./init:/docker-entrypoint-initdb.d
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Roswell
+        uses: macnod/roswell-action@v2
+        with:
+          sbcl-version: 2.5.10
+          roswell-version: 23.10.14.114
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        id: depcache
+        with:
+          path: |
+            ~/.roswell/local-projects
+            ~/.cache/common-lisp
+          key: dependencies-${{ runner.os }}-${{ hashFiles('**/*.lisp', '**/*.asd', 'Makefile') }}
+          restore-keys: |
+            dependencies-${{ runner.os }}-
+
+      - name: Cache hit for dependencies
+        if: steps.depcache.outputs.cache-hit == 'true'
+        shell: bash
+        run: echo "✅ Cache hit for dependencies"
+
+      - name: Install dependencies
+        if: steps.depcache.outputs.cache-hit != 'true'
+        shell: bash
+        run: make install-dependencies
+
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h 127.0.0.1 -p 5432 -U cl-user -d rbac; do
+            echo "Waiting for PostgreSQL..."
+            sleep 1
+          done
+          sleep 1
+
+      - name: Run tests
+        run: make test-ci
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGUSER: cl-user
+          PGPASSWORD: cl-user-password
+          PGDATABASE: rbac
