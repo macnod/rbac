@@ -23,7 +23,7 @@ install-dependencies:
 	ros install ironclad
 	ros install macnod/dc-ds
 	ros install macnod/dc-time
-	ros install macnod/dc-log
+	ros install macnod/p-log
 	ros install macnod/dc-eclectic
 
 test:
