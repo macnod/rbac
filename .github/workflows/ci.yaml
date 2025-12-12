@@ -10,10 +10,6 @@ on:
         required: false
         default: 'false'
         type: boolean
-env:
-  # Needs to be the same as docker-compose-pg.yaml and rbac-tests.lisp
-  PG_PORT: 5434
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,7 +21,7 @@ jobs:
           POSTGRES_PASSWORD: cl-user-password
           POSTGRES_DB: rbac
         ports:
-          - ${{ env.PG_PORT }}:5432
+          - 5434:5432
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -66,7 +62,7 @@ jobs:
 
       - name: Wait for PostgreSQL
         run: |
-          until pg_isready -h 127.0.0.1 -p ${{ env.PG_PORT }} -U cl-user -d rbac; do
+          until pg_isready -h 127.0.0.1 -p 5434 -U cl-user -d rbac; do
             echo "Waiting for PostgreSQL..."
             sleep 1
           done
@@ -76,7 +72,7 @@ jobs:
         run: make test-ci
         env:
           PGHOST: 127.0.0.1
-          PGPORT: ${{ env.PG_PORT }}
+          PGPORT: 5434
           PGUSER: cl-user
           PGPASSWORD: cl-user-password
           PGDATABASE: rbac
