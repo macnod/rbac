@@ -13,6 +13,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:16
@@ -59,6 +60,13 @@ jobs:
         if: steps.depcache.outputs.cache-hit != 'true'
         shell: bash
         run: make install-dependencies
+
+      - name: Debug init directory
+        run: |
+          echo "Workspace: ${{ github.workspace }}"
+          ls -la ${{ github.workspace }}/
+          ls -la ${{ github.workspace }}/init/ || echo "init/ dir missing"
+          cat ${{ github.workspace }}/init/init.sql || echo "init.sql missing!"
 
       - name: Wait for PostgreSQL
         run: |
