@@ -28,8 +28,13 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+          --rm
         volumes:
+          - postgres_data:/var/lib/postgresql/data
           - ${{ github.workspace }}/init:/docker-entrypoint-initdb.d
+
+    volumes:
+      postgres_data:
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +73,6 @@ jobs:
           ls -la ${{ github.workspace }}/init/ || echo "init/ dir missing"
           stat ${{ github.workspace }}/init/init.sql
           file ${{ github.workspace }}/init/init.sql
-          cat ${{ github.workspace }}/init/init.sql || echo "init.sql missing!"
 
       - name: Wait for PostgreSQL
         run: |
