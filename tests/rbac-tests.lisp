@@ -1,5 +1,3 @@
-;; Test change
-
 (require :asdf)
 (require :fiveam)
 (require :cl-ppcre)
