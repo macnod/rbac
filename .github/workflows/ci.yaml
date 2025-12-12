@@ -60,14 +60,6 @@ jobs:
         shell: bash
         run: make install-dependencies
 
-      - name: Debug init directory
-        run: |
-          echo "Workspace: ${{ github.workspace }}"
-          ls -la ${{ github.workspace }}/
-          ls -la ${{ github.workspace }}/init/ || echo "init/ dir missing"
-          stat ${{ github.workspace }}/init/init.sql
-          file ${{ github.workspace }}/init/init.sql
-
       - name: Wait for PostgreSQL
         run: |
           until pg_isready -h 127.0.0.1 -p 5434 -U cl-user -d rbac; do
