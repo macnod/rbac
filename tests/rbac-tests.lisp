@@ -22,7 +22,7 @@
 (in-package :rbac-test)
 
 (defparameter *host* "127.0.0.1")
-(defparameter *port* 5432)
+(defparameter *port* 5434)
 (defparameter *rbac* (make-instance 'rbac-pg
                        :host *host*
                        :port *port*
