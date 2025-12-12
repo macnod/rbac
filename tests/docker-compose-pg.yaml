@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: "cl-user-password"
       POSTGRES_DB: "rbac"
     ports:
+      # Needs to be the same as in ci.yaml and rbac-tests.lisp
       - "5434:5432"
     volumes:
       - ../init/:/docker-entrypoint-initdb.d/
