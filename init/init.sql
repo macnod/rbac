@@ -2,11 +2,9 @@
 -- schema
 --
 
-\c postgres
+\c rbac
 
 create extension if not exists "uuid-ossp";
-
-\c rbac
 
 --
 -- role-based access control (rbac) tables
