@@ -29,8 +29,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
           --tmpfs /var/lib/postgresql/data
-        volumes:
-          - ${{ github.workspace }}/init:/docker-entrypoint-initdb.d:ro
 
     steps:
       - uses: actions/checkout@v4
@@ -76,7 +74,13 @@ jobs:
             echo "Waiting for PostgreSQL..."
             sleep 1
           done
-          sleep 1
+          sleep 2
+
+      - name: Initialize database
+        env:
+          PGPASSWORD: cl-user-password
+        run: |
+          psql -h 127.0.0.1 -p 5434 -U cl-user -d postgres -f ${{ github.workspace }}/init/init.sql
 
       - name: Run tests
         run: make test-ci
