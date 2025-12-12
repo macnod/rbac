@@ -2,6 +2,8 @@
 -- schema
 --
 
+\c postgres
+
 create extension if not exists "uuid-ossp";
 
 \c rbac
