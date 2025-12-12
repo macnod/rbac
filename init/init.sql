@@ -2,9 +2,9 @@
 -- schema
 --
 
-create extension if not exists "uuid-ossp";
-
 \c rbac
+
+create extension if not exists "uuid-ossp";
 
 --
 -- role-based access control (rbac) tables

@@ -4,6 +4,7 @@
     (:ds :dc-ds)
     (:u :dc-eclectic)
     (:re :ppcre)
+    (:l :p-log)
     (:db :postmodern))
   (:export
     ;; Macros
