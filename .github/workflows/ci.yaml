@@ -66,6 +66,8 @@ jobs:
           echo "Workspace: ${{ github.workspace }}"
           ls -la ${{ github.workspace }}/
           ls -la ${{ github.workspace }}/init/ || echo "init/ dir missing"
+          stat ${{ github.workspace }}/init/init.sql
+          file ${{ github.workspace }}/init/init.sql
           cat ${{ github.workspace }}/init/init.sql || echo "init.sql missing!"
 
       - name: Wait for PostgreSQL
