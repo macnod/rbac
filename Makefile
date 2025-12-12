@@ -30,7 +30,7 @@ test:
 	tests/run-tests
 
 test-ci:
-	ros run -- --load "tests/rbac-tests.lisp" --quit
+	ros run -- --disable-debugger --load "tests/rbac-tests.lisp" --quit
 
 .PHONY: install-roswell install-dependencies test
 .DEFAULT_GOAL := test
