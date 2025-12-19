@@ -1,6 +1,6 @@
 ROSWELL_VERSION := v23.10.14.114
 SBCL_VERSION := 2.5.10
-TEST_FILE := tests/rbac-test.lisp
+TEST_FILE := tests/rbac-tests.lisp
 
 install-roswell:
 	@if ! which ros > /dev/null 2>&1; then \
@@ -27,10 +27,10 @@ install-dependencies:
 	ros install macnod/dc-eclectic
 
 test:
-	tests/run-tests
+	tests/run-tests "$(TEST_FILE)"
 
 test-ci:
-	ros run -- --disable-debugger --load "tests/rbac-tests.lisp" --quit
+	ros run -- --disable-debugger --load "$(TEST_FILE)" --quit
 
 .PHONY: install-roswell install-dependencies test
 .DEFAULT_GOAL := test

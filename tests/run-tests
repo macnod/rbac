@@ -1,5 +1,12 @@
 #!/bin/bash
 
+TEST_FILE=$1
+
+if [[ -z "$TEST_FILE" ]]; then
+    echo "Usage: $(basename $0) {test-file}"
+    exit 1
+fi
+
 # Start PostgreSQL and wait until it's available
 docker-compose -f tests/docker-compose-pg.yaml up -d &>/dev/null
 until docker-compose -f tests/docker-compose-pg.yaml exec -it pgtest \
@@ -11,7 +18,7 @@ echo "PostgreSQL is up!"
 sleep 1
 
 # Run the tests
-ros run -- --load "tests/rbac-test-1.lisp" --quit
+ros run -- --load "$TEST_FILE" --quit
 
 # Stop PostgreSQL
 docker-compose -f tests/docker-compose-pg.yaml down &>/dev/null

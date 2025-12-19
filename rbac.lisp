@@ -2361,9 +2361,11 @@ resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
              (resource string))
     "Returns a list of plists showing how the user USERNAME has PERMISSION access to
 RESOURCE. If the list is empty, the user does not have access."
-    (l:pdebug
-      "Checking if user '~a' has permission '~a' on resource '~a'"
-      username permission resource)
+    (l:pdebug :in "user-allowed"
+      :status "checking if user has permission on resource"
+      :user username
+      :resource resource
+      :permission permission)
     (with-rbac (rbac)
       (db:query
         "select
