@@ -21,12 +21,21 @@
 
 (in-package :rbac-test)
 
-(defparameter *host* "127.0.0.1")
-(defparameter *port* 5434)
+;; Environment variables
+(defparameter *db-host* (u:getenv "DB_HOST" :required t))
+(defparameter *db-port* (u:getenv "DB_PORT" :required t :type :integer))
+(defparameter *db-user* (u:getenv "DB_USER" :required t))
+(defparameter *db-password* (u:getenv "DB_PASSWORD" :required t))
+(defparameter *log-file* (u:getenv "LOG_FILE"))
+
+;; Database connection
 (defparameter *rbac* (make-instance 'rbac-pg
-                       :host *host*
-                       :port *port*
-                       :password "cl-user-password"))
+                       :host *db-host*
+                       :port *db-port*
+                       :username *db-user*
+                       :password *db-password*))
+
+;; Test support
 (defparameter *admin-id* nil)
 (defparameter *admin-email* "no-email")
 (defparameter *system-id* (get-id *rbac* "users" "system"))
@@ -58,9 +67,22 @@
                (member item items-to-remove :test 'equal))
     original-list))
 
+(when *log-file*
+  (make-log-stream "tests" *log-file* :append nil))
+
 (def-suite rbac-suite :description "FiveAM tests for the rbac package")
 
 (in-suite rbac-suite)
+
+(test current-directory
+  (is-true
+    (member "rbac-tests.lisp"
+      (mapcar (lambda (d) (u:filename-only (namestring d)))
+        (directory (u:join-paths (uiop:getcwd) "tests" "/*.*")))
+      :test 'equal)
+    "Expected ~%~{~a~%~} to contain the file tests/rbac-tests.lisp"
+    (directory (parse-namestring (u:join-paths (uiop:getcwd) "tests" "**")))
+    (uiop:getcwd)))
 
 (test next-placeholder-test
   (is (= (sql-next-placeholder "select ... where c = $1") 2)
@@ -1684,5 +1706,7 @@
     "user uhr-user-2 does not have access to uhr-role-1 or uhr-role-2"))
 
 ;;; Run tests
-(unless (run-all-tests)
-  (sb-ext:quit :unix-status 1))
+(let ((test-results (run-all-tests)))
+  (close-log-stream "tests")
+  (unless test-results
+    (sb-ext:quit :unix-status 1)))

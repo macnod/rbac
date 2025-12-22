@@ -1,13 +1,10 @@
 services:
-  pgtest:
+  pg-rbac-test:
     image: postgres:16
     environment:
-      POSTGRES_HOST: 127.0.0.1
-      POSTGRES_USER: "cl-user"
-      POSTGRES_PASSWORD: "cl-user-password"
-      POSTGRES_DB: "rbac"
+      POSTGRES_HOST: "$DB_HOST"
+      POSTGRES_DATABASE: "$DB_NAME"
+      POSTGRES_USER: "$DB_USER"
+      POSTGRES_PASSWORD: "$DB_PASSWORD"
     ports:
-      # Needs to be the same as in ci.yaml and rbac-tests.lisp
-      - "5434:5432"
-    volumes:
-      - ../init/:/docker-entrypoint-initdb.d/
+      - "${DB_PORT}:5432"

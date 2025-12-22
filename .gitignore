@@ -23,5 +23,6 @@
 *.wx32fsl
 
 # Logs
-tests/logs/
 /.markdown-preview.html
+/tests/archive/
+/tests/tests.log

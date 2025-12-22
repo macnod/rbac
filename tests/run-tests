@@ -2,23 +2,47 @@
 
 TEST_FILE=$1
 
+# File Server Lisp Environment
+export DB_HOST="127.0.0.1"
+export DB_PORT="5436"
+export DB_NAME="rbac"
+export DB_USER="rbac"
+export DB_PASSWORD="rbac-password"
+export DB_CONTAINER="pg-rbac-test"
+export LOG_FILE=$(readlink -f "$PWD/tests/tests.log")
+
+# Needed to avoid prompting in psql calls
+export PGPASSWORD="$DB_PASSWORD"
+
 if [[ -z "$TEST_FILE" ]]; then
     echo "Usage: $(basename $0) {test-file}"
     exit 1
 fi
 
-# Start PostgreSQL and wait until it's available
+echo
+echo "Starting PosgreSQL"
 docker-compose -f tests/docker-compose-pg.yaml up -d &>/dev/null
-until docker-compose -f tests/docker-compose-pg.yaml exec -it pgtest \
+until docker-compose -f tests/docker-compose-pg.yaml exec -it $DB_CONTAINER \
   pg_isready -U postgres &>/dev/null; do
   echo "Waiting for postgres..."
   sleep 1
 done
-echo "PostgreSQL is up!"
-sleep 1
+echo "PostgreSQL is up on port ${DB_PORT}"
+sleep 2
 
-# Run the tests
-ros run -- --load "$TEST_FILE" --quit
+echo
+echo "Initializing database"
+psql -h $DB_HOST -p $DB_PORT -d $DB_NAME -U $DB_USER \
+     -f tests/db-init/init.sql >&/dev/null
+
+echo
+echo "Running tests"
+ros run -- --disable-debugger --load "$TEST_FILE" --quit
+REPORT=$( [[ $? -eq 0 ]] && echo "PASS" || echo "FAIL" )
 
 # Stop PostgreSQL
+echo "Stopping and removing database container"
 docker-compose -f tests/docker-compose-pg.yaml down &>/dev/null
+
+echo
+echo "===> $REPORT <==="
