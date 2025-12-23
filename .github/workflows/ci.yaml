@@ -72,7 +72,7 @@ jobs:
         env:
           PGPASSWORD: cl-user-password
         run: |
-          psql -h 127.0.0.1 -p 5434 -U cl-user -d postgres \
+          psql -h 127.0.0.1 -p 5434 -U rbac -d postgres \
             -f ${{ github.workspace }}/tests/db-init/init.sql
 
       - name: Run tests
