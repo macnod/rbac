@@ -70,7 +70,7 @@ jobs:
 
       - name: Initialize database
         env:
-          PGPASSWORD: cl-user-password
+          PGPASSWORD: "rbac-password"
         run: |
           psql -h 127.0.0.1 -p 5434 -U rbac -d postgres \
             -f ${{ github.workspace }}/tests/db-init/init.sql
