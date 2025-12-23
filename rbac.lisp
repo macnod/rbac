@@ -70,14 +70,14 @@ of setting a variable, for example."
 ;;
 ;; Global functions
 ;;
-(defun report-errors (errors &optional (fail-on-error t))
+(defun report-errors (function-name errors &optional (fail-on-error t))
   "If ERRORS is not NIL, this function signals an error with a message that
 consists the strings in ERRORS, separated by spaces."
   (when errors
-    (let ((error-message (format nil "Error~p: ~{~a~^ ~}" (length errors) (reverse errors))))
-      (l:perror :in "report-errors" error-message)
-      (when fail-on-error
-        (error error-message)))))
+    (l:perror :in function-name :errors errors)
+    (when fail-on-error
+      (error (format nil "Error~p: ~{~a~^ ~}"
+               (length errors) (reverse errors))))))
 
 (defun rbac-query-single (sql-template-and-parameters)
   "Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a single
@@ -139,9 +139,14 @@ consists of the part of an SQL statement that specifies the tables and joins."
           "")))))
 
 (defun singular (string)
-  "If a STRING ends with an 's', this function returns the string without
+  "If STRING ends with an 's', this function returns the string without
 the 's'at the end."
   (re:regex-replace "s$" string ""))
+
+(defun plural (string)
+  "Adds 's' to STRING"
+  ;; TODO: improve
+  (format nil "~as" string))
 
 (defun external-reference-field (external-table)
   "Creates a field name that references the id field in EXTERNAL-TABLE."
@@ -159,6 +164,9 @@ table name, with '_name' appended."
   "Returns the hash of PASSWORD, using USERNAME as the salt. This is how RBAC
 stores the password in the database."
   (u:hash-string password :salt username :size 32))
+
+(defun exclusive-role-for (username)
+  (format nil "~a:exclusive" username))
 
 ;;
 ;; Class definitions
@@ -224,9 +232,7 @@ stores the password in the database."
       :initarg :permission-regex
       :type string
       :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"))
-  (:documentation "Abstract base class for user database. For auditing purposes, methods that
-update the database require an actor parameter, which consists of a username
-that exists in the users database."))
+  (:documentation "Abstract base class for user database."))
 
 (defclass rbac-pg (rbac)
   ((dbname :accessor dbname :initarg :dbname :initform "rbac")
@@ -239,6 +245,22 @@ that exists in the users database."))
 ;;
 ;; Generic functions
 ;;
+
+(defgeneric id-exists-p (rbac table id)
+  (:method ((rbac rbac-pg) (table string) (id string))
+    (when (get-value rbac table "id" "id" id) t))
+  (:documentation "Returns T when ID exists in TABLE."))
+
+(defgeneric delete-by-id (rbac table id)
+  (:method ((rbac rbac-pg) (table string) (id string))
+    (let (errors
+           (sql (format nil "delete from ~a where id = $1" table)))
+      (check errors (id-exists-p table id)
+        "ID '~a' not found in table '~a'." id table)
+      (with-rbac (rbac)
+        (db:query sql id))))
+  (:documentation "Delete ID row from TABLE. Raises an error if ID is not
+present in TABLE."))
 
 (defgeneric table-fields (rbac &optional cache)
   (:method ((rbac rbac) &optional (cache t))
@@ -311,14 +333,13 @@ hash table represents a row."))
             (name-field (table-name-field table))
             (index (make-hash-table :test 'equal))
             (sql (format nil "select ~a, id from ~a
-                             where deleted_at is null
                              order by ~a"
                    name-field table name-field)))
       (check errors (table-exists-p rbac table)
         "Table '~a' does not exist." table)
       (check errors (table-field-exists-p rbac table name-field)
         "Field '~a' does not exist in table '~a'." name-field table)
-      (report-errors errors)
+      (report-errors "name-id-index" errors)
       (with-rbac (rbac)
         (loop with result = (db:query sql)
           for (key value) in result
@@ -405,8 +426,7 @@ table to be the first table in TABLES, and the main table must have an alias."
                       (<= page-size 1000))
         "Page size must be between 1 and 1000, got ~a." page-size)
       (check errors (> page 0) "Page must be greater than 0, got ~a." page)
-      (report-errors errors)
-      (push (format nil "~adeleted_at is null" alias) where-clauses)
+      (report-errors "sql-for-list" errors)
       (let ((query (cons
                      (usql
                        (format nil "
@@ -438,8 +458,7 @@ DESC, to indicate the sort order. PAGE is the page number, starting from 1,
 and PAGE-SIZE is the number of records to return per page. It must be an
 integer between 1 and 1000. The SQL statement consists of a list with an
 SQL string followed by values that are used to replace the placeholders in
-the string. The generated SQL includes a WHERE clause that excludes deleted
-records, i.e. records where the deleted_at field is not null."))
+the string."))
 
 (defgeneric list-rows (rbac
                         select-fields
@@ -583,20 +602,14 @@ ROLE must:
       initially
       (check errors (and search (evenp (length search)))
         "Search conditions must be in pairs: field and value.")
-      (report-errors errors)
+      (report-errors "make-search-clause" errors)
       for key in search by #'cddr
       for value in (cdr search) by #'cddr
       for index = (sql-next-placeholder sql-before-where) then (1+ index)
       collect (format nil "~a = $~d" key index) into sql-clauses
       collect value into values
       finally
-      (let ((result (append
-                      (list
-                        (usql
-                          (format nil
-                            "~a where ~adeleted_at is null~%  and ~{~a~^~%  and ~}~%"
-                            nice-sql alias sql-clauses)))
-                      (append first-values values))))
+      (let ((result (append first-values values)))
         (l:pdebug :in "make-search-clause" :result result)
         (return result))))
   (:documentation "Generates an SQL statement that selects rows.
@@ -607,103 +620,71 @@ and values, like '(\"username\" \"john\" \"email\" \"john@domain.com\")'. In
 some cases, SQL-BEFORE-WHERE can contain placeholders, in which case you must
 pass the values for those placeholders via FIRST-VALUES."))
 
-(defgeneric soft-delete-sql (rbac target-table target-row actor-id)
-  (:method ((rbac rbac)
-             (target-table string)
-             (target-row list)
-             (actor-id string))
-    (make-search-clause
-      rbac
-      (format nil
-        "update ~a
-         set
-           deleted_at = now(),
-           updated_by = $1"
-        target-table)
-      target-row
-      actor-id))
-  (:documentation "Generates a SQL statement that soft deletes a row from
-TARGET-TABLE, where TARGET-ROW is a list of field names and values that
-identify the row to b e deleted. The SQL statement consists of a list with
-a an SQL string followed by values that are used to replace the placeholders"))
-
-(defgeneric referencing-soft-delete-sql (rbac
-                                          referencing-table
-                                          target-table
-                                          target-record-id
-                                          actor-id)
-  (:method ((rbac rbac)
-             (referencing-table string)
-             (target-table string)
-             (target-record-id string)
-             (actor-id string))
-    (make-search-clause
-      rbac
-      (format nil
-        "update ~a
-         set
-           deleted_at = now(),
-           updated_by = $1"
-        referencing-table)
-      (list
-        (format nil "~a_id" (string-right-trim "s" target-table))
-        target-record-id)
-      actor-id))
-  (:documentation "Generates a SQL statement that soft deletes rows from
-REFERENCING-TABLE that reference TARGET-RECORD-ID in TARGET-TABLE."))
-
-(defgeneric referencing-tables (rbac table)
-  (:method ((rbac rbac) (table string))
-    (with-rbac (rbac)
-      (db:query *referencing-tables-sql* table :column)))
-  (:documentation "Returns a list of tables that reference TABLE with a foreign
-key. TABLE is a string with the name of the table. The result is a list of
-strings, where each string is the name of a table that references TABLE."))
-
-(defgeneric delete-refs-sql (rbac table row actor-id)
-  (:method ((rbac rbac) (table string) (row list) (actor-id string))
-    (let* ((ref-tables (referencing-tables rbac table))
-            (row-id (apply #'get-value (append (list rbac table "id") row))))
-      (loop for ref-table in ref-tables
-        collect (referencing-soft-delete-sql
-                  rbac
-                  ref-table
-                  table
-                  row-id
-                  actor-id))))
-  (:documentation "Generates a list of SQL statements that soft delete rows
-from all tables that reference ROW in TABLE. ROW is a list of field names and
-values that identifies the referenced row, and TABLE is a string identifying the
-table that contains ROW. For internal use only."))
-
-(defgeneric soft-delete (rbac
-                          delete-target-sql
-                          delete-refs-sql
-                          details
-                          delete-exclusive-role-sql)
+(defgeneric add-name (rbac table name &optional description)
   (:method ((rbac rbac-pg)
-             (delete-target-sql list)
-             (delete-refs-sql list)
-             (details hash-table)
-             (delete-exclusive-role-sql list))
-    (with-rbac (rbac)
-      ;; Soft delete the user
-      (rbac-query delete-target-sql)
-      (l:pdebug :in "soft-delete" :delete-target-sql delete-target-sql)
-      ;; Soft delete all references to the target-record
-      (loop for delete-ref in delete-refs-sql
-        do
-        (l:pdebug :in "soft-delete" :delete-ref delete-ref)
-        (rbac-query delete-ref))
-      ;; If the target is a user, then delete the user's exclusive role
-      (when delete-exclusive-role-sql
-        (rbac-query delete-exclusive-role-sql)
-        (l:pdebug :in "soft-delete"
-          :deleted-exclusive-role delete-exclusive-role-sql))
-      ;; Audit the deletion
-      (audit rbac details)))
-  (:documentation "Executes the given SQL statements in a transaction, to soft
-delete a row and references to that row, updating the audit table."))
+             (table string)
+             (name string)
+             &optional (description name))
+    (let* ((name-field (table-name-field table))
+            (description-field (format nil "~a_description"
+                                 (singular table)))
+            (sql (format nil "insert into ~a (~a, ~a)
+                              values ($1, $2)
+                              returning id"
+                   table name-field description-field)))
+      (l:pdebug :in "add-name"
+        :table table :name name :description description
+        :name-field name-field :description-field description-field
+        :sql sql)
+      (let* (errors)
+        (check errors (table-exists-p rbac table)
+          "Table ~a does not exist." table)
+        (check errors (not (equal table "users"))
+          "Use add-user to add users.")
+        (check errors (not (equal table "roles"))
+          "Use add-role to add roles.")
+        (check errors (not (get-id rbac table name))
+        "~a '~a' already exists." (singular table) name)
+        (report-errors "add-name" errors))
+      (with-rbac (rbac)
+        (db:query sql name description :single))))
+  (:documentation "Adds NAME to TABLE with DESCRIPTION. Raises an error if NAME
+already exists in TABLE. Returns the ID of the new row."))
+
+(defgeneric add-link (rbac table-1 table-2 name-1 name-2)
+  (:method ((rbac rbac-pg)
+             (table-1 string)
+             (table-2 string)
+             (name-1 string)
+             (name-2 string))
+    (let ((link-table (format nil "~a_~a" table-1 (plural table-2)))
+           (link-table-field-1 (format nil "~a_id" table-1))
+           (link-table-field-2 (format nil "~a_id" table-2))
+           (name-1-field (table-name-field table-1))
+           (name-2-field (table-name-field table-2)))
+      (l:pdebug :in "add-link"
+        :table-1 table-1 :table-2 table-2
+        :name-1 name-1 :name-2 name-2
+        :link-table-field-1 link-table-field-1
+        :link-table-field-2 link-table-field-2
+        :name-1-field name-1-field
+        :name-2-field name-2-field)
+      (let* (errors
+              (id-1 (check errors (get-id rbac table-1 name-1)
+                      "~a ~a doesn't exist." (singular table-1) name-1))
+              (id-2 (check errors (get-id rbac table-2 name-2)
+                      "~a ~a doesn't exist." (singular table-2) name-2)))
+        (check errors (not (get-value rbac link-table "id"
+                             link-table-field-1 id-1
+                             link-table-field-2 id-2))
+          "~a '~a' already has ~a '~a'."
+          (singular table-1) name-1 (singular table-2) name-2)
+        (report-errors "add-link" errors)
+        (with-rbac (rbac)
+          (db:with-transaction (add-link)
+            (upsert-link rbac table-1 table-2 id-1 id-2))))))
+  (:documentation "Adds a link between NAME-1 in TABLE-1 and NAME-2 in TABLE-2.
+Returns the ID of the new link row."))
 
 (defgeneric get-value (rbac table field &rest search)
   (:method ((rbac rbac-pg)
@@ -726,7 +707,7 @@ delete a row and references to that row, updating the audit table."))
         do (check errors (table-field-exists-p rbac table key)
              "Seach Field '~a' does not exist in table '~a'." key table))
       (check errors (and search query-params) "No search conditions provided.")
-      (report-errors errors)
+      (report-errors "get-value" errors)
       (with-rbac (rbac)
         (rbac-query-single query-params))))
   (:documentation "Retrieves the value from FIELD in TABLE where SEARCH points
@@ -753,7 +734,6 @@ returns NIL."))
                     roles
                     (with-rbac (rbac)
                       (db:query "select role_name from roles
-                                 where deleted_at is null
                                  order by role_name"
                         :column)))
       and role-ids = (make-hash-table :test 'equal)
@@ -761,7 +741,7 @@ returns NIL."))
       do (setf (gethash role role-ids)
            (check errors (get-id rbac "roles" role)
              "Role '~a' not found." role))
-      finally (return (progn (report-errors errors) role-ids))))
+      finally (return (progn (report-errors "get-role-ids" errors) role-ids))))
   (:documentation "Returns a hash table where the keys consist of role names
 and the values consist of role IDs. If ROLES is NIL, the hash table contains
 all existing roles and their IDs. Otherwise, if ROLES is not NIL, the hash
@@ -777,7 +757,6 @@ that doesn't exist, this function signals an error."))
                           (with-rbac (rbac)
                             (db:query
                               "select permission_name from permissions
-                               where deleted_at is null
                                order by permission_name"
                               :column)))
       and permission-ids = (make-hash-table :test 'equal)
@@ -785,7 +764,9 @@ that doesn't exist, this function signals an error."))
       do (setf (gethash permission permission-ids)
            (check errors (get-id rbac "permissions" permission)
              "Permission '~a' not found." permission))
-      finally (return (progn (report-errors errors) permission-ids))))
+      finally (return (progn
+                        (report-errors "get-permission-ids" errors)
+                        permission-ids))))
   (:documentation "Returns a hash table where the keys consist of permission
 names and the values consist of permission IDs. If PERMISSIONS is NIL, the hash
 table contains all existing permissions and their IDs. Otherwise, if PERMISSIONS
@@ -793,17 +774,14 @@ is not NIL, the hash table contains IDs for the permissions in PERMISSIONS only.
 If PERMISSIONS contains a permission that doesn't exist, this function signals
 an error."))
 
-(defgeneric validate-add-user-params (rbac username email password roles actor)
+(defgeneric validate-add-user-params (rbac username email password roles)
   (:method ((rbac rbac-pg)
              (username string)
              (email string)
              (password string)
-             (roles list)
-             (actor string))
+             (roles list))
     (let* ((errors nil)
             (distinct-roles (u:distinct-elements roles))
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor with username '~a' not found" actor))
             (role-ids (get-role-ids rbac distinct-roles)))
       (check errors (valid-username-p rbac username)
         "Invalid username '~a'." username)
@@ -815,48 +793,38 @@ an error."))
       (check errors (or *allow-test-user-insert*
                       (not (re:scan "^test-user-.*" username)))
         "Usernames that start with 'test-user-' are not allowed.")
-      (report-errors errors)
-      (values actor-id role-ids)))
+      (report-errors "validate-add-user-params" errors)
+      role-ids))
   (:documentation "Validates add-user parameters and signals and error if
-there's a problem. Returns ACTOR-ID (a string) and ROLE-IDS (a hash table)
-as values."))
+there's a problem. Returns ROLE-IDS (a hash table)."))
 
-(defgeneric validate-login-params (rbac username password actor)
+(defgeneric validate-login-params (rbac username password)
   (:method ((rbac rbac-pg)
              (username string)
-             (password string)
-             (actor string))
-    (let* ((errors nil)
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor with username '~a' not found" actor)))
+             (password string))
+    (let* ((errors nil))
       (check errors (valid-username-p rbac username)
         "Invalid username '~a'." username)
       (check errors (valid-password-p rbac password) "Invalid password.")
-      (report-errors errors nil)
-      actor-id))
+      (report-errors "validate-login-params" errors nil)
+      t))
   (:documentation "Validates login parameters and signals an error if there's
-a problem. Returns ACTOR-ID (a string) as value."))
+a problem. Returns T upon success"))
 
-(defgeneric validate-add-permission-params (rbac permission description actor)
+(defgeneric validate-add-permission-params (rbac permission description)
   (:method ((rbac rbac-pg)
              (permission string)
-             (description string)
-             (actor string))
-    (let (errors actor-id)
+             (description string))
+    (let (errors)
       ;; Make sure the strings conform to standards
       (check errors (valid-permission-p rbac permission)
         "Invalid permission name '~a'." permission)
       (check errors (> (length description) 0)
         "Description is empty.")
-      ;; Make sure that the actor exists
-      (check errors (setf actor-id (get-id rbac "users" actor))
-        "Actor '~a' doesn't exist." actor)
-      ;; Make sure that the permission doesn't exist or that it exists with
-      ;; the delete_at field set to a non-null value
+      ;; Make sure that the permission doesn't exist
       (check errors (not (get-id rbac "permissions" permission))
         "Permission '~a' already exists" permission)
-      (report-errors errors)
-      actor-id))
+      (report-errors "validate-add-permission-params" errors)))
   (:documentation "Validates add-permission parameters and signals an error
 if there's a problem."))
 
@@ -864,16 +832,13 @@ if there's a problem."))
                                        role
                                        description
                                        exclusive
-                                       permissions
-                                       actor)
+                                       permissions)
   (:method ((rbac rbac-pg)
              (role string)
              (description string)
              exclusive
-             (permissions list)
-             (actor string))
+             (permissions list))
     (let (errors
-           actor-id
            (permission-ids (get-permission-ids rbac permissions)))
       (check errors (valid-role-p rbac role)
         "Invalid role name '~a'." role)
@@ -881,8 +846,6 @@ if there's a problem."))
         "Invalid description '~a'." description)
       (check errors (not (get-id rbac "roles" role))
         "Role '~a' already exists." role)
-      (check errors (setf actor-id (get-id rbac "users" actor))
-        "Actor '~a' doesn't exist." actor)
       (if (re:scan ":exclusive$" role)
         (progn
           (check errors exclusive
@@ -891,150 +854,90 @@ if there's a problem."))
             "Bad description for an exclusive role: '~a'." description))
         (check errors (not exclusive)
           "Bad name for a non-exclusive role: '~a'" role))
-      (report-errors errors)
-      (values actor-id permission-ids)))
+      (report-errors "validate-add-role-params" errors)
+      permission-ids))
   (:documentation "Validates add-role parameters and signals an error if
-there's a problem."))
+there's a problem. Returns a hash table with permission-name keys and
+permission-ID values."))
 
-(defgeneric insert-user (rbac username email password actor)
+(defgeneric insert-user (rbac username email password)
   (:method ((rbac rbac-pg)
              (username string)
              (email string)
-             (password string)
-             (actor-id string))
-    (l:pdebug :in "insert-user"
-      :username username :email email :actor-id actor-id)
+             (password string))
+    (l:pdebug :in "insert-user" :username username :email email)
     (db:query
-      "insert into users (username, email, password_hash, updated_by)
-     values ($1, $2, $3, $4)
-     returning id"
+      "insert into users (username, email, password_hash)
+       values ($1, $2, $3)
+       returning id"
       username
       email
       (password-hash username password)
-      actor-id
       :single))
   (:documentation "Inserts a new user into the users table without validating
 any of the parameters. Returns the new user's ID. For internal use only."))
 
-(defgeneric insert-role (rbac name description exclusive actor-id)
+(defgeneric insert-role (rbac name description exclusive)
   (:method ((rbac rbac-pg)
              (role string)
              (description string)
-             exclusive
-             (actor-id string))
-    (if (db:query "select id from roles
-                   where role_name = $1
-                     and deleted_at is not null"
-          role :single)
-      (progn
-        (l:pdebug :in "insert-role"
-          :status "reinstanting deleted role" :role role)
-        (db:query
-          "update roles set
-             role_description = $1,
-             updated_at = now(),
-             deleted_at = null,
-             updated_by = $2
-           where role_name = $3
-           returning id"
-          description actor-id role :single))
-      (progn
-        (l:pdebug :in "insert-role"
-          :status "inserting new role" :role role)
-        (db:query
-          "insert into roles (role_name, role_description, exclusive, updated_by)
-             values ($1, $2, $3, $4)
-             returning id"
-          role description exclusive actor-id :single))))
+             exclusive)
+    (l:pdebug :in "insert-role"
+      :status "inserting new role" :role role)
+    (db:query
+      "insert into roles (role_name, role_description, exclusive)
+         values ($1, $2, $3)
+         returning id"
+      role description exclusive :single))
   (:documentation "Inserts a new role into the roles table without validating
-any of the parameters. If the role exists already, but has the deleted_at
-field set to a non-null value, then the existing role is reinstanted by
-setting deleted_at to null and updating the updated_at and updated_by fields.
-Returns the new role's ID. For internal use only."))
+any of the parameters. Returns the new role's ID. For internal use only."))
 
-(defgeneric insert-exclusive-role (rbac username actor-id)
+(defgeneric insert-exclusive-role (rbac username)
   (:method ((rbac rbac-pg)
-             (username string)
-             (actor-id string))
+             (username string))
     (loop
       initially (l:pdebug :in "insert-exclusive-role" :username username)
-      with role = (format nil "~a:exclusive" username)
+      with role = (exclusive-role-for username)
       with description = (format nil "Exclusive role for user ~a." username)
-      with role-id = (insert-role rbac role description t actor-id)
+      with role-id = (insert-role rbac role description t)
       with user-id = (get-id rbac "users" username)
       with permission-ids = (get-permission-ids rbac *default-permissions*)
       for permission-name being the hash-keys of permission-ids
       using (hash-value permission-id)
-      do (upsert-link rbac "roles" "permissions" role-id permission-id actor-id)
+      do (upsert-link rbac "roles" "permissions" role-id permission-id)
       finally
-      (upsert-link rbac "roles" "users" role-id user-id actor-id)
+      (upsert-link rbac "roles" "users" role-id user-id)
       (return role)))
   (:documentation "Inserts an exclusive role for the user with USERNAME.
 Every user has an exclusive role that is named {username}:exclusive, and
 this function creates that role, assigns it to the user, and grants it the
 default permissions. Returns the name of the exclusive role."))
 
-(defgeneric insert-permission (rbac permission description actor-id)
+(defgeneric insert-permission (rbac permission description)
   (:method ((rbac rbac-pg)
              (permission string)
-             (description string)
-             (actor-id string))
+             (description string))
     (l:pdebug :in "insert-permission" :permission permission)
-    (if (db:query "select id from permissions
-                   where permission_name = $1
-                     and deleted_at is not null"
-          permission
-          :single)
-      (db:query
-        "update permissions set
-           permission_description = $1,
-           updated_at = now(),
-           deleted_at = null,
-           updated_by = $2
-         where permission_name = $3
-         returning id"
-        description
-        actor-id
-        permission
-        :single)
-      (db:query
-        "insert into permissions
-           (permission_name, permission_description, updated_by)
-         values ($1, $2, $3)
-         returning id"
-        permission description actor-id :single)))
+    (db:query
+      "insert into permissions
+         (permission_name, permission_description, updated_by)
+       values ($1, $2, $3)
+       returning id"
+      permission description :single))
   (:documentation "Inserts a new permission into the permissions table without
 validating any of the parameters. Returns the new permission's ID. For internal
 use only."))
 
-(defgeneric insert-resource (rbac resource description actor-id)
+(defgeneric insert-resource (rbac resource description)
   (:method ((rbac rbac-pg)
              (resource string)
-             (description string)
-             (actor-id string))
+             (description string))
     (l:pdebug :in "insert-resource" :resource resource)
-    (if (db:query "select id from resources
-                   where resource_name = $1
-                     and deleted_at is not null"
-          resource
-          :single)
-      (db:query
-        "update resources set
-           resource_description = $1,
-           updated_by = $2,
-           deleted_at = null,
-           updated_at = now()
-         where resource_name = $3
-         returning id"
-        description
-        actor-id
-        resource
-        :single)
-      (db:query
-        "insert into resources (resource_name, resource_description, updated_by)
-         values ($1, $2, $3)
-         returning id"
-        resource description actor-id :single)))
+    (db:query
+      "insert into resources (resource_name, resource_description, updated_by)
+       values ($1, $2)
+       returning id"
+      resource description :single))
   (:documentation "Inserts a new resource into the resources table without
 validating any of the parameters. Returns the new resource's ID. For internal"))
 
@@ -1045,14 +948,12 @@ validating any of the parameters. Returns the new resource's ID. For internal"))
             (id-1-field (format nil "~a_id" (singular table-1)))
             (id-2-field (format nil "~a_id" (singular table-2))))
       (usql (format nil
-              "insert into ~a (~a, ~a, updated_by)
-               values ($1, $2, $3)
+              "insert into ~a (~a, ~a)
+               values ($1, $2)
                on conflict (~a, ~a)
                do
                  update set
-                   updated_by = $3,
-                   updated_at = now(),
-                   deleted_at = null
+                   updated_at = now()
                returning id"
               link-table
               id-1-field id-2-field
@@ -1084,8 +985,7 @@ This function makes the following assumptions:
 
   - All the tables have a primary key named 'id' of type UUID, and, in addition
     to the already mentioned foreign key references, the link table has the
-    fields 'updated_by' (timestamp), 'updated_at' (uuid), and 'deleted_at'
-    (uuid).
+    field 'updated_at'.
 
 For example, if you call the function with 'roles' and 'permissions', the
 function will make the following concrete assumptions:
@@ -1099,22 +999,17 @@ function will make the following concrete assumptions:
 
     - permission_id (uuid, references 'permissions')
 
-    - updated_by (uuid, references 'users')
-
     - updated_at (timestamp)
-
-    - deleted_at (timestamp)
 
   - The link table will contain a unique index on (role_id, permission_id)
 "))
 
-(defgeneric upsert-link (rbac table-1 table-2 id-1 id-2 actor-id)
+(defgeneric upsert-link (rbac table-1 table-2 id-1 id-2)
   (:method ((rbac rbac-pg)
              (table-1 string)
              (table-2 string)
              (id-1 string)
-             (id-2 string)
-             (actor-id string))
+             (id-2 string))
     (l:pdebug :in "upsert-link"
       :table-1 table-1 :table-2 table-2 :id-1 id-1 :id-2 id-2)
     (let* ((sql (upsert-link-sql table-1 table-2))
@@ -1131,40 +1026,35 @@ function will make the following concrete assumptions:
                         :name-2 name-2
                         :sql sql
                         :id-1 id-1
-                        :id-2 id-2
-                        :actor-id actor-id)))
+                        :id-2 id-2)))
       (l:plog :debug log-plist)
-      (db:query sql id-1 id-2 actor-id :single)))
+      (db:query sql id-1 id-2 :single)))
   (:documentation "Upserts a row into a link table that has fields that
 reference TABLE-1 and TABLE-2, creating a new link between rows in TABLE-1 and
 TABLE-2. The rows are given by ID-1 and ID-2. The name of the table that
 references TABLE-1 and TABLE-2 is derived from the names of TABLE-1 and TABLE-2,
 as described in the documentation for upsert-link-sql."))
 
-(defgeneric add-user (rbac username email password roles actor)
+(defgeneric add-user (rbac username email password roles)
   (:method ((rbac rbac-pg)
              (username string)
              (email string)
              (password string)
-             (roles list)
-             (actor string))
+             (roles list))
     (l:pdebug :in "add-user"
       :username username
       :email email
       :password password
       :roles roles
-      :all-roles (append roles *default-user-roles*)
-      :actor actor)
-    (multiple-value-bind (actor-id role-ids)
-      (validate-add-user-params
-        rbac username email password
-        (append roles *default-user-roles*)
-        actor)
+      :all-roles (append roles *default-user-roles*))
+    (let ((role-ids (validate-add-user-params
+                      rbac username email password
+                      (append roles *default-user-roles*))))
       (with-rbac (rbac)
         ;; Add the user
-        (insert-user rbac username email password actor-id)
+        (insert-user rbac username email password)
         ;; Create the user's exclusive role and add the user to it
-        (insert-exclusive-role rbac username actor-id)
+        (insert-exclusive-role rbac username)
         ;; Add the user to the rest of the roles
         (loop
           with user-id = (get-id rbac "users" username)
@@ -1174,12 +1064,10 @@ as described in the documentation for upsert-link-sql."))
                                    :user_id ,user-id
                                    :email ,email
                                    :password ,(password-hash
-                                                username password)
-                                   :actor ,actor
-                                   :actor_id ,actor-id))
+                                                username password)))
           for role-name being the hash-keys in role-ids
           using (hash-value role-id)
-          do (upsert-link rbac "roles" "users" role-id user-id actor-id)
+          do (upsert-link rbac "roles" "users" role-id user-id)
           finally
           (setf (gethash :roles details) role-ids)
           (audit rbac details)
@@ -1188,53 +1076,19 @@ as described in the documentation for upsert-link-sql."))
 for this user only, and adds the user to the public and logged-in roles
 (given by *default-user-roles*). Returns the new user's ID."))
 
-(defgeneric remove-user (rbac username actor)
+(defgeneric remove-user (rbac username)
   (:method ((rbac rbac-pg)
-             (username string)
-             (actor string))
-    (l:pdebug :in "remove-user" :username username)
+             (username string))
     (let* (errors
             (user-id (check errors (get-id rbac "users" username)
                        "User '~a' not found." username))
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' not found." actor)))
-      (when errors
-        (l:pdebug :in "remove-user" :status "fail" :errors errors))
-      (report-errors errors)
-      (let ((delete-user-sql (soft-delete-sql
-                               rbac
-                               "users"
-                               (list "id" user-id)
-                               actor-id))
-             (delete-exclusive-role-sql (soft-delete-sql
-                                          rbac
-                                          "roles"
-                                          (list "role_name"
-                                            (format nil "~a:exclusive" username))
-                                          actor-id))
-             (delete-refs-sql (delete-refs-sql
-                                rbac "users" (list "id" user-id) actor-id))
-             (details (ds:ds `(:map
-                                :title "Deleted user and references to user"
-                                :username ,username
-                                :user_id ,user-id
-                                :actor ,actor
-                                :actor_id ,actor-id))))
-        (l:pdebug :in "remove-user"
-          :status "about to soft-delete"
-          :rbac rbac
-          :delete-user-sql (format nil "~{~a~^; ~}" delete-user-sql)
-          :delete-refs-sql (format nil "~{~a~^; ~}" delete-refs-sql)
-          :details (ds:to-json details)
-          :delete-exclusive-role-sql (format nil "~{~a~^; ~}"
-                                       delete-exclusive-role-sql))
-        (soft-delete
-          rbac
-          delete-user-sql
-          delete-refs-sql
-          details
-          delete-exclusive-role-sql))))
-  (:documentation "Remove (soft delete) USERNAME from the database."))
+            (role-id (get-id rbac "roles"
+                       (exclusive-role-for username))))
+      (report-errors "remove-user" errors)
+      (delete-by-id rbac "users" user-id)
+      (delete-by-id rbac "roles" role-id)
+      user-id))
+  (:documentation "Remove USERNAME from the database."))
 
 (defgeneric list-users (rbac page page-size)
   (:method ((rbac rbac-pg)
@@ -1244,7 +1098,7 @@ for this user only, and adds the user to the public and logged-in roles
       rbac
       (list "id" "username" "email" "created_at" "updated_at" "last_login")
       "users"
-      (list "deleted_at is null")
+      nil
       nil
       '("username")
       page
@@ -1256,7 +1110,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-users-count (rbac)
   (:method ((rbac rbac-pg))
-    (count-rows rbac "users" (list "deleted_at is null") nil))
+    (count-rows rbac "users" nil nil))
   (:documentation "Return the count of users in the database."))
 
 (defgeneric list-users-filtered (rbac sort-by descending filters page page-size)
@@ -1274,7 +1128,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
         "Bad filter field for users table: ~a" filters)
       (check errors (filter-operators-valid-p filters)
         "Bad filter operator: ~{~a~^, ~}." (mapcar #'second filters))
-      (report-errors errors))
+      (report-errors "list-users-filtered" errors))
     (loop
       for (field operator value) in filters
       collect (format nil "~a ~a $1" field operator) into where
@@ -1285,7 +1139,7 @@ starting from 1, and PAGE-SIZE is an integer between 1 and 1000."))
                   (list "id" "username" "email" "created_at" "updated_at"
                     "last_login")
                   "users"
-                  (append (list "deleted_at is null") where)
+                  where
                   values
                   (list (format nil "~a ~a"
                           sort-by
@@ -1332,7 +1186,7 @@ name and value, and checks that the operator is one of the supported operators."
         "Bad filter field for users table: ~a" filters)
       (check errors (filter-operators-valid-p filters)
         "Bad filter operator: ~{~a~^, ~}." (mapcar #'second filters))
-      (report-errors errors))
+      (report-errors "list-users-filtered-count" errors))
     (loop
       for (field operator value) in filters
       collect (format nil "~a ~a $1" field operator) into where
@@ -1341,66 +1195,32 @@ name and value, and checks that the operator is one of the supported operators."
                 (count-rows
                   rbac
                   "users"
-                  (append (list "deleted_at is null") where)
+                  where
                   values))))
   (:documentation "Returns the count of users filtered by FILTERS. FILTERS is
 a list of filters, where each filter is a list of three elements: field name,
 operator, and value. The supported operators are =, <>, <, >, <=, >=, like,
 ilike, not like, not ilike, is, is not."))
 
-(defgeneric add-permission (rbac permission description actor)
+(defgeneric add-permission (rbac permission &optional description)
   (:method ((rbac rbac-pg)
              (permission string)
-             (description string)
-             (actor string))
-    (l:pdebug :in "add-permission" :permission permission)
-    (with-rbac (rbac)
-      (db:with-transaction (add-permission)
-        (let* ((actor-id (validate-add-permission-params
-                           rbac permission description actor))
-                (details (ds:ds `(:map
-                                   :title "Created permission"
-                                   :actor ,actor
-                                   :actor_id ,actor-id
-                                   :permission ,permission
-                                   :description ,description))))
-          (setf (gethash :permission_id details)
-            (insert-permission rbac permission description actor-id))
-          (audit rbac details)
-          (gethash :permission_id details)))))
+             &optional (description permission))
+    (add-name rbac "permissions" permission description))
   (:documentation "Add a new permission and return its ID."))
 
-(defgeneric remove-permission (rbac permission actor)
-  (:method ((rbac rbac-pg)
-             (permission string)
-             (actor string))
+(defgeneric remove-permission (rbac permission)
+  (:method ((rbac rbac-pg) (permission string))
     (l:pdebug :in "remove-permission" :permission permission)
     (let* (errors
             (permission-id (check errors
                              (get-id rbac "permissions" permission)
-                             "Unknown permission '~a'." permission))
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Unknown actor '~a'." actor)))
-      (report-errors errors)
-      (let ((delete-permission-sql (soft-delete-sql
-                                     rbac
-                                     "permissions"
-                                     (list "id" permission-id)
-                                     actor-id))
-             (delete-refs-sql (delete-refs-sql
-                                rbac
-                                "permissions"
-                                (list "id" permission-id)
-                                actor-id))
-             (details (ds:ds `(:map
-                                :title "Deleted permission"
-                                :permission ,permission
-                                :permission_id ,permission-id
-                                :actor ,actor
-                                :actor_id ,actor-id))))
-        (soft-delete rbac delete-permission-sql delete-refs-sql details nil)
-        permission-id)))
-  (:documentation "Remove (soft delete) PERMISSION from the database."))
+                             "Unknown permission '~a'." permission)))
+      (report-errors "remove-permission" errors)
+      (delete-by-id rbac "permissions" permission-id)
+      permission-id))
+  (:documentation "Remove PERMISSION from the database. Returns the ID of the
+removed permission."))
 
 (defgeneric list-permissions (rbac page page-size)
   (:method ((rbac rbac-pg)
@@ -1411,7 +1231,7 @@ ilike, not like, not ilike, is, is not."))
       (list "id" "permission_name" "permission_description" "created_at"
         "updated_at")
       "permissions"
-      (list "deleted_at is null")
+      nil
       nil
       (list "permission_name")
       page
@@ -1421,74 +1241,55 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-permissions-count (rbac)
   (:method ((rbac rbac-pg))
-    (count-rows rbac "permissions" (list "deleted_at is null") nil))
+    (count-rows rbac "permissions" nil))
   (:documentation "Return the count of permissions in the database."))
 
-(defgeneric add-role (rbac role description exclusive permissions actor)
+(defgeneric add-role (rbac role description exclusive &optional permissions)
   (:method ((rbac rbac-pg)
              (role string)
              (description string)
              exclusive
-             (permissions list)
-             (actor string))
+             &optional permissions)
     (l:pdebug :in "add-role"
-      :role role :exclusive exclusive :permissions permissions :actor actor)
-    (multiple-value-bind (actor-id permission-ids)
-      (validate-add-role-params
-        rbac role description exclusive permissions actor)
+      :role role :exclusive exclusive :permissions permissions)
+    (let ((permission-ids (validate-add-role-params
+                            rbac role description exclusive permissions)))
       (with-rbac (rbac)
         (db:with-transaction (add-role)
-          (let* ((role-id (insert-role rbac role description exclusive actor-id))
-                  (details (ds:ds `(:map
-                                     :title "Created role"
-                                     :role_name ,role
-                                     :role_id ,role-id
-                                     :description ,description
-                                     :exclusive ,exclusive
-                                     :actor ,actor
-                                     :actor_id ,actor-id))))
+          (let* ((role-id (insert-role rbac role description exclusive)))
             (setf (gethash :permission_ids details) permission-ids)
             (loop for permission-id being the hash-values in permission-ids do
-              (upsert-link rbac "roles" "permissions" role-id permission-id actor-id))
-            (audit rbac details)
+              (upsert-link rbac "roles" "permissions" role-id permission-id))
+            (l:pdebug :in "add-role"
+              :title "Created role" :role_name role :role_id role-id
+              :description description :exclusive exclusive)
             role-id)))))
   (:documentation "Add a new role."))
 
-(defgeneric remove-role (rbac role actor)
-  (:method ((rbac rbac-pg) (role string) (actor string))
+(defgeneric remove-role (rbac role)
+  (:method ((rbac rbac-pg) (role string))
     (l:pdebug :in "remove-role" :role role)
     (let* (errors
             (role-id (check errors (get-id rbac "roles" role)
-                       "Role '~a' doesn't exist." role))
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor)))
-      (report-errors errors)
-      (let ((delete-role-sql (soft-delete-sql
-                               rbac
-                               "roles"
-                               (list "id" role-id)
-                               actor-id))
-             (delete-refs-sql (delete-refs-sql
-                                rbac "roles" (list "id" role-id) actor-id))
-             (details (ds:ds `(:map
-                                :title "Deleted role"
-                                :role ,role
-                                :role_id ,role-id
-                                :actor ,actor
-                                :actor_id ,actor-id))))
-        (soft-delete rbac delete-role-sql delete-refs-sql details nil))))
-  (:documentation "Remove (soft delete) a role from the database."))
+                       "Role '~a' doesn't exist." role)))
+      (report-errors "remove-role" errors)
+      (delete-by-id rbac "roles" role-id)
+      role-id))
+  (:documentation "Remove a role from the database. Returns the ID of the
+removed role."))
 
-(defgeneric add-exclusive-role (rbac username actor)
-  (:method ((rbac rbac-pg) (username string) (actor string))
+(defgeneric add-exclusive-role (rbac username)
+  (:method ((rbac rbac-pg) (username string))
     (l:pdebug :in "add-exclusive-role" :username username)
     (let ((errors nil)
-           (role (format nil "~a:exclusive" username))
+           (role (exclusive-role-for username))
            (description (format nil "Exclusive role for user ~a." username)))
       (check errors (valid-username-p rbac username)
         "Invalid username '~a'" username)
-      (report-errors errors)
-      (add-role rbac role description t *default-permissions* actor)))
+      (check errors (not (get-id rbac "roles" role))
+        "Exclusive role '~a' already exists." role)
+      (report-errors "add-exclusive-role" errors)
+      (add-role rbac role description t *default-permissions*)))
   (:documentation "Add an exclusive role for USER, returning the ID of the new
 role"))
 
@@ -1501,7 +1302,7 @@ role"))
       (list "id" "role_name" "role_description" "exclusive" "created_at"
         "updated_at")
       "roles"
-      (list "deleted_at is null")
+      nil
       nil
       (list "role_name")
       page
@@ -1511,7 +1312,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-roles-count (rbac)
   (:method ((rbac rbac-pg))
-    (count-rows rbac "roles" (list "deleted_at is null") nil))
+    (count-rows rbac "roles" nil nil))
   (:documentation "Return the count of roles in the database."))
 
 (defgeneric list-roles-regular (rbac page page-size)
@@ -1524,7 +1325,6 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
         "updated_at")
       "roles"
       (list
-        "deleted_at is null"
         "exclusive = false"
         "role_name not like '%:exclusive'"
         "role_name not in ('public', 'logged-in', 'system')")
@@ -1540,59 +1340,26 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       rbac
       "roles"
       (list
-        "deleted_at is null"
         "exclusive = false"
         "role_name not like '%:exclusive'"
         "role_name not in ('public', 'logged-in', 'system')")
       nil))
   (:documentation "Return the count of regular roles in the database."))
 
-(defgeneric add-role-permission (rbac role permission actor)
+(defgeneric add-role-permission (rbac role permission)
   (:method ((rbac rbac-pg)
              (role string)
-             (permission string)
-             (actor string))
-    (l:pdebug :in "add-role-permission"
-      :role role
-      :permission permission
-      :actor actor)
-    (let* (errors
-            (actor-id (check errors  (get-id rbac "users" actor)
-                        "User '~a' doesn't exist" actor))
-            (role-id (check errors (get-id rbac "roles" role)
-                       "Role '~a' doesn't exist." role))
-            (permission-id (check errors (get-id rbac "permissions" permission)
-                             "Permission '~a' doesn't exist." permission)))
-      (check errors (not (get-value rbac "role_permissions" "id"
-                           "role_id" role-id
-                           "permission_id" permission-id))
-        "Role '~a' already has permission '~a'." role permission)
-      (report-errors errors)
-      (with-rbac (rbac)
-        (db:with-transaction (add-role-permission)
-          (let ((details (ds:ds `(:map
-                                   :title "Added role permission"
-                                   :role ,role
-                                   :role_id ,role-id
-                                   :permission ,permission
-                                   :permission_id ,permission-id
-                                   :actor ,actor
-                                   :actor_id ,actor-id))))
-            (audit rbac details))
-          (upsert-link
-            rbac "roles" "permissions" role-id permission-id actor-id)))))
-  (:documentation "Add a permission to a role."))
+             (permission string))
+    (l:pdebug :in "add-role-permission" :role role :permission permission)
+    (add-link rbac "roles" "permissions" role permission))
+  (:documentation "Add an existing permission to an existing role."))
 
-(defgeneric remove-role-permission (rbac role permission actor)
+(defgeneric remove-role-permission (rbac role permission)
   (:method ((rbac rbac-pg)
              (role string)
-             (permission string)
-             (actor string))
-    (l:pdebug :in "remove-role-permission"
-      :permission permission :role role :actor actor)
+             (permission string))
+    (l:pdebug :in "remove-role-permission" :permission permission :role role)
     (let* (errors
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor))
             (role-id (check errors (get-id rbac "roles" role)
                        "Role '~a' doesn't exist." role))
             (permission-id (check errors
@@ -1603,28 +1370,12 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
                                     "role_id" role-id
                                     "permission_id" permission-id)
                                   "Role '~a' does not have permission '~a'."
-                                  role permission))
-            (params (soft-delete-sql
-                      rbac
-                      "role_Permissions"
-                      (list "id" role-permission-id)
-                      actor-id))
-            (details (ds:ds `(:map
-                               :title "Deleted role permission"
-                               :role_permission_id ,role-permission-id
-                               :role ,role
-                               :role_id ,role-id
-                               :permission ,permission
-                               :permission_id ,permission-id
-                               :actor ,actor
-                               :actor_id ,actor-id))))
-      (report-errors errors)
-      (with-rbac (rbac)
-        (db:with-transaction (remove-role-permission)
-          (audit rbac details)
-          (rbac-query params)
-          permission-id))))
-  (:documentation "Remove (soft delete) a permission from a role."))
+                                  role permission)))
+      (report-errors "remove-role-permission" errors)
+      (delete-by-id rbac "role_permissions" role-permission-id)
+      role-permission-id))
+  (:documentation "Remove a permission from a role. Returns the ID of the
+removed role-permission."))
 
 (defgeneric list-role-permissions (rbac role page page-size)
   (:method ((rbac rbac-pg)
@@ -1644,11 +1395,7 @@ PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "role_permissions rp
        join roles r on rp.role_id = r.id
        join permissions p on rp.permission_id = p.id"
-      (list
-        "r.role_name = $1"
-        "r.deleted_at is null"
-        "p.deleted_at is null"
-        "rp.deleted_at is null")
+      (list "r.role_name = $1")
       (list role)
       (list "p.permission_name")
       page
@@ -1664,102 +1411,51 @@ starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and")
       "role_permissions rp
        join roles r on rp.role_id = r.id
        join permissions p on rp.permission_id = p.id"
-      (list
-        "r.role_name = $1"
-        "r.deleted_at is null"
-        "p.deleted_at is null"
-        "rp.deleted_at is null")
+      (list "r.role_name = $1")
       (list role)))
   (:documentation "Return the count of permissions for a role."))
 
-(defgeneric add-role-user (rbac role user actor)
+(defgeneric add-role-user (rbac role user)
   (:method ((rbac rbac-pg)
              (role string)
-             (user string)
-             (actor string))
-    (l:pdebug :in "add-role-user role" :role role :user user :actor actor)
-    (let* (errors
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor))
-            (role-id (check errors (get-id rbac "roles" role)
-                       "Role '~a' doesn't exist." role))
-            (user-id (check errors (get-id rbac "users" user)
-                       "User '~a' doesn't exist." user)))
-      (check errors (not (get-value rbac "role_users" "id"
-                           "role_id" role-id
-                           "user_id" user-id))
-        "Role '~a' already has user '~a'." role user)
-      (report-errors errors)
-      (with-rbac (rbac)
-        (db:with-transaction (add-role-user)
-          (let* ((role-user-id (upsert-link rbac "roles" "users"
-                                 role-id user-id actor-id))
-                  (details (ds:ds `(:map
-                                     :title "Added role user"
-                                     :role ,role
-                                     :role_id ,role-id
-                                     :user ,user
-                                     :user_id ,user-id
-                                     :role_user_id ,role-user-id
-                                     :actor ,actor
-                                     :actor_id ,actor-id))))
-            (audit rbac details)
-            role-user-id)))))
-  (:documentation "Add a user to a role."))
+             (user string))
+    (l:pdebug :in "add-role-user role" :role role :user user)
+    (add-link rbac "roles" "users" role user))
+  (:documentation "Add an existing user to an existing role."))
 
-(defgeneric add-new-user-roles (rbac user roles actor)
+(defgeneric add-new-user-roles (rbac user roles)
   (:method ((rbac rbac-pg)
              (user string)
-             (roles list)
-             (actor string))
-    (l:pdebug :in "add-new-user-roles"
-      :user user :roles roles :actor actor)
+             (roles list))
+    (l:pdebug :in "add-new-user-roles" :user user :roles roles)
     (loop
       with role-ids = (get-role-ids rbac roles)
       for role being the hash-keys in role-ids using (hash-value role-id)
-      do (add-role-user rbac role user actor)
+      do (add-role-user rbac role user)
       finally (return role-ids)))
   (:documentation "Add USER to the list of ROLES. Returns a hash table
 mapping role names to role IDs."))
 
-(defgeneric remove-role-user (rbac role user actor)
+(defgeneric remove-role-user (rbac role user)
   (:method ((rbac rbac-pg)
              (role string)
-             (user string)
-             (actor string))
-    (l:pdebug :in "remove-role-user" :role role :user user :actor actor)
+             (user string))
+    (l:pdebug :in "remove-role-user" :role role :user user)
     (let* (errors
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor))
             (role-id (check errors (get-id rbac "roles" role)
                        "Role '~a' doesn't exist." role))
             (user-id (check errors (get-id rbac "users" user)
-                       "User '~a' doesn't exist." user)))
-      (report-errors errors)
-      (let* ((params (soft-delete-sql
-                       rbac
-                       "role_users"
-                       (list "role_id" role-id "user_id" user-id)
-                       actor-id))
-              (details (ds:ds `(:map
-                                 :title "Deleted role user"
-                                 :role ,role
-                                 :role_id ,role-id
-                                 :user ,user
-                                 :user_id ,user-id
-                                 :actor ,actor
-                                 :actor_id ,actor-id))))
-        (check errors (get-value rbac "role_users" "id"
-                        "role_id" role-id
-                        "user_id" user-id)
-          "Role '~a' does not include user '~a'." role user)
-        (report-errors errors)
-        (with-rbac (rbac)
-          (db:with-transaction (remove-role-user)
-            (audit rbac details)
-            (rbac-query-single params)
-            (list role-id user-id))))))
-  (:documentation "Remove (soft delete) a user from a role."))
+                       "User '~a' doesn't exist." user))
+            (role-user-id (check errors
+                            (get-value rbac "role_users" "id"
+                              "role_id" role-id "user_id" user-id)
+                            "Role '~a' does not include user '~a'."
+                            role user)))
+      (report-errors "remove-role-user" errors)
+      (delete-by-id rbac "role_users" role-user-id)
+      role-user-id))
+  (:documentation "Remove a user from a role. Returns the ID of the removed
+role-user."))
 
 (defgeneric list-role-users (rbac role page page-size)
   (:method ((rbac rbac-pg)
@@ -1779,10 +1475,7 @@ mapping role names to role IDs."))
       "role_users ru
        join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
-      (list "r.role_name = $1"
-        "r.deleted_at is null"
-        "u.deleted_at is null"
-        "ru.deleted_at is null")
+      (list "r.role_name = $1")
       (list role)
       (list "u.username")
       page
@@ -1798,11 +1491,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "role_users ru
        join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
-      (list
-        "r.role_name = $1"
-        "r.deleted_at is null"
-        "u.deleted_at is null"
-        "ru.deleted_at is null")
+      (list "r.role_name = $1")
       (list role)))
   (:documentation "Return the count of users for a role."))
 
@@ -1823,10 +1512,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "role_users ru
        join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
-      (list "u.username = $1"
-        "u.deleted_at is null"
-        "r.deleted_at is null"
-        "ru.deleted_at is null")
+      (list "u.username = $1")
       (list user)
       (list "r.role_name")
       page
@@ -1843,11 +1529,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
       "role_users ru
        join roles r on ru.role_id = r.id
        join users u on ru.user_id = u.id"
-      (list
-        "u.username = $1"
-        "u.deleted_at is null"
-        "r.deleted_at is null"
-        "ru.deleted_at is null")
+      (list "u.username = $1")
       (list user)))
   (:documentation "Return the count of roles for USER."))
 
@@ -1871,10 +1553,7 @@ starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
       (list "u.username = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('public', 'logged-in', 'system')"
-        "u.deleted_at is null"
-        "r.deleted_at is null"
-        "ru.deleted_at is null")
+        "r.role_name not in ('public', 'logged-in', 'system')")
       (list user)
       (list "r.role_name")
       page
@@ -1895,86 +1574,39 @@ on page PAGE."))
         "u.username = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('public', 'logged-in', 'system')"
-        "u.deleted_at is null"
-        "r.deleted_at is null"
-        "ru.deleted_at is null")
+        "r.role_name not in ('public', 'logged-in', 'system')")
       (list user)))
   (:documentation "Return the count of roles for USER excluding the user's
 exclusive role, the public role, and the logged-in role."))
 
-(defgeneric add-resource (rbac name description roles actor)
+(defgeneric add-resource (rbac name description roles)
   (:method ((rbac rbac-pg)
              (resource string)
              (description string)
-             (roles list)
-             (actor string))
-    (l:pdebug :in "add-resource"
-      :resource resource
-      :description description
-      :roles roles
-      :all-roles (append *default-resource-roles* roles))
-    (let* (errors
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor))
-            (role-ids (get-role-ids rbac
-                        (append *default-resource-roles* roles))))
-      (check errors (valid-resource-p rbac resource)
-        "Invalid resource name '~a'." resource)
-      (check errors
-        (not (get-id rbac "resources" resource))
-        "Resource '~a' already exists." resource)
-      (check errors (valid-description-p rbac description)
-        "Invalid description '~a'." description)
-      (report-errors errors)
-      (with-rbac (rbac)
-        (db:with-transaction (add-resource)
-          (let* ((resource-id (insert-resource
-                                rbac resource description actor-id))
-                  (details (ds:ds `(:map
-                                     :title "Created resource"
-                                     :resource ,resource
-                                     :resource_id ,resource-id
-                                     :description ,description
-                                     :actor ,actor
-                                     :actor_id ,actor-id))))
-            (setf (gethash :roles details) role-ids)
-            (loop for role-id being the hash-values in role-ids
-              do (upsert-link rbac "resources" "roles"
-                   resource-id role-id actor-id))
-            (audit rbac details)
-            resource-id)))))
+             (roles list))
+    (let ((all-roles (append *default-resource-roles* roles))
+           (resource-id (add-name rbac "resources" resource description)))
+      (l:pdebug :in "add-resource"
+        :resource resource
+        :description description
+        :roles roles
+        :all-roles (append *default-resource-roles* roles))
+      (loop for role in all-roles
+        db (add-link rbac "resources" "roles" resource role))
+
   (:documentation "Add a new resource."))
 
-(defgeneric remove-resource (rbac resource actor)
-  (:method ((rbac rbac-pg) (resource string) (actor string))
-    (l:pdebug :in "remove-resource" :resource resource :actor actor)
+(defgeneric remove-resource (rbac resource)
+  (:method ((rbac rbac-pg) (resource string))
+    (l:pdebug :in "remove-resource" :resource resource)
     (let* (errors
             (resource-id (check errors
                            (get-id rbac "resources" resource)
-                           "Resource '~a' doesn't exist." resource))
-            (actor-id (check errors
-                        (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor)))
-      (report-errors errors)
-      (let ((delete-resource-sql (soft-delete-sql
-                                   rbac
-                                   "resources"
-                                   (list "id" resource-id)
-                                   actor-id))
-             (delete-refs-sql (delete-refs-sql
-                                rbac
-                                "resources"
-                                (list "id" resource-id)
-                                actor-id))
-             (details (ds:ds `(:map
-                                :title "Deleted resource"
-                                :resource ,resource
-                                :resource_id ,resource-id
-                                :actor ,actor
-                                :actor_id ,actor-id))))
-        (soft-delete rbac delete-resource-sql delete-refs-sql details nil))))
-  (:documentation "Remove (soft delete) RESOURCE from the database."))
+                           "Resource '~a' doesn't exist." resource)))
+      (report-errors "remove-resource" errors)
+      (delete-by-id rbac "resources" resource-id)))
+  (:documentation "Remove RESOURCE from the database. Returns the ID of the
+removed resource."))
 
 (defgeneric list-resources (rbac page page-size)
   (:method ((rbac rbac-pg)
@@ -1985,7 +1617,7 @@ exclusive role, the public role, and the logged-in role."))
       (list "id" "resource_name" "resource_description" "created_at"
         "updated_at" "updated_by")
       "resources"
-      (list "deleted_at is null")
+      nil
       nil
       (list "resource_name")
       page
@@ -1995,7 +1627,7 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
 
 (defgeneric list-resources-count (rbac)
   (:method ((rbac rbac-pg))
-    (count-rows rbac "resources" (list "deleted_at is null") nil))
+    (count-rows rbac "resources" nil nil))
   (:documentation "Return the count of resources in the database."))
 
 (defgeneric list-user-resources (rbac user permission page page-size)
@@ -2021,14 +1653,7 @@ page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
          join permissions p on rp.permission_id = p.id"
       (list
         "u.username = $1"
-        (if permission "p.permission_name = $2" "1=1")
-        "u.deleted_at is null"
-        "s.deleted_at is null"
-        "sr.deleted_at is null"
-        "ru.deleted_at is null"
-        "r.deleted_at is null"
-        "rp.deleted_at is null"
-        "p.deleted_at is null")
+        (if permission "p.permission_name = $2" "1=1"))
       (remove-if-not #'identity (list user permission))
       (list "s.resource_name")
       page
@@ -2051,12 +1676,7 @@ PAGE-SIZE rows from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 an
          join permissions p on rp.permission_id = p.id"
       (list
         "u.username = $1"
-        (if permission "p.permission_name = $2" "1=1")
-        "u.deleted_at is null"
-        "s.deleted_at is null"
-        "sr.deleted_at is null"
-        "ru.deleted_at is null"
-        "r.deleted_at is null")
+        (if permission "p.permission_name = $2" "1=1"))
       (remove-if-not #'identity (list user permission))))
   (:documentation "Return the count of resources that USER has access to with PERMISSION."))
 
@@ -2084,14 +1704,7 @@ PAGE-SIZE rows from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 an
          join resources s on sr.resource_id = s.id"
       (list
         "s.resource_name = $1"
-        (if permission "p.permission_name = $2" "1=1")
-        "u.deleted_at is null"
-        "r.deleted_at is null"
-        "s.deleted_at is null"
-        "sr.deleted_at is null"
-        "ru.deleted_at is null"
-        "rp.deleted_at is null"
-        "p.deleted_at is null")
+        (if permission "p.permission_name = $2" "1=1"))
       (remove-if-not #'identity (list resource permission))
       (list "u.username")
       page
@@ -2118,96 +1731,63 @@ permission. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
          join resources s on sr.resource_id = s.id"
       (list
         "s.resource_name = $1"
-        (if permission "p.permission_name = $2" "1=1")
-        "u.deleted_at is null"
-        "r.deleted_at is null"
-        "s.deleted_at is null"
-        "sr.deleted_at is null"
-        "ru.deleted_at is null"
-        "rp.deleted_at is null"
-        "p.deleted_at is null")
+        (if permission "p.permission_name = $2" "1=1"))
       (remove-if-not #'identity (list resource permission))))
   (:documentation "Return the count of users who have PERMISSION on RESOURCE."))
 
-(defgeneric add-resource-role (rbac resource role actor)
+(defgeneric add-resource-role (rbac resource role)
   (:method ((rbac rbac-pg)
              (resource string)
-             (role string)
-             (actor string))
-    (l:pdebug :in "add-resource-role"
-      :resource resource :role role :actor actor)
+             (role string))
+    (l:pdebug :in "add-resource-role" :resource resource :role role)
     (let* (errors
             (resource-id (check errors
                            (get-id rbac "resources" resource)
                            "Resource '~a' doesn't exist." resource))
             (role-id (check errors (get-id rbac "roles" role)
-                       "Role '~a' doesn't exist." role))
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor)))
+                       "Role '~a' doesn't exist." role)))
       (check errors (not (get-value rbac "resource_roles" "id"
                            "resource_id" resource-id
                            "role_id" role-id))
         "Resource '~a' already has role '~a'." resource role)
-      (report-errors errors)
+      (report-errors "add-resource-role" errors)
       (with-rbac (rbac)
         (db:with-transaction (add-resource-role)
           (let* ((id (upsert-link rbac "resources" "roles"
-                       resource-id role-id actor-id))
+                       resource-id role-id))
                   (details (ds:ds `(:map
                                      :title "Added resource role"
                                      :resource ,resource
                                      :resource_id ,resource-id
                                      :role ,role
                                      :role_id ,role-id
-                                     :resource-role-id ,id
-                                     :actor ,actor
-                                     :actor_id ,actor-id))))
+                                     :resource-role-id ,id))))
             (audit rbac details)
             id)))))
   (:documentation "Add a role permission to a resource."))
 
-(defgeneric remove-resource-role (rbac resource role actor)
+(defgeneric remove-resource-role (rbac resource role)
   (:method ((rbac rbac-pg)
              (resource string)
-             (role string)
-             (actor string))
-    (l:pdebug :in "remove-resource-role"
-      :resource resource :role role :actor actor)
+             (role string))
+    (l:pdebug :in "remove-resource-role" :resource resource :role role)
     (let* (errors
             (resource-id (check errors
                            (get-id rbac "resources" resource)
                            "Resource '~a' doesn't exist." resource))
             (role-id (check errors (get-id rbac "roles" role)
                        "Role '~a' doesn't exist." role))
-            (actor-id (check errors (get-id rbac "users" actor)
-                        "Actor '~a' doesn't exist." actor))
             (resource-role-id (check errors
                                 (get-value rbac "resource_roles" "id"
                                   "resource_id" resource-id
                                   "role_id" role-id)
                                 "Resource '~a' does not have role '~a'."
-                                resource role))
-            (params (soft-delete-sql
-                      rbac
-                      "resource_roles"
-                      (list "id" resource-role-id)
-                      actor-id))
-            (details (ds:ds `(:map
-                               :title "Deleted resource role"
-                               :resource_role_id ,resource-role-id
-                               :resource ,resource
-                               :resource_id ,resource-id
-                               :role ,role
-                               :role_id ,role-id
-                               :actor ,actor
-                               :actor_id ,actor-id))))
-      (report-errors errors)
-      (with-rbac (rbac)
-        (db:with-transaction (remove-resource-role)
-          (rbac-query params)
-          (audit rbac details)
-          resource-role-id))))
-  (:documentation "Remove (soft delete) a role permission from a resource."))
+                                resource role)))
+      (report-errors "remove-resource-role" errors)
+      (delete-by-id rbac "resource_roles" resource-role-id)
+      resource-role-id))
+  (:documentation "Remove a role from a resource. Returns the ID of the removed
+role."))
 
 (defgeneric list-resource-roles (rbac resource page page-size)
   (:method ((rbac rbac-pg)
@@ -2228,10 +1808,7 @@ permission. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "resource_roles rr
        join resources re on rr.resource_id = re.id
        join roles ro on rr.role_id = ro.id"
-      (list "re.resource_name = $1"
-        "re.deleted_at is null"
-        "ro.deleted_at is null"
-        "rr.deleted_at is null")
+      (list "re.resource_name = $1")
       (list resource)
       (list "ro.role_name")
       page
@@ -2247,11 +1824,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "resource_roles rr
        join resources re on rr.resource_id = re.id
        join roles r on rr.role_id = r.id"
-      (list
-        "re.resource_name = $1"
-        "re.deleted_at is null"
-        "r.deleted_at is null"
-        "rr.deleted_at is null")
+      (list "re.resource_name = $1")
       (list resource)))
   (:documentation "Return the count of roles for a resource."))
 
@@ -2277,10 +1850,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       (list "re.resource_name = $1"
         "ro.exclusive = false"
         "ro.role_name not like '%:exclusive'"
-        "ro.role_name not in ('public', 'logged-in', 'system')"
-        "re.deleted_at is null"
-        "ro.deleted_at is null"
-        "rr.deleted_at is null")
+        "ro.role_name not in ('public', 'logged-in', 'system')")
       (list resource)
       (list "ro.role_name")
       page
@@ -2294,16 +1864,13 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
     (count-rows
       rbac
       "resource_roles rr
-     join resources re on rr.resource_id = re.id
-     join roles r on rr.role_id = r.id"
+       join resources re on rr.resource_id = re.id
+       join roles r on rr.role_id = r.id"
       (list
         "re.resource_name = $1"
         "r.exclusive = false"
         "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('public', 'logged-in', 'system')"
-        "re.deleted_at is null"
-        "r.deleted_at is null"
-        "rr.deleted_at is null")
+        "r.role_name not in ('public', 'logged-in', 'system')")
       (list resource)))
   (:documentation "Return the count of non-exclusive roles for a resource."))
 
@@ -2326,10 +1893,7 @@ on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
       "resource_roles rr
        join resources re on rr.resource_id = re.id
        join roles ro on rr.role_id = ro.id"
-      (list "ro.role_name = $1"
-        "ro.deleted_at is null"
-        "re.deleted_at is null"
-        "rr.deleted_at is null")
+      (list "ro.role_name = $1")
       (list role)
       (list "ro.resource_name")
       page
@@ -2346,11 +1910,7 @@ resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
       "resource_roles rr
        join resources re on rr.resource_id = re.id
        join roles r on rr.role_id = r.id"
-      (list
-        "r.role_name = $1"
-        "r.deleted_at is null"
-        "re.deleted_at is null"
-        "rr.deleted_at is null")
+      (list "r.role_name = $1")
       (list role)))
   (:documentation "Return the count of resources associated with ROLE."))
 
@@ -2370,13 +1930,9 @@ RESOURCE. If the list is empty, the user does not have access."
       (db:query
         "select
              rp.id,
-             rp.deleted_at,
              u.username,
-             u.deleted_at,
              ru.id as role_user_id,
-             ru.deleted_at,
              r.role_name,
-             r.deleted_at,
              p.permission_name,
              s.resource_name
            from
@@ -2388,14 +1944,7 @@ RESOURCE. If the list is empty, the user does not have access."
              join resource_roles sr on sr.role_id = r.id
              join resources s on sr.resource_id = s.id
            where
-             rp.deleted_at is null
-             and u.deleted_at is null
-             and ru.deleted_at is null
-             and rp.deleted_at is null
-             and r.deleted_at is null
-             and p.deleted_at is null
-             and s.deleted_at is null
-             and u.username = $1
+             u.username = $1
              and s.resource_name = $2
              and p.permission_name = $3
            order by
@@ -2422,23 +1971,19 @@ RESOURCE. If the list is empty, the user does not have access."
                          join roles r on ru.role_id = r.id
                        where
                          u.username = $1
-                         and r.role_name in (~{~a~^, ~})
-                         and u.deleted_at is null
-                         and r.deleted_at is null
-                         and ru.deleted_at is null"
+                         and r.role_name in (~{~a~^, ~})"
                        place-holders))
               (query-params (cons username role))
               (count (rbac-query-single (cons query query-params))))
         (> count 0))))
   (:documentation "Check if USERNAME has any of the specified ROLE(s)."))
 
-(defgeneric login (rbac username password actor)
+(defgeneric login (rbac username password)
   (:method ((rbac rbac-pg)
              (username string)
-             (password string)
-             (actor string))
-    (l:pdebug :in "login" :username username :actor actor)
-    (validate-login-params rbac username password actor)
+             (password string))
+    (l:pdebug :in "login" :username username)
+    (validate-login-params rbac username password)
     (let* ((hash (password-hash username password))
             (user-id (get-value rbac "users" "id"
                        "username" username
@@ -2456,16 +2001,6 @@ RESOURCE. If the list is empty, the user does not have access."
           nil))))
   (:documentation "If USERNAME exists and PASSWORD is correct, update last_login
 for USERNAME and return the user ID. Otherwise, return NIL."))
-
-(defgeneric audit (rbac details)
-  (:method ((rbac rbac) (details hash-table))
-    (unless (gethash :actor details)
-      (error "No actor: ~a" (ds:human details)))
-    (unless (gethash :title details)
-      (error "No title"))
-    (l:pinfo :in "audit" :data (ds:to-json details))
-    nil)
-  (:documentation "Log the DETAILS hash-table as an audit record."))
 
 (defmacro define-list-functions (rbac-type &rest function-specs)
   "Define multiple list functions with common structure. Each spec is a
@@ -2561,113 +2096,98 @@ need them."
   (list-user-resource-names "List resources where USER has PERMISSION"
     list-user-resources :resource-name user permission))
 
-(defgeneric d-add-role (rbac role &key description exclusive permissions actor)
+(defgeneric d-add-role (rbac role &key description exclusive permissions)
   (:documentation "Add a role with defaults.")
   (:method ((rbac rbac-pg)
              (role string)
              &key
              (description role)
              exclusive
-             (permissions *default-permissions*)
-             (actor "system"))
-    (add-role rbac role description exclusive permissions actor)))
+             (permissions *default-permissions*))
+    (add-role rbac role description exclusive permissions)))
 
-(defgeneric d-remove-role (rbac role &key actor)
+(defgeneric d-remove-role (rbac role)
   (:documentation "Remove ROLE with defauls.")
-  (:method ((rbac rbac-pg) (role string) &key (actor "system"))
-    (remove-role rbac role actor)))
+  (:method ((rbac rbac-pg) (role string))
+    (remove-role rbac role)))
 
-(defgeneric d-add-permission (rbac permission &key description actor)
+(defgeneric d-add-permission (rbac permission &key description)
   (:documentation "Add a permission with defaults.")
-  (:method ((rbac rbac-pg) (permission string)
-             &key (description permission) (actor "system"))
-    (add-permission rbac permission description actor)))
+  (:method ((rbac rbac-pg) (permission string) &key (description permission))
+    (add-permission rbac permission description)))
 
-(defgeneric d-remove-permission (rbac permission &key actor)
+(defgeneric d-remove-permission (rbac permission)
   (:documentation "Remove permission with defaults.")
-  (:method ((rbac rbac-pg) (permission string) &key (actor "system"))
-    (remove-permission rbac permission actor)))
+  (:method ((rbac rbac-pg) (permission string))
+    (remove-permission rbac permission)))
 
-(defgeneric d-add-resource (rbac resource &key description roles actor)
+(defgeneric d-add-resource (rbac resource &key description roles)
   (:documentation "Add a resource with defaults.")
   (:method ((rbac rbac-pg) (resource string)
              &key
              (description resource)
-             (roles '("logged-in"))
-             (actor "system"))
-    (add-resource rbac resource description roles actor)))
+             (roles '("logged-in")))
+    (add-resource rbac resource description roles)))
 
-(defgeneric d-remove-resource (rbac resource &key actor)
+(defgeneric d-remove-resource (rbac resource)
   (:documentation "Remove resource with defaults.")
-  (:method ((rbac rbac-pg) (resource string) &key (actor "system"))
-    (remove-resource rbac resource actor)))
+  (:method ((rbac rbac-pg) (resource string))
+    (remove-resource rbac resource)))
 
-(defgeneric d-add-resource-role (rbac resource role &key actor)
+(defgeneric d-add-resource-role (rbac resource role)
   (:documentation "Add a role to a resource with defaults.")
-  (:method ((rbac rbac-pg) (resource string) (role string)
-             &key (actor "system"))
-    (add-resource-role rbac resource role actor)))
+  (:method ((rbac rbac-pg) (resource string) (role string))
+    (add-resource-role rbac resource role)))
 
-(defgeneric d-remove-resource-role (rbac resource role &key actor)
+(defgeneric d-remove-resource-role (rbac resource role)
   (:documentation "Remove a role from a resource with defaults.")
-  (:method ((rbac rbac-pg) (resource string) (role string)
-             &key (actor "system"))
-    (remove-resource-role rbac resource role actor)))
+  (:method ((rbac rbac-pg) (resource string) (role string))
+    (remove-resource-role rbac resource role)))
 
-(defgeneric d-add-role-permission (rbac role permission &key actor)
+(defgeneric d-add-role-permission (rbac role permission)
   (:documentation "Add a permission to a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (permission string)
-             &key (actor "system"))
-    (add-role-permission rbac role permission actor)))
+  (:method ((rbac rbac-pg) (role string) (permission string))
+    (add-role-permission rbac role permission)))
 
-(defgeneric d-remove-role-permission (rbac role permission &key actor)
+(defgeneric d-remove-role-permission (rbac role permission)
   (:documentation "Remove a permission from a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (permission string)
-             &key (actor "system"))
-    (remove-role-permission rbac role permission actor)))
+  (:method ((rbac rbac-pg) (role string) (permission string))
+    (remove-role-permission rbac role permission)))
 
-(defgeneric d-add-role-user (rbac role user &key actor)
+(defgeneric d-add-role-user (rbac role user)
   (:documentation "Add a user to a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (user string)
-             &key (actor "system"))
-    (add-role-user rbac role user actor)))
+  (:method ((rbac rbac-pg) (role string) (user string))
+    (add-role-user rbac role user)))
 
-(defgeneric d-add-user-role (rbac user role &key actor)
+(defgeneric d-add-user-role (rbac user role)
   (:documentation "Add a role to a user with defaults.")
-  (:method ((rbac rbac-pg) (user string) (role string)
-             &key (actor "system"))
-    (add-role-user rbac role user actor)))
+  (:method ((rbac rbac-pg) (user string) (role string))
+    (add-role-user rbac role user)))
 
-(defgeneric d-remove-role-user (rbac role user &key actor)
+(defgeneric d-remove-role-user (rbac role user)
   (:documentation "Remove a user from a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (user string)
-             &key (actor "system"))
-    (remove-role-user rbac role user actor)))
+  (:method ((rbac rbac-pg) (role string) (user string))
+    (remove-role-user rbac role user)))
 
-(defgeneric d-remove-user-role (rbac user role &key actor)
+(defgeneric d-remove-user-role (rbac user role)
   (:documentation "Remove a role from a user with defaults.")
-  (:method ((rbac rbac-pg) (user string) (role string)
-             &key (actor "system"))
-    (remove-role-user rbac role user actor)))
+  (:method ((rbac rbac-pg) (user string) (role string))
+    (remove-role-user rbac role user)))
 
-(defgeneric d-add-user (rbac username password &key email roles actor)
+(defgeneric d-add-user (rbac username password &key email roles)
   (:documentation "Add a user with defaults.")
   (:method ((rbac rbac-pg) (username string) (password string)
-             &key
-             (email "no-email")
-             roles
-             (actor "system"))
-    (add-user rbac username email password roles actor)))
+             &key (email "no-email") roles)
+    (add-user rbac username email password roles)))
 
-(defgeneric d-remove-user (rbac username &key actor)
+(defgeneric d-remove-user (rbac username)
   (:documentation "Remove a user with defaults.")
-  (:method ((rbac rbac-pg) (username string) &key (actor "system"))
-    (remove-user rbac username actor)))
+  (:method ((rbac rbac-pg) (username string))
+    (remove-user rbac username)))
 
-(defgeneric d-login (rbac username password &key actor)
+(defgeneric d-login (rbac username password)
   (:documentation "Log in user.")
   (:method ((rbac rbac-pg)
              (username string)
-             (password string)
-             &key (actor "system"))
-    (login rbac username password actor)))
+             (password string))
+    (login rbac username password)))
