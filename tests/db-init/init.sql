@@ -16,7 +16,7 @@ create table users (
     created_at timestamp not null default now(),
     updated_at timestamp not null default now(),
     last_login timestamp,
-    username text not null unique,
+    user_name text not null unique,
     password_hash text not null,
     email text not null
 );
@@ -32,8 +32,8 @@ create table permissions (
 
 -- Roles. Permissions are associated with roles only, never directly with a
 -- user. Each user has a role that is associated with that user only, that has a
--- role_name in the format "{username}:exclusive", that has a role_description
--- that reads "Exclusive role for user {username).", and that has the
+-- role_name in the format "{user_name}:exclusive", that has a role_description
+-- that reads "Exclusive role for user {user_name).", and that has the
 -- exclusive field set to true.
 create table roles (
     id uuid primary key default uuid_generate_v4(),
@@ -144,12 +144,12 @@ execute function set_updated_at_column();
 
 -- Function to enforce exclusive role constraints:
 -- 1. Only one user can be assigned to an exclusive role.
--- 2. Exclusive role names must follow the format '{username}:exclusive'.
--- 3. The role description must be 'Exclusive role for user {username}.'.
+-- 2. Exclusive role names must follow the format '{user_name}:exclusive'.
+-- 3. The role description must be 'Exclusive role for user {user_name}.'.
 create or replace function enforce_exclusive_role()
 returns trigger as $$
 declare
-    associated_username text;
+    associated_user_name text;
     expected_role_name text;
     expected_role_description text;
 begin
@@ -164,16 +164,16 @@ begin
         ) then
             raise exception 'exclusive role % can only have one user', new.role_id;
         end if;
-        -- Get the username of the associated user
-        select u.username into associated_username
+        -- Get the user_name of the associated user
+        select u.user_name into associated_user_name
         from users u
         where u.id = new.user_id;
-        if associated_username is null then
+        if associated_user_name is null then
             raise exception 'no valid user found for user_id %', new.user_id;
         end if;
         -- Construct the expected role name and description
-        expected_role_name := associated_username || ':exclusive';
-        expected_role_description := 'Exclusive role for user ' || associated_username || '.';
+        expected_role_name := associated_user_name || ':exclusive';
+        expected_role_description := 'Exclusive role for user ' || associated_user_name || '.';
         -- Check if the role_name and role_description match the expected format
         if not exists (
             select 1
@@ -202,9 +202,9 @@ execute function enforce_exclusive_role();
 -- insert users
 --
 
-insert into users (username, email, id, password_hash) values
+insert into users (user_name, email, id, password_hash) values
     (
-        'system',                               -- username
+        'system',                               -- user_name
         'no-email',                             -- email
         '0ed9f765-50ee-4e93-a711-f63db14b3cf5', -- id
         'a5ad2e9965d47e970d4d6b7e123dbdb5'      -- password_hash
@@ -246,21 +246,25 @@ insert into roles (role_name, role_description, exclusive, id) values
 -- insert permissions
 --
 
-insert into permissions (permission_name, id) values
+insert into permissions (permission_name, permission_description, id) values
     (
         'create',
+        'General create permission',
         '1d8f1218-7518-4c17-80f6-edb9987e8a20'
     ),
     (
         'read',
+        'General read permission',
         '784c7460-134e-4b06-9c80-d6db197a1bdf'
     ),
     (
         'update',
+        'General update permission',
         '8563f298-df16-490d-aac1-92fea8dd196d'
     ),
     (
         'delete',
+        'General delete permission',
         'f77b0d67-330a-4b0d-8166-d73229547f5f'
     );
 

@@ -5,7 +5,8 @@
     (:u :dc-eclectic)
     (:re :ppcre)
     (:l :p-log)
-    (:db :postmodern))
+    (:db :postmodern)
+    (:c :lru-cache))
   (:export
     ;; Macros
     with-rbac
@@ -41,6 +42,7 @@
     password
     host
     port
+    cache
 
     ;; Generic functions
     add-permission
