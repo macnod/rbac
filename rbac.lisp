@@ -31,16 +31,6 @@
        AND ctu.table_name = $1
    ORDER BY tc.table_name")
 
-(defparameter *table-aliases*
-  (ds:ds '(:map
-            "users" "u"
-            "roles" "r"
-            "permissions" "p"
-            "resources" "s"
-            "role_permissions" "rp"
-            "role_users" "ru"
-            "resource_roles" "sr")))
-
 ;; These roles are assigned to new users
 (defparameter *default-user-roles* (list "public" "logged-in"))
 (defparameter *default-resource-roles* (list "system"))
@@ -166,6 +156,7 @@ stores the password in the database."
   (u:hash-string password :salt user-name :size 32))
 
 (defun exclusive-role-for (user-name)
+  "Returns the exclusive role for USER-NAME."
   (format nil "~a:exclusive" user-name))
 
 (defun make-description (name value)
@@ -180,7 +171,7 @@ stores the password in the database."
   ((resource-regex :accessor resource-regex
      :initarg :resource-regex
      :type string
-     :initform "^/([-_.a-zA-Z0-9 ]+/)*$"
+     :initform "^[a-zA-Z][-a-zA-Z0-9]*:?[a-zA-Z0-9][-a-zA-Z0-9]*$"
      :documentation
      "Defaults to an absolute directory path string that ends with a /")
     (resource-length-max :accessor resource-length-max
@@ -574,33 +565,6 @@ and the remaining elements are the values that are used to replace the
 placeholders in the SQL string. The query is suitable for passing to the
 rbac-query function."))
 
-(defgeneric list-rows-old (rbac
-                        select-fields
-                        tables
-                        where
-                        order-by-fields
-                        page
-                        page-size)
-  (:method ((rbac rbac-pg)
-             (select-fields list)
-             (tables string)
-             (where list)
-             (order-by-fields list)
-             (page integer)
-             (page-size integer))
-    (let ((query (sql-for-list
-                   rbac
-                   select-fields
-                   tables
-                   where
-                   order-by-fields
-                   page
-                   page-size)))
-      (with-rbac (rbac)
-        (rbac-query query))))
-  (:documentation "Internal helper function. Returns a list of rows, with each
-row represented as a plist."))
-
 (defgeneric list-rows (rbac tables &key
                         fields filters order-by page page-size for-count
                         result-type)
@@ -630,25 +594,6 @@ row represented as a plist."))
         :query query)
       (with-rbac (rbac)
           (rbac-query query result-type)))))
-
-;; (defgeneric list-rows (rbac tables &key where order-by fields page page-size)
-;;   (:method ((rbac rbac-pg) (tables list) &key
-;;              where
-;;              fields
-;;              (order-by (list (table-name-field (car (last tables)))))
-;;              (page 1)
-;;              (page-size *default-page-size*))
-;;     (let* ((table-count (nth (length tables) '(:one :two :three)))
-;;             (select (case table-count
-;;                       (:one (format nil "select ~a from ~a"
-;;                               (if fields (format nil "~{~a~^, ~}" fields) "*")))
-;;                       (:two (table-join rbac (first tables) (second tables)
-;;                               :fields fields))
-;;                       (:tree (error "Not yet implemented"))))
-;;             (quiery (add-where-to-query
-
-
-             
 
 (defgeneric count-rows (rbac tables &key where)
   (:method ((rbac rbac-pg) (tables string) &key where)
@@ -1393,493 +1338,6 @@ operator, and value."))
         :query query)
       query)))
 
-(defgeneric list-permissions (rbac page page-size)
-  (:method ((rbac rbac-pg)
-             (page integer)
-             (page-size integer))
-    (list-rows
-      rbac
-      (list "id" "permission_name" "permission_description" "created_at"
-        "updated_at")
-      "permissions"
-      nil
-      nil
-      (list "permission_name")
-      page
-      page-size))
-  (:documentation "List permissions, returning PAGE-SIZE permissions starting
-on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-permissions-count (rbac)
-  (:method ((rbac rbac-pg))
-    (count-rows rbac "permissions" nil))
-  (:documentation "Return the count of permissions in the database."))
-
-(defgeneric list-roles (rbac page page-size)
-  (:method ((rbac rbac-pg)
-             (page integer)
-             (page-size integer))
-    (list-rows
-      rbac
-      (list "id" "role_name" "role_description" "exclusive" "created_at"
-        "updated_at")
-      "roles"
-      nil
-      nil
-      (list "role_name")
-      page
-      page-size))
-  (:documentation "List roles, returning PAGE-SIZE roles starting on page PAGE.
-PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-roles-count (rbac)
-  (:method ((rbac rbac-pg))
-    (count-rows rbac "roles" nil nil))
-  (:documentation "Return the count of roles in the database."))
-
-(defgeneric list-roles-regular (rbac page page-size)
-  (:method ((rbac rbac-pg)
-             (page integer)
-             (page-size integer))
-    (list-rows
-      rbac
-      (list "id" "role_name" "role_description" "exclusive" "created_at"
-        "updated_at")
-      "roles"
-      (list
-        "exclusive = false"
-        "role_name not like '%:exclusive'"
-        "role_name not in ('public', 'logged-in', 'system')")
-      nil
-      (list "role_name")
-      page
-      page-size))
-  (:documentation "List non-exclusive roles, returning PAGE-SIZE roles starting"))
-
-(defgeneric list-roles-regular-count (rbac)
-  (:method ((rbac rbac-pg))
-    (count-rows
-      rbac
-      "roles"
-      (list
-        "exclusive = false"
-        "role_name not like '%:exclusive'"
-        "role_name not in ('public', 'logged-in', 'system')")
-      nil))
-  (:documentation "Return the count of regular roles in the database."))
-
-(defgeneric list-role-permissions (rbac role page page-size)
-  (:method ((rbac rbac-pg)
-             (role string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-role-permissions"
-      :role role :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list "rp.id as role_permission_id"
-        "rp.created_at"
-        "rp.updated_at"
-        "p.id as permission_id"
-        "p.permission_name"
-        "p.permission_description")
-      "role_permissions rp
-       join roles r on rp.role_id = r.id
-       join permissions p on rp.permission_id = p.id"
-      (list "r.role_name = $1")
-      (list role)
-      (list "p.permission_name")
-      page
-      page-size))
-  (:documentation "List permissions for a role, returning PAGE-SIZE permissions
-starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and"))
-
-(defgeneric list-role-permissions-count (rbac role)
-  (:method ((rbac rbac-pg) (role string))
-    (l:pdebug :in "list-role-permissions-count" :role role)
-    (count-rows
-      rbac
-      "role_permissions rp
-       join roles r on rp.role_id = r.id
-       join permissions p on rp.permission_id = p.id"
-      (list "r.role_name = $1")
-      (list role)))
-  (:documentation "Return the count of permissions for a role."))
-
-(defgeneric list-role-users (rbac role page page-size)
-  (:method ((rbac rbac-pg)
-             (role string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-role-users" :role role :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list
-        "ru.id as role_user_id"
-        "ru.created_at"
-        "ru.updated_at"
-        "u.id as user_id"
-        "u.user_name"
-        "u.email")
-      "role_users ru
-       join roles r on ru.role_id = r.id
-       join users u on ru.user_id = u.id"
-      (list "r.role_name = $1")
-      (list role)
-      (list "u.user_name")
-      page
-      page-size))
-  (:documentation "List users for a role, returning PAGE-SIZE users starting
-on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-role-users-count (rbac role)
-  (:method ((rbac rbac-pg) (role string))
-    (l:pdebug :in "list-role-users-count" :role role)
-    (count-rows
-      rbac
-      "role_users ru
-       join roles r on ru.role_id = r.id
-       join users u on ru.user_id = u.id"
-      (list "r.role_name = $1")
-      (list role)))
-  (:documentation "Return the count of users for a role."))
-
-(defgeneric list-user-roles (rbac user page page-size)
-  (:method ((rbac rbac-pg)
-             (user string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-user-roles" :user user :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list
-        "ru.id as role_user_id"
-        "ru.created_at"
-        "ru.updated_at"
-        "r.id as role_id"
-        "r.role_name")
-      "role_users ru
-       join roles r on ru.role_id = r.id
-       join users u on ru.user_id = u.id"
-      (list "u.user_name = $1")
-      (list user)
-      (list "r.role_name")
-      page
-      page-size))
-  (:documentation "List the roles for a given user, returning PAGE-SIZE roles
-starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and
-1000."))
-
-(defgeneric list-user-roles-count (rbac user)
-  (:method ((rbac rbac-pg) (user string))
-    (l:pdebug :in "list-user-roles-count" :user user)
-    (count-rows
-      rbac
-      "role_users ru
-       join roles r on ru.role_id = r.id
-       join users u on ru.user_id = u.id"
-      (list "u.user_name = $1")
-      (list user)))
-  (:documentation "Return the count of roles for USER."))
-
-(defgeneric list-user-roles-regular (rbac user page page-size)
-  (:method ((rbac rbac-pg)
-             (user string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-user-roles-regular" :user user)
-    (list-rows
-      rbac
-      (list
-        "ru.id as role_user_id"
-        "ru.created_at"
-        "ru.updated_at"
-        "r.id as role_id"
-        "r.role_name")
-      "role_users ru
-       join roles r on ru.role_id = r.id
-       join users u on ru.user_id = u.id"
-      (list "u.user_name = $1"
-        "r.exclusive = false"
-        "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('public', 'logged-in', 'system')")
-      (list user)
-      (list "r.role_name")
-      page
-      page-size))
-  (:documentation "List the roles for USER excluding the user's exclusive
-role, the public role, and the logged-in role, returning PAGE-SIZE roles starting
-on page PAGE."))
-
-(defgeneric list-user-roles-regular-count (rbac user)
-  (:method ((rbac rbac-pg) (user string))
-    (l:pdebug :in "list-user-roles-regular-count" :user user)
-    (count-rows
-      rbac
-      "role_users ru
-       join roles r on ru.role_id = r.id
-       join users u on ru.user_id = u.id"
-      (list
-        "u.user_name = $1"
-        "r.exclusive = false"
-        "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('public', 'logged-in', 'system')")
-      (list user)))
-  (:documentation "Return the count of roles for USER excluding the user's
-exclusive role, the public role, and the logged-in role."))
-
-(defgeneric list-resources (rbac page page-size)
-  (:method ((rbac rbac-pg)
-             (page integer)
-             (page-size integer))
-    (list-rows
-      rbac
-      (list "id" "resource_name" "resource_description" "created_at"
-        "updated_at")
-      "resources"
-      nil
-      nil
-      (list "resource_name")
-      page
-      page-size))
-  (:documentation "List resources, returning PAGE-SIZE resources starting on
-page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-resources-count (rbac)
-  (:method ((rbac rbac-pg))
-    (count-rows rbac "resources" nil nil))
-  (:documentation "Return the count of resources in the database."))
-
-(defgeneric list-user-resources (rbac user permission page page-size)
-  (:method ((rbac rbac-pg)
-             (user string)
-             permission
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-user-resources"
-      :user user :permission permission :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list
-        "distinct s.id as resource_id"
-        "s.resource_name"
-        "s.resource_description")
-      "resources s
-         join resource_roles sr on s.id = sr.resource_id
-         join roles r on sr.role_id = r.id
-         join role_users ru on r.id = ru.role_id
-         join users u on ru.user_id = u.id
-         join role_permissions rp on rp.role_id = r.id
-         join permissions p on rp.permission_id = p.id"
-      (list
-        "u.user_name = $1"
-        (if permission "p.permission_name = $2" "1=1"))
-      (remove-if-not #'identity (list user permission))
-      (list "s.resource_name")
-      page
-      page-size))
-  (:documentation "List the resources that USER has access to with PERMISSION, returning
-PAGE-SIZE rows from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-user-resources-count (rbac user permission)
-  (:method ((rbac rbac-pg) (user string) permission)
-    (l:pdebug :in "list-user-resources-count"
-      :user user :permission permission)
-    (count-rows
-      rbac
-      "resources s
-         join resource_roles sr on s.id = sr.resource_id
-         join roles r on sr.role_id = r.id
-         join role_users ru on r.id = ru.role_id
-         join users u on ru.user_id = u.id
-         join role_permissions rp on rp.role_id = r.id
-         join permissions p on rp.permission_id = p.id"
-      (list
-        "u.user_name = $1"
-        (if permission "p.permission_name = $2" "1=1"))
-      (remove-if-not #'identity (list user permission))))
-  (:documentation "Return the count of resources that USER has access to with PERMISSION."))
-
-(defgeneric list-resource-users
-  (rbac resource permission page page-size)
-  (:method ((rbac rbac-pg)
-             (resource string)
-             permission
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-resource-users"
-      :resource resource
-      :permission permission)
-    (list-rows
-      rbac
-      (list
-        "distinct u.id as user_id"
-        "u.user_name")
-      "users u
-         join role_users ru on u.id = ru.user_id
-         join roles r on ru.role_id = r.id
-         join role_permissions rp on r.id = rp.role_id
-         join permissions p on rp.permission_id = p.id
-         join resource_roles sr on r.id = sr.role_id
-         join resources s on sr.resource_id = s.id"
-      (list
-        "s.resource_name = $1"
-        (if permission "p.permission_name = $2" "1=1"))
-      (remove-if-not #'identity (list resource permission))
-      (list "u.user_name")
-      page
-      page-size))
-  (:documentation "List the users have PERMISSION on RESOURCE, returning PAGE-SIZE rows
-from PAGE. If PERMISSION is nil, this function lists RESOURCE users with any
-permission. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-resource-users-count (rbac resource permission)
-  (:method ((rbac rbac-pg)
-             (resource string)
-             permission)
-    (l:pdebug :in "list-resource-users-count"
-      :resource resource
-      :permission permission)
-    (count-rows
-      rbac
-      "users u
-         join role_users ru on u.id = ru.user_id
-         join roles r on ru.role_id = r.id
-         join role_permissions rp on r.id = rp.role_id
-         join permissions p on rp.permission_id = p.id
-         join resource_roles sr on r.id = sr.role_id
-         join resources s on sr.resource_id = s.id"
-      (list
-        "s.resource_name = $1"
-        (if permission "p.permission_name = $2" "1=1"))
-      (remove-if-not #'identity (list resource permission))))
-  (:documentation "Return the count of users who have PERMISSION on RESOURCE."))
-
-(defgeneric list-resource-roles (rbac resource page page-size)
-  (:method ((rbac rbac-pg)
-             (resource string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-resource-roles"
-      :resource resource :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list
-        "rr.id as resource_role_id"
-        "rr.created_at"
-        "rr.updated_at"
-        "ro.id as role_id"
-        "ro.role_name"
-        "ro.role_description")
-      "resource_roles rr
-       join resources re on rr.resource_id = re.id
-       join roles ro on rr.role_id = ro.id"
-      (list "re.resource_name = $1")
-      (list resource)
-      (list "ro.role_name")
-      page
-      page-size))
-  (:documentation "List roles for a resource, returning PAGE-SIZE roles starting
-on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000."))
-
-(defgeneric list-resource-roles-count (rbac resource)
-  (:method ((rbac rbac-pg) (resource string))
-    (l:pdebug :in "list-resource-roles-count" :resource resource)
-    (count-rows
-      rbac
-      "resource_roles rr
-       join resources re on rr.resource_id = re.id
-       join roles r on rr.role_id = r.id"
-      (list "re.resource_name = $1")
-      (list resource)))
-  (:documentation "Return the count of roles for a resource."))
-
-(defgeneric list-resource-roles-regular (rbac resource page page-size)
-  (:method ((rbac rbac-pg)
-             (resource string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-resource-roles-regular"
-      :resource resource :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list
-        "rr.id as resource_role_id"
-        "rr.created_at"
-        "rr.updated_at"
-        "ro.id as role_id"
-        "ro.role_name"
-        "ro.role_description")
-      "resource_roles rr
-       join resources re on rr.resource_id = re.id
-       join roles ro on rr.role_id = ro.id"
-      (list "re.resource_name = $1"
-        "ro.exclusive = false"
-        "ro.role_name not like '%:exclusive'"
-        "ro.role_name not in ('public', 'logged-in', 'system')")
-      (list resource)
-      (list "ro.role_name")
-      page
-      page-size))
-  (:documentation "List non-exclusive roles for a resource, returning PAGE-SIZE"))
-
-(defgeneric list-resource-roles-regular-count (rbac resource)
-  (:method ((rbac rbac-pg) (resource string))
-    (l:pdebug :in "list-resource-roles-regular-count"
-      :resource resource)
-    (count-rows
-      rbac
-      "resource_roles rr
-       join resources re on rr.resource_id = re.id
-       join roles r on rr.role_id = r.id"
-      (list
-        "re.resource_name = $1"
-        "r.exclusive = false"
-        "r.role_name not like '%:exclusive'"
-        "r.role_name not in ('public', 'logged-in', 'system')")
-      (list resource)))
-  (:documentation "Return the count of non-exclusive roles for a resource."))
-
-(defgeneric list-role-resources (rbac role page page-size)
-  (:method ((rbac rbac-pg)
-             (role string)
-             (page integer)
-             (page-size integer))
-    (l:pdebug :in "list-role-resources"
-      :role role :page page :page-size page-size)
-    (list-rows
-      rbac
-      (list
-        "rr.id as resource_role_id"
-        "rr.created_at"
-        "rr.updated_at"
-        "re.id as resource_id"
-        "re.resource_name"
-        "re.resource_description")
-      "resource_roles rr
-       join resources re on rr.resource_id = re.id
-       join roles ro on rr.role_id = ro.id"
-      (list "ro.role_name = $1")
-      (list role)
-      (list "ro.resource_name")
-      page
-      page-size))
-  (:documentation "List resources associated with ROLE, returning PAGE-SIZE
-resources on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and
-1000."))
-
-(defgeneric list-role-resources-count (rbac role)
-  (:method ((rbac rbac-pg) (role string))
-    (l:pdebug :in "list-role-resources-count" :role role)
-    (count-rows
-      rbac
-      "resource_roles rr
-       join resources re on rr.resource_id = re.id
-       join roles r on rr.role_id = r.id"
-      (list "r.role_name = $1")
-      (list role)))
-  (:documentation "Return the count of resources associated with ROLE."))
-
 (defgeneric user-allowed (rbac user-name permission resource)
   (:method ((rbac rbac-pg)
              (user-name string)
@@ -1967,80 +1425,6 @@ RESOURCE. If the list is empty, the user does not have access."
           nil))))
   (:documentation "If USER-NAME exists and PASSWORD is correct, update last_login
 for USER-NAME and return the user ID. Otherwise, return NIL."))
-
-(defgeneric d-remove-role (rbac role)
-  (:documentation "Remove ROLE with defauls.")
-  (:method ((rbac rbac-pg) (role string))
-    (remove-role rbac role)))
-
-(defgeneric d-remove-permission (rbac permission)
-  (:documentation "Remove permission with defaults.")
-  (:method ((rbac rbac-pg) (permission string))
-    (remove-permission rbac permission)))
-
-(defgeneric d-remove-resource (rbac resource)
-  (:documentation "Remove resource with defaults.")
-  (:method ((rbac rbac-pg) (resource string))
-    (remove-resource rbac resource)))
-
-(defgeneric d-add-resource-role (rbac resource role)
-  (:documentation "Add a role to a resource with defaults.")
-  (:method ((rbac rbac-pg) (resource string) (role string))
-    (add-resource-role rbac resource role)))
-
-(defgeneric d-remove-resource-role (rbac resource role)
-  (:documentation "Remove a role from a resource with defaults.")
-  (:method ((rbac rbac-pg) (resource string) (role string))
-    (remove-resource-role rbac resource role)))
-
-(defgeneric d-add-role-permission (rbac role permission)
-  (:documentation "Add a permission to a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (permission string))
-    (add-role-permission rbac role permission)))
-
-(defgeneric d-remove-role-permission (rbac role permission)
-  (:documentation "Remove a permission from a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (permission string))
-    (remove-role-permission rbac role permission)))
-
-(defgeneric d-add-role-user (rbac role user)
-  (:documentation "Add a user to a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (user string))
-    (add-role-user rbac role user)))
-
-(defgeneric d-add-user-role (rbac user role)
-  (:documentation "Add a role to a user with defaults.")
-  (:method ((rbac rbac-pg) (user string) (role string))
-    (add-role-user rbac role user)))
-
-(defgeneric d-remove-role-user (rbac role user)
-  (:documentation "Remove a user from a role with defaults.")
-  (:method ((rbac rbac-pg) (role string) (user string))
-    (remove-role-user rbac role user)))
-
-(defgeneric d-remove-user-role (rbac user role)
-  (:documentation "Remove a role from a user with defaults.")
-  (:method ((rbac rbac-pg) (user string) (role string))
-    (remove-role-user rbac role user)))
-
-(defgeneric d-add-user (rbac username password &key email roles)
-  (:documentation "Add a user with defaults.")
-  (:method ((rbac rbac-pg) (username string) (password string)
-             &key (email "no-email") roles)
-    (add-user rbac username email password roles)))
-
-(defgeneric d-remove-user (rbac username)
-  (:documentation "Remove a user with defaults.")
-  (:method ((rbac rbac-pg) (username string))
-    (remove-user rbac username)))
-
-(defgeneric d-login (rbac username password)
-  (:documentation "Log in user.")
-  (:method ((rbac rbac-pg)
-             (username string)
-             (password string))
-    (login rbac username password)))
-
 
 ;;
 ;; API
@@ -2277,7 +1661,17 @@ the 's'at the end."
   (defun table-name-field (table &optional as-keyword)
     "Returns the name field for TABLE. The name field is the singular form of
 the table name, with '_name' appended."
-    (format nil "~a~aname" (singular table) (if as-keyword "-" "_"))))
+    (format nil "~a~aname" (singular table) (if as-keyword "-" "_")))
+
+  (defparameter *table-aliases*
+    (ds:ds '(:map
+              "users" "u"
+              "roles" "r"
+              "permissions" "p"
+              "resources" "s"
+              "role_permissions" "rp"
+              "role_users" "ru"
+              "resource_roles" "sr"))))
 
 (defmacro define-list-functions (&rest tables)
   (let* ((fname (if (= (length tables) 1)
