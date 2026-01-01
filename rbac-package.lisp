@@ -8,6 +8,9 @@
     (:db :postmodern)
     (:c :lru-cache))
   (:export
+    ;; Parameters
+    *default-permissions*
+
     ;; Macros
     with-rbac
     check
@@ -52,6 +55,7 @@
     add-role-permission
     add-role-user
     add-user
+    clear-cache
     get-id
     get-permission-ids
     get-role-ids
@@ -127,14 +131,14 @@
     d-remove-user-role
 
     ;; Simple list functions
-    list-usernames
+    list-user-names
     list-user-resource-names
     list-role-names
     list-role-names-regular
     list-permission-names
     list-resource-names
-    list-resource-usernames
-    list-role-usernames
+    list-resource-user-names
+    list-role-user-names
     list-user-role-names
     list-user-role-names-regular
     list-role-permission-names
