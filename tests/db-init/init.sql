@@ -312,7 +312,25 @@ insert into role_permissions (role_id, permission_id) values
     (
         '5afef606-07f8-4c7d-afe3-da66f00ed015', -- system:exclusive role
         'f77b0d67-330a-4b0d-8166-d73229547f5f'  -- delete
+    ),
+    --
+    -- Public role permissions
+    --
+    -- public: read
+    (
+        'c9b6868a-0550-41eb-9c74-4d90e3ea03b5', -- public role
+        '784c7460-134e-4b06-9c80-d6db197a1bdf'  -- read
+    ),
+    --
+    -- Logged-in role permissions
+    --
+    -- logged-in: read
+    --
+    (
+        '9ad10cfa-78fe-43af-a417-0f104b64766a', -- logged-in role
+        '784c7460-134e-4b06-9c80-d6db197a1bdf'  -- read
     );
+
 
 --
 -- insert role users

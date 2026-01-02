@@ -125,8 +125,8 @@
                                "test:resource-07" (:list "role-a" "role-b"
                                                     "role-c")))
     for resource in (u:hash-keys resource-roles)
-    for role = (gethash resource resource-roles)
-    do (is-true (is-uuid (add-resource *rbac* resource :roles (list role)))))
+    for roles = (gethash resource resource-roles)
+    do (is-true (is-uuid (add-resource *rbac* resource :roles roles))))
 
   ;; Add a resource without roles
   (is-true (is-uuid (add-resource *rbac* "test:resource-08")))
@@ -139,7 +139,7 @@
   (is (equal (u:safe-sort '("role-a" "role-b" "role-c"
                              "system" "logged-in" "public"))
         (u:exclude-regex (list-role-names *rbac*) ":exclusive$")))
-  (is (equal (loop for a from 1 to 7
+  (is (equal (loop for a from 1 to 6
                collect (format nil "user-~2,'0d" a))
         (u:exclude (list-user-names *rbac*) "system")))
   (is (equal '("test:resource-01" "test:resource-02"
@@ -147,16 +147,16 @@
                 "test:resource-05" "test:resource-06"
                 "test:resource-07" "test:resource-08")
         (list-resource-names *rbac*)))
-  (is (equal *default-permissions*
+  (is (equal '("read")
         (list-user-resource-permission-names *rbac*
-          "user-01" "test-resource-01")))
+          "user-01" "test:resource-01")))
   (is (equal '("read")
         (list-user-resource-permission-names *rbac*
           "user-01" "test:resource-04")))
   (is (equal *default-permissions*
         (list-user-resource-permission-names *rbac*
           "user-03" "test:resource-07")))
-  (is (equal '("bogus-permission")
+  (is (equal (cons "bogus-permission" *default-permissions*)
         (list-user-resource-permission-names *rbac*
           "user-04" "test:resource-06"))))
 

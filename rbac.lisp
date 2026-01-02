@@ -1367,7 +1367,7 @@ for this user only, and adds the user to the public and logged-in roles
         missing-permissions)
       (report-errors "add-role" errors))
     ;; Insert the role
-    (insert-role rbac role :description description :exclusive exclusive)
+    (insert-role rbac role :description description)
     ;; Insert the role's permissions
     (loop for permission-name in permissions
       do (link rbac "roles" "permissions" role permission-name))
