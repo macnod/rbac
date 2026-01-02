@@ -3,12 +3,7 @@ name: Run Tests
 on:
   push:
   workflow_dispatch:
-    inputs:
-      disable-cache:
-        description: 'Disable dependency caching'
-        required: false
-        default: 'false'
-        type: boolean
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -37,36 +32,6 @@ jobs:
         with:
           sbcl-version: 2.5.10
           roswell-version: 23.10.14.114
-
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        id: depcache
-        with:
-          path: |
-            ~/.roswell/local-projects
-            ~/.cache/common-lisp/sbcl-2.5.10.roswell-linux-x64/home/runner/.roswell
-          key: dependencies-${{ runner.os }}-${{ hashFiles('~/.roswell/local-projects/**', '~/.cache/common-lisp/sbcl-2.5.10.roswell-linux-x64/home/runner/.roswell/**') }}
-          restore-keys: |
-            dependencies-${{ runner.os }}-
-
-      - name: Cache hit for dependencies
-        if: >-
-          steps.depcache.outputs.cache-hit == 'true' && (
-            inputs.disable-cache == 'false' ||
-            inputs.disable-cache == false
-          )
-        shell: bash
-        run: |
-          echo "disable-cache: ${{ inputs.disable-cache }}"
-          echo "✅ Cache hit for dependencies"
-
-      - name: Install dependencies
-        if: >-
-          steps.depcache.outputs.cache-hit != 'true' ||
-          inputs.disable-cache == 'true' ||
-          inputs.disable-cache == true
-        shell: bash
-        run: make install-dependencies
 
       - name: Wait for PostgreSQL
         run: |
