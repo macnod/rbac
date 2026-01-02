@@ -38,7 +38,7 @@ jobs:
         with:
           sbcl-version: 2.5.10
           roswell-version: 23.10.14.114
-          disable-cache: github.event.inputs.disable-cache
+          disable-cache: ${{ github.event.inputs.disable-cache }}
 
       - name: Cache dependencies
         uses: actions/cache@v4
