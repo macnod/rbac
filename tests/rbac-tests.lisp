@@ -3,7 +3,6 @@
 (require :cl-ppcre)
 (require :postmodern)
 (require :uiop)
-(require :swank)
 (require :dc-ds)
 (require :dc-time)
 (require :dc-eclectic)
