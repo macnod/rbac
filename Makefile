@@ -21,9 +21,12 @@ install-dependencies:
 	ros install cl-csv
 	ros install trivial-utf-8
 	ros install ironclad
-	ros install macnod/dc-ds
-	ros install macnod/dc-time
-	ros install macnod/p-log
+	ros install swank
+	ros install macnod/dc-dlist/v1.0
+	ros install macnod/lru-cache/v1.3
+	ros install macnod/dc-ds/v0.5
+	ros install macnod/dc-time/v0.5
+	ros install macnod/p-log/v0.9
 	ros install macnod/dc-eclectic
 
 test:

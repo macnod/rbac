@@ -1,0 +1,74 @@
+#!/bin/bash
+
+SCRIPT_NAME=$(basename $0)
+ACTION=$1
+TEST_FILE="${2:-tests/rbac-tests.lisp}"
+
+# File Server Lisp Environment
+export DB_HOST="127.0.0.1"
+export DB_PORT="5436"
+export DB_NAME="rbac"
+export DB_USER="rbac"
+export DB_PASSWORD="rbac-password"
+export DB_CONTAINER="pg-tests-repl"
+export DOCKER_COMPOSE_FILE="tests/docker-compose-${DB_CONTAINER}.yaml"
+export LOG_FILE=$(readlink -f "$PWD/tests/tests-repl.log")
+export SWANK_PORT="4009"
+export RUN_TESTS="false"
+
+# Needed to avoid prompting in psql calls
+export PGPASSWORD="$DB_PASSWORD"
+
+function usage {
+    echo "Usage:"
+    echo "    $SCRIPT_NAME {start|stop} [test-file]"
+    echo "    $SCRIPT_NAME --help"
+    echo
+    echo "Starts a Common Lisp REPL (using Roswell) that load the tests"
+    echo "file at $TEST_FILE, but doesn't run the tests. You can connect"
+    echo "to the REPL with the a client like Slime at Swank port $SWANK_PORT."
+}
+
+case "$ACTION" in
+    start)
+        echo
+        echo "Starting PosgreSQL"
+        docker-compose -f $DOCKER_COMPOSE_FILE up -d &>/dev/null
+        until docker-compose -f $DOCKER_COMPOSE_FILE exec -it $DB_CONTAINER \
+          pg_isready -U postgres &>/dev/null; do
+          echo "Waiting for postgres..."
+          sleep 1
+        done
+        echo "PostgreSQL is up on port ${DB_PORT}"
+        sleep 2
+
+        echo
+        echo "Initializing database"
+        psql -h $DB_HOST -p $DB_PORT -d $DB_NAME -U $DB_USER \
+             -f tests/db-init/init.sql >&/dev/null
+
+        echo
+        echo "Starting REPL"
+        ros run -- --load "$TEST_FILE"
+
+        echo "Stopping and removing database container"
+        docker-compose -f $DOCKER_COMPOSE_FILE down &>/dev/null
+        ;;
+    stop)
+        echo "Stopping and removing database container"
+        docker-compose -f $DOCKER_COMPOSE_FILE down
+        ;;
+    --help)
+        usage
+        exit 0
+        ;;
+    *)
+        if [[ -z "$ACTION" ]]; then
+            echo "Unknown command $ACTION"
+        else
+            echo "Missing command"
+        fi
+        usage
+        exit 1
+        ;;
+esac
