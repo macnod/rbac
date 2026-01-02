@@ -1906,8 +1906,8 @@ defaults to (list \"~a\")."
 ;; Makes list-resource-users, list-resource-user-names, and resource-user-count
 (define-list-functions-2 "resources" "roles" "permissions" "users")
 
-(defgeneric list-user-permission-names (rbac user-name resource-name &key
-                                         page page-size)
+(defgeneric list-user-resource-permission-names (rbac user-name resource-name &key
+                                                  page page-size)
   (:method ((rbac rbac-pg) (user-name string) (resource-name string) &key
              (page 1) (page-size *default-page-size*))
     (let* ((sql (format nil
