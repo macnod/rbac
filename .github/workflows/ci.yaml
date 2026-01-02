@@ -38,7 +38,7 @@ jobs:
         with:
           sbcl-version: 2.5.10
           roswell-version: 23.10.14.114
-          disable-cache: ${{ github.event.inputs.disable-cache }}
+          disable-cache: ${{ inputs.disable-cache }}
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -54,17 +54,19 @@ jobs:
       - name: Cache hit for dependencies
         if: >-
           steps.depcache.outputs.cache-hit == 'true' && (
-            github.event.inputs.disable-cache == 'false' ||
-            github.event.inputs.disable-cache == false
+            inputs.disable-cache == 'false' ||
+            inputs.disable-cache == false
           )
         shell: bash
-        run: echo "✅ Cache hit for dependencies"
+        run: |
+          echo "disable-cache: ${{ inputs.disable-cache }}"
+          echo "✅ Cache hit for dependencies"
 
       - name: Install dependencies
         if: >-
           steps.depcache.outputs.cache-hit != 'true' ||
-          github.event.inputs.disable-cache == 'true' ||
-          github.event.inputs.disable-cache == true
+          inputs.disable-cache == 'true' ||
+          inputs.disable-cache == true
         shell: bash
         run: make install-dependencies
 
