@@ -34,10 +34,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Roswell
-        uses: macnod/roswell-action@v2
+        uses: macnod/roswell-action@v3
         with:
           sbcl-version: 2.5.10
           roswell-version: 23.10.14.114
+          disable-cache: github.event.inputs.disable-cache
 
       - name: Cache dependencies
         uses: actions/cache@v4
