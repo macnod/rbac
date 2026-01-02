@@ -8,46 +8,11 @@
     (:db :postmodern)
     (:c :lru-cache))
   (:export
-    ;; Parameters
+    *default-page-size*
     *default-permissions*
-
-    ;; Macros
-    with-rbac
-    check
-
-    ;; Functions
-    password-hash
-    rbac-query
-    rbac-query-single
-    report-errors
-    sql-next-placeholder
-    table-name-field
-    usql
-
-    ;; Classses
-    rbac
-    resource-regex
-    resource-length-max
-    username-length-max
-    username-regex
-    password-length-min
-    password-length-max
-    password-regexes
-    email-length-max
-    email-regex
-    role-length-max
-    role-regex
-    permission-length-max
-    permission-regex
-
-    rbac-pg
-    username
-    password
-    host
-    port
-    cache
-
-    ;; Generic functions
+    *default-resource-roles*
+    *default-user-roles*
+    *max-page-size*
     add-permission
     add-resource
     add-resource-role
@@ -55,41 +20,54 @@
     add-role-permission
     add-role-user
     add-user
+    add-user-role
+    cache-size
     clear-cache
+    dbname
+    email-length-max
+    email-regex
+    exclusive-role-for
     get-id
-    get-permission-ids
-    get-role-ids
-    get-value
+    host
+    id-exists-p
+    list-permission-names
     list-permissions
-    list-permissions-count
+    list-resource-names
+    list-resource-role-names
     list-resource-roles
-    list-resource-roles-count
-    list-resource-roles-regular
-    list-resource-roles-regular-count
+    list-resource-user-names
     list-resource-users
-    list-resource-users-count
     list-resources
-    list-resources-count
+    list-role-names
+    list-role-permission-names
     list-role-permissions
-    list-role-permissions-count
+    list-role-resource-names
+    list-role-resources
+    list-role-user-names
     list-role-users
-    list-role-users-count
     list-roles
-    list-roles-count
-    list-roles-regular
-    list-roles-regular-count
-    list-rows
-    list-users
-    list-users-count
-    list-users-filtered
-    list-users-filtered-count
-    list-user-roles
-    list-user-roles-count
-    list-user-roles-regular
-    list-user-roles-regular-count
+    list-user-names
+    list-user-resource-names
+    list-user-resource-permission-names
     list-user-resources
-    list-user-resources-count
+    list-user-role-names
+    list-user-roles
+    list-users
     login
+    password
+    password-hash
+    password-length-max
+    password-length-min
+    password-regexes
+    permission-count
+    permission-length-max
+    permission-regex
+    plural
+    port
+    rbac
+    rbac-pg
+    rbac-query
+    rbac-query-single
     remove-permission
     remove-resource
     remove-resource-role
@@ -97,52 +75,33 @@
     remove-role-permission
     remove-role-user
     remove-user
-    soft-delete
-    sql-for-list
-    to-hash-table
-    to-hash-tables
+    remove-user-role
+    resource-count
+    resource-length-max
+    resource-regex
+    resource-role-count
+    resource-user-count
+    role-count
+    role-length-max
+    role-permission-count
+    role-regex
+    role-resource-count
+    role-user-count
     user-allowed
+    user-count
     user-has-role
+    user-name
+    user-name-length-max
+    user-name-regex
+    user-resource-count
+    user-role-count
+    usql
     valid-description-p
     valid-email-p
     valid-password-p
     valid-permission-p
     valid-resource-p
     valid-role-p
-    valid-username-p
-
-    ;; Funcions with defaults
-    d-add-permission
-    d-add-resource
-    d-add-resource-role
-    d-add-role
-    d-add-role-permission
-    d-add-role-user
-    d-add-user
-    d-add-user-role
-    d-login
-    d-remove-permission
-    d-remove-resource
-    d-remove-resource-role
-    d-remove-role
-    d-remove-role-permission
-    d-remove-role-user
-    d-remove-user
-    d-remove-user-role
-
-    ;; Simple list functions
-    list-user-names
-    list-user-resource-names
-    list-role-names
-    list-role-names-regular
-    list-permission-names
-    list-resource-names
-    list-resource-user-names
-    list-role-user-names
-    list-user-role-names
-    list-user-role-names-regular
-    list-role-permission-names
-    list-resource-role-names
-    list-resource-role-names-regular
-    list-role-resource-names
+    valid-user-name-p
+    with-rbac
     ))

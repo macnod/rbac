@@ -3,10 +3,8 @@
 ;;
 ;; Constants
 ;;
-(defparameter *default-permissions* (list "create" "read" "update" "delete"))
-(defparameter *allow-test-user-insert* nil
-  "If true, allows inserting a user with a user_name that starts with
-'test-user-'.")
+(defparameter *default-permissions* (list "create" "read" "update" "delete")
+  "Default permissions for a new role.")
 
 ;; SQL to find tables that reference a table with a foreign key. We use this
 ;; so that we can soft delete a row in a table, and then soft delete all the
@@ -29,7 +27,9 @@
    WHERE
        tc.constraint_type = 'FOREIGN KEY'
        AND ctu.table_name = $1
-   ORDER BY tc.table_name")
+   ORDER BY tc.table_name"
+  "Internal. SQL query to find all tables that reference a table with a foreign
+key.")
 
 (defparameter *table-aliases*
   (ds:ds '(:map
@@ -39,17 +39,18 @@
             "resources" "s"
             "role_permissions" "rp"
             "role_users" "ru"
-            "resource_roles" "sr")))
+            "resource_roles" "sr"))
+  "Internal. Mapping from table names to table aliases.")
 
 ;; These roles are assigned to new users
-(defparameter *default-user-roles* (list "public" "logged-in"))
-(defparameter *default-resource-roles* (list "system"))
+(defparameter *default-user-roles* (list "public" "logged-in") "Internal.")
+(defparameter *default-resource-roles* (list "system") "Internal.")
 
-(defparameter *default-page-size* 20)
-(defparameter *max-page-size* 1000)
+(defparameter *default-page-size* 20 "Default page size")
+(defparameter *max-page-size* 1000 "Maximum page size")
 
 ;; Caches
-(defparameter *table-fields* nil)
+(defparameter *table-fields* nil "Internal. Cache of table field names.")
 
 ;;
 ;; Macros
@@ -68,11 +69,11 @@ needed. The connection is closed after BODY is executed."
      ,@body))
 
 (defmacro check (errors condition &rest error-message-args)
-  "Evaluates CONDITION. If the return value of CONDITION is NIL, this function
-pushes an error message onto ERROS. The error message is created by using
-the format function with the arguments in ERROR-MESSAGE-ARGS. This function
-returns the result of evaluating CONDITION, so that it can be used as part
-of setting a variable, for example."
+  "Internal. Evaluates CONDITION. If the return value of CONDITION is NIL, this
+function pushes an error message onto ERROS. The error message is created by
+using the format function with the arguments in ERROR-MESSAGE-ARGS. This
+function returns the result of evaluating CONDITION, so that it can be used as
+part of setting a variable, for example."
   `(let (result)
      (unless (setf result ,condition)
        (push (format nil ,@error-message-args) ,errors))
@@ -82,8 +83,8 @@ of setting a variable, for example."
 ;; Global functions
 ;;
 (defun report-errors (function-name errors &optional (fail-on-error t))
-  "If ERRORS is not NIL, this function signals an error with a message that
-consists the strings in ERRORS, separated by spaces."
+  "Internal. If ERRORS is not NIL, this function signals an error with a message
+that consists the strings in ERRORS, separated by spaces."
   (when errors
     (l:perror :in function-name :errors errors)
     (when fail-on-error
@@ -115,37 +116,15 @@ This does not work correctly if SQL contains quoted field names or values that
 include multiple consecutive whitespace characters."
   (u:trim (re:regex-replace-all "\\s+" sql " ")))
 
-(defun main-table-alias (tables-sql)
-  "Returns the alias for the main table in the SQL string TABLES-SQL, which
-consists of the part of an SQL statement that specifies the tables and joins."
-  (let* ((sql (usql tables-sql))
-          (regex (cond
-                   ((re:scan "^(?i)\\s*(select|delete)" sql)
-                     "from\\s+(.+)(\\s+where)?")
-                   ((re:scan "^(?i)\\s*update" sql)
-                     "^(?i)(\\s*update\\s+)(.+?)(\\s+set)")
-                   (t "(.+)(\\s+where)?"))))
-    (if (re:scan regex sql)
-      (multiple-value-bind (scan selected)
-        (re:scan-to-strings regex sql)
-        (if scan
-          (let ((alias (second
-                         (re:split
-                           "\\s+"
-                           (elt (remove-if (lambda (s) (equal s "")) selected) 0)))))
-            (if (and alias (not (string= alias "")))
-              (format nil "~a." alias)
-              ""))
-          "")))))
-
 (defun plural (string)
-  "Adds 's' to STRING"
+  "Adds 's' to STRING, unless STRING already ends with 's'."
   (if (re:scan "s$" string)
     string
     (format nil "~as" string)))
 
 (defun external-reference-field (external-table)
-  "Creates a field name that references the id field in EXTERNAL-TABLE."
+  "Internal. Creates a field name that references the id field in
+EXTERNAL-TABLE."
   (format nil "~a_id" (singular external-table)))
 
 (defun password-hash (user-name password)
@@ -158,7 +137,10 @@ stores the password in the database."
   (format nil "~a:exclusive" user-name))
 
 (defun make-description (name value)
-  "Create a description string for NAME with VALUE."
+  "Internal. Create a description string for NAME with VALUE. The database has a
+description field in several tables, and sometimes the description is optional
+when creating a new row. When a description is not provided, this function can
+be used to create a default description."
   (format nil "~@(~a~) '~a'" name value))
 
 ;;
@@ -175,23 +157,28 @@ stores the password in the database."
     (resource-length-max :accessor resource-length-max
       :initarg :resource-length-max
       :type integer
-      :initform  512)
+      :initform  512
+      :documentation "Maximum length of resource name string.")
     (user-name-length-max :accessor user-name-length-max
       :initarg :user-name-length-max
       :type integer
-      :initform 64)
+      :initform 64
+      :documentation "Maximum length of user name string.")
     (user-name-regex :accessor user-name-regex
       :initarg :user-name-regex
       :type string
-      :initform "^[a-zA-Z][-a-zA-Z0-9_.+]*$")
+      :initform "^[a-zA-Z][-a-zA-Z0-9_.+]*$"
+      :documentation "Regex for validating user name strings.")
     (password-length-min :accessor password-length-min
       :initarg :password-length-min
       :type integer
-      :initform 6)
+      :initform 6
+      :documentation "Minimum length of password string.")
     (password-length-max :accessor password-length-max
       :initarg :password-length-max
       :type integer
-      :initform 64)
+      :initform 64
+      :documentation "Maximum length of password string.")
     (password-regexes :accessor password-regexes
       :initarg :password-regexes
       :type list
@@ -200,7 +187,9 @@ stores the password in the database."
                   "^[\\x00-\\x7f]+$"
                   "[a-zA-Z]"
                   "[-!@#$%^&*()\+={}[\]|:;<>,.?/~`]"
-                  "[0-9]"))
+                  "[0-9]")
+      :documentation "List of regular expressions that a valid password must
+      match. Every regex in the list must match.")
     (email-length-max :accessor email-length-max
       :initarg :email-length-max
       :type integer
@@ -208,41 +197,63 @@ stores the password in the database."
     (email-regex :accessor email-regex
       :initarg :email-regex
       :type string
-      :initform "^[-a-zA-Z0-9._%+]+@[-a-zA-Z0-9.]+\\.[a-zA-Z]{2,}$|^no-email$")
+      :initform "^[-a-zA-Z0-9._%+]+@[-a-zA-Z0-9.]+\\.[a-zA-Z]{2,}$|^no-email$"
+      :documentation "Regex for validation of email address strings.")
     (role-length-max :accessor role-length-max
       :initarg :role-length-max
       :type integer
-      :initform 64)
+      :initform 64
+      :documentation "Maximum length of role name string.")
     (role-regex :accessor role-regex
       :initarg :role-regex
       :type string
-      :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$")
+      :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"
+      :documentation "Regex for validating role name strings.")
     (permission-length-max :accessor permission-length-max
       :initarg :permission-length-max
       :type integer
-      :initform 64)
+      :initform 64
+      :documentation "Maximum length of permission name string.")
     (permission-regex :accessor permission-regex
       :initarg :permission-regex
       :type string
-      :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"))
+      :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"
+      :documentation "Regex for validating permission name strings."))
   (:documentation "Abstract base class for user database."))
 
 (defclass rbac-pg (rbac)
-  ((dbname :accessor dbname :initarg :dbname :initform "rbac")
-    (user-name :accessor user-name :initarg :user-name :initform "cl-user")
-    (password :accessor password :initarg :password :initform "")
-    (host :accessor host :initarg :host :initform "postgres")
-    (port :accessor port :initarg :port :initform 5432)
+  ((dbname :accessor dbname :initarg :dbname :initform "rbac" :type string
+     :documentation "Name of the RBAC database.")
+    (user-name :accessor user-name :initarg :user-name :initform "cl-user"
+      :type string
+      :documentation "User name for connecting to the RBAC database.")
+    (password :accessor password :initarg :password :initform "" :type string
+      :documentation "Password for connecting to the RBAC database.")
+    (host :accessor host :initarg :host :initform "postgres" :type string
+      :documentation "Host name for connecting to the RBAC database.")
+    (port :accessor port :initarg :port :initform 5432 :type integer
+      :documentation "Port number for connecting to the RBAC database.")
     (cache-size :reader cache-size
       :initarg :cache-size
       :type integer
-      :initform 10000)
-    (cache :accessor cache)
-    (anti-cache :accessor anti-cache))
+      :initform 10000
+      :documentation "Maximum number of entries in the RBAC cache before LRU
+eviction occurs.")
+    ;; The cache is an lru-cache instance that maps from a key to a value. The
+    ;; key is derived from query parameters, and the value is the query result.
+    ;; This cache is intended to reduce the number database querires for
+    ;; frequently requested data.
+    (cache :accessor cache
+      :documentation "Internal. LRU cache for RBAC queries.")
+    ;; The anti-cache is an lru-cache instance that maps from a record ID to a
+    ;; cache key. This is used to evict cache entries when a record is updated
+    ;; or deleted.
+    (anti-cache :accessor anti-cache
+      :documentation "Internal LRU anti-cache for RBAC queries."))
   (:documentation "RBAC database class for PostgreSQL."))
 
 (defmethod initialize-instance :after ((rbac rbac-pg) &key)
-  "Initialize the lru cache for RBAC."
+  "Internal. Initialize the lru cache for RBAC."
   (setf (cache rbac)
     (make-instance 'c:lru-cache :max-size (cache-size rbac)))
   (setf (anti-cache rbac)
@@ -284,8 +295,8 @@ stores the password in the database."
         :cache-updated cache-updated
         :anti-cache-updated anti-cache-updated)
       (values id database-updated)))
-  (:documentation "Delete ID row from TABLE. Raises an error if ID is not
-present in TABLE. Returns the ID of the deleted row."))
+  (:documentation "Internal. Deletes ID row from TABLE. Raises an error if ID
+is not present in TABLE. Returns the ID of the deleted row."))
 
 (defgeneric table-fields (rbac &optional cache)
   (:method ((rbac rbac-pg) &optional (cache t))
@@ -308,8 +319,8 @@ present in TABLE. Returns the ID of the deleted row."))
                          :column)
           do (setf (gethash table table-fields) fields)
           finally (return (setf *table-fields* table-fields))))))
-  (:documentation "Returns a hash table where the keys are table names and the
-values are lists of field names for each table."))
+  (:documentation "Internal. Returns a hash table where the keys are table names
+and the values are lists of field names for each table."))
 
 (defgeneric aliased-fields (rbac table)
   (:method ((rbac rbac-pg) (table string))
@@ -325,9 +336,9 @@ values are lists of field names for each table."))
       collect (if aliased
                 (format nil "~a.~a as ~a_~a" alias field (singular table) field)
                 (format nil "~a.~a" alias field))))
-  (:documentation "Internal function that returns a list of fields from TABLE,
-with each field prefixed with the table alias, and, except for distinct fields,
-prefixed with the table name."))
+  (:documentation "Internal. Returns a list of fields from TABLE, with each
+field prefixed with the table alias, and, except for distinct fields, prefixed
+with the table name."))
 
 (defgeneric table-join-2 (rbac table-1 table-2 &key fields for-count)
   (:method ((rbac rbac-pg) (table-1 string) (table-2 string) &key
@@ -365,7 +376,13 @@ from ~a ~a
         field-selector
         link-table alias-link
         table-1 alias-1 link-id-1 id-1
-        table-2 alias-2 link-id-2 id-2))))
+        table-2 alias-2 link-id-2 id-2)))
+  (:documentation "Internal. Returns SQL with a select and join clauses for
+TABLE-1 and TABLE-2 joined through their link table. The name of the link table
+is computeed. If FIELDS is provided, those fields are selected. Otherwise, all
+fields from TABLE-1 and TABLE-2 are selected, excluding foreign key fields. The
+tables and fields are aliased appropriately. If FOR-COUNT is true, the select
+clause returns count(*) instead of the fields."))
 
 (defgeneric user-resources-join (rbac join-type &key fields for-count)
   (:method ((rbac rbac-pg) (join-type symbol) &key fields for-count)
@@ -416,12 +433,19 @@ from ~a ~a
                    (t (error "Invalid join-type '~a'." join-type)))))
       (l:pdebug :in "user-resources-join" :join-type join-type
         :fields fields :all-fields all-fields :for-count for-count :sql sql)
-      sql)))
+      sql))
+  (:documentation "Internal. Returns SQL with select and join clauses for the
+tables users, roles, permissions, resources, and the associated link tables. The
+tables and fields are aliased properly. JOIN-TYPE can be :user-resources or
+:resource-users. If FOR-COUNT is true, the select clause has count(*) instead
+of the fields. The fields in the select clause always include either the
+resource_name or the user_name field, depending on JOIN-TYPE. If FIELDS is
+provided, those fields are also included in the select clause."))
 
 (defgeneric table-exists-p (rbac table)
   (:method ((rbac rbac-pg) (table string))
     (when (gethash table (table-fields rbac)) t))
-  (:documentation "Returns T if TABLE exists in the database."))
+  (:documentation "Internal. Returns T if TABLE exists in the database."))
 
 (defgeneric table-field-exists-p (rbac table field)
   (:method ((rbac rbac-pg) (table string) (field string))
@@ -431,7 +455,8 @@ from ~a ~a
               (gethash table (table-fields rbac))
               :test 'equal))
       t))
-  (:documentation "Returns T if FIELD exists in TABLE in the database."))
+  (:documentation "Internal. Returns T if FIELD exists in TABLE in the
+database."))
 
 (defgeneric field-exists-p (rbac field)
   (:method ((rbac rbac-pg) (field string))
@@ -439,86 +464,17 @@ from ~a ~a
                         (table-fields rbac)
                         append fields)))
       (when (member field all-fields :test 'equal) t)))
-  (:documentation "Returns T if FIELD exists in any table in the database."))
-
-(defgeneric to-hash-table (rbac row)
-  (:method ((rbac rbac-pg) (row list))
-    (loop
-      with h = (make-hash-table :test 'equal)
-      for (key . value) in row
-      do (setf (gethash key h) value)
-      finally (return h)))
-  (:documentation "Convert a row into a hash table where the table keys
-correspond to the field names and the table values correspond to the field
-values."))
-
-(defgeneric to-hash-tables (rbac row)
-  (:method ((rbac rbac-pg) (rows list))
-    (loop for row in rows collect (to-hash-table rbac row)))
-  (:documentation "Convert a list of rows representing the result of a
-database query from the :STR-ALISTS format into a list of hash tables where each
-hash table represents a row."))
-
-(defgeneric name-id-index (rbac table)
-  (:method ((rbac rbac-pg) (table string))
-    (let* (errors
-            (name-field (table-name-field table))
-            (index (make-hash-table :test 'equal))
-            (sql (format nil "select ~a, id from ~a
-                             order by ~a"
-                   name-field table name-field)))
-      (check errors (table-exists-p rbac table)
-        "Table '~a' does not exist." table)
-      (check errors (table-field-exists-p rbac table name-field)
-        "Field '~a' does not exist in table '~a'." name-field table)
-      (report-errors "name-id-index" errors)
-      (with-rbac (rbac)
-        (loop with result = (db:query sql)
-          for (key value) in result
-          do (setf (gethash key index) value)
-          finally (return index)))))
-  (:documentation "Returns a hash table where the keys consists of the names and
-the values consist of the IDs from TABLE."))
-
-(defun tables-from-join (join)
-  "Given a string that represents the tables and joins part of an SQL statement,
-this function returns a list of the table names involved in the join. This also
-works if JOIN is just a single table name."
-  (loop for table-ref in (re:split "join" join)
-    for table = (first (re:split "\\s+" (u:trim table-ref)))
-    collect table))
+  (:documentation "Internal. Returns T if FIELD exists in any RBAC table in the
+database."))
 
 (defun field-no-prefix (field)
-  "In SQL query strings, fields are often prefixed with the table alias, such as
-'r.id' or 'rs.created_at'. This function removes the prefix and the dot, so that
-it returns just the field name, such as 'id' or 'created_at'. If FIELD doesn't
-have a prefix, it is returned unchanged."
+  "Internal. In SQL query strings, fields are often prefixed with the table alias,
+such as 'r.id' or 'rs.created_at'. This function removes the prefix and the dot,
+so that it returns just the field name, such as 'id' or 'created_at'. If FIELD
+doesn't have a prefix, it is returned unchanged."
   (if (re:scan "\\." field)
     (second (re:split "\\." field))
     field))
-
-(defun fields-from-refs (select)
-  "Given a list of field references that looks like this:
-      (list
-        \"rr.id as resource_role_id\"
-        \"rr.created_at\"
-        \"ro.role_description\")
-This function returns a list of field names that looks like this:
-      (list
-        \"resource_role_id\"
-        \"created_at\"
-        \"role_description\""
-  (loop for field-ref in select
-    for field-with-prefix = (u:trim
-                              (first
-                                (remove-if
-                                  (lambda (s) (string= s ""))
-                                  (re:split
-                                    "\\s+"
-                                    (re:regex-replace-all
-                                      "distinct|\(|\)" field-ref "")))))
-    for field = (field-no-prefix field-with-prefix)
-    unless (re:scan "^distinct" field) collect field))
 
 (defgeneric list-rows (rbac tables &key
                         fields filters order-by page page-size for-count
@@ -548,14 +504,33 @@ This function returns a list of field names that looks like this:
         :result-type result-type
         :query query)
       (with-rbac (rbac)
-          (rbac-query query result-type)))))
+          (rbac-query query result-type))))
+  (:documentation "Internal. Returns results from TABLES that satisfy the
+conditions in FILTERS. If RESULT-TYPE is :single, a single value is returned,
+from a single row and column. If RESULT-TYPE is :column, a list of values is
+returned, where each value corresponds to a field in a row. If RESULT-TYPE is
+anything else (the default is :plists), a list of plists is returned, where each
+plist represents a row, with the plist keys representing the field names and the
+plist values representing the field values in that row. TABLES is a list of
+table names that this function will join together automatically using computed
+link table names. This list excludes the link table names. FILTERS is a list of
+conditions that must all be true for a row to be included in the result. Each
+condition in FILTERS consists of a field name, an operator, and a value. The
+operator, a string, must be =, !=, <, <=, >, >=, like, ilike, in, or not in. The
+value can be a string, a number, :null, :true, or :false. If ORDER-BY is
+provided (a list of strings representing the field names), the result is ordered
+by those fields. Pagination is supported using PAGE (1-based) and PAGE-SIZE.
+PAGE defaults to 1. PAGE-SIZE defaults to *default-page-size*. FIELDS is a list
+of field names to include in the result. If FIELDS is not provided, all fields
+from all non-link tables are included in the result. If FOR-COUNT is true, the
+result is a count of the rows that satisfy the conditions in FILTERS."))
 
 (defgeneric count-rows (rbac tables &key filters)
   (:method ((rbac rbac-pg) (tables list) &key filters)
     (l:pdebug :in "count-rows" :tables tables :flters filters)
     (list-rows rbac tables :filters filters :for-count t :result-type :single))
-  (:documentation "Returns the count of rows in TABLES that satisfy the
-conditions in FILTER. TABLES is a list of table names that will be joined
+  (:documentation "Internal. Returns the count of rows in TABLES that satisfy
+the conditions in FILTER. TABLES is a list of table names that will be joined
 together. This list excludes the link table names. FILTERS is a list of
 conditions that must all be true for a row to be counted. Each condition in
 FILTERS consists of a list containing a field name, an operator, and a value."))
@@ -675,8 +650,8 @@ ROLE must:
                 :link-table-field-2 link-table-field-2 :id-2 id-2)
               id-link)
             (insert-link rbac table-1 table-2 id-1 id-2))))))
-  (:documentation "Adds a link between NAME-1 in TABLE-1 and NAME-2 in TABLE-2.
-Returns the ID of the new link row."))
+  (:documentation "Internal. Adds a link between NAME-1 in TABLE-1 and NAME-2 in
+TABLE-2. Computes the link table name. Returns the ID of the new link row."))
 
 (defgeneric unlink (rbac table-1 table-2 name-1 name-2)
   (:method ((rbac rbac-pg)
@@ -706,15 +681,15 @@ Returns the ID of the new link row."))
                 :link-table-field-1 link-table-field-1 :id-1 id-1
                 :link-table-field-2 link-table-field-2 :id-2 id-2)
               nil))))))
-  (:documentation "Removes the link between NAME-1 in TABLE-1 and NAME-2 in
-TABLE-2. Returns the ID of the deleted link row, or NIL if the link did not
-exist."))
+  (:documentation "Internal. Removes the link between NAME-1 in TABLE-1 and
+NAME-2 in TABLE-2. Computes the link table name. Returns the ID of the deleted
+link row, or NIL if the link did not exist."))
 
 (defun make-search-key (field search)
-  "Internal helper function for the GET-VALUE function. Given a FIELD and a SEARCH
-list of alternating field names and values, this function computes a unique key
+  "Internal. Helper for the GET-VALUE function. Given a FIELD and a SEARCH list
+of alternating field names and values, this function computes a unique key
 string that represents the search conditions for FIELD. This value is useful for
-checking the cache and avoiding a database call if the value has been recently
+caching the result and avoiding a database call if the value has been recently
 retrieved."
   (let ((parts (cons (u:safe-encode field)
                  (mapcar #'u:safe-encode search))))
@@ -782,28 +757,6 @@ returns NIL."))
       (get-value rbac table "id" name-field name)))
   (:documentation "Returns the ID associated with NAME in TABLE."))
 
-(defgeneric get-role-ids (rbac roles)
-  (:method ((rbac rbac-pg) (roles list))
-    (loop
-      with errors
-      and roles = (if roles
-                    roles
-                    (with-rbac (rbac)
-                      (db:query "select role_name from roles
-                                 order by role_name"
-                        :column)))
-      and role-ids = (make-hash-table :test 'equal)
-      for role in roles
-      do (setf (gethash role role-ids)
-           (check errors (get-id rbac "roles" role)
-             "Role '~a' not found." role))
-      finally (return (progn (report-errors "get-role-ids" errors) role-ids))))
-  (:documentation "Returns a hash table where the keys consist of role names
-and the values consist of role IDs. If ROLES is NIL, the hash table contains
-all existing roles and their IDs. Otherwise, if ROLES is not NIL, the hash
-table contains IDs for the roles in ROLES only. If ROLES contains a role
-that doesn't exist, this function signals an error."))
-
 (defgeneric get-permission-ids (rbac permissions)
   (:method ((rbac rbac-pg) (permissions list))
     (loop
@@ -830,30 +783,6 @@ is not NIL, the hash table contains IDs for the permissions in PERMISSIONS only.
 If PERMISSIONS contains a permission that doesn't exist, this function signals
 an error."))
 
-(defgeneric validate-add-user-params (rbac user-name email password roles)
-  (:method ((rbac rbac-pg)
-             (user-name string)
-             (email string)
-             (password string)
-             (roles list))
-    (let* ((errors nil)
-            (distinct-roles (u:distinct-elements roles))
-            (role-ids (get-role-ids rbac distinct-roles)))
-      (check errors (valid-user-name-p rbac user-name)
-        "Invalid user-name '~a'." user-name)
-      (check errors (valid-password-p rbac password) "Invalid password.")
-      (check errors (valid-email-p rbac email)
-        "Invalid email '~a'." email)
-      (check errors (not (get-id rbac "users" user-name))
-        "User-name '~a' is taken." user-name)
-      (check errors (or *allow-test-user-insert*
-                      (not (re:scan "^test-user-.*" user-name)))
-        "User-names that start with 'test-user-' are not allowed.")
-      (report-errors "validate-add-user-params" errors)
-      role-ids))
-  (:documentation "Validates add-user parameters and signals and error if
-there's a problem. Returns ROLE-IDS (a hash table)."))
-
 (defgeneric validate-login-params (rbac user-name password)
   (:method ((rbac rbac-pg)
              (user-name string)
@@ -864,48 +793,15 @@ there's a problem. Returns ROLE-IDS (a hash table)."))
       (check errors (valid-password-p rbac password) "Invalid password.")
       (report-errors "validate-login-params" errors nil)
       t))
-  (:documentation "Validates login parameters and signals an error if there's
-a problem. Returns T upon success"))
-
-(defgeneric validate-add-role-params (rbac
-                                       role
-                                       description
-                                       exclusive
-                                       permissions)
-  (:method ((rbac rbac-pg)
-             (role string)
-             (description string)
-             exclusive
-             (permissions list))
-    (let (errors
-           (permission-ids (get-permission-ids rbac permissions)))
-      (check errors (valid-role-p rbac role)
-        "Invalid role name '~a'." role)
-      (check errors (valid-description-p rbac description)
-        "Invalid description '~a'." description)
-      (check errors (not (get-id rbac "roles" role))
-        "Role '~a' already exists." role)
-      (if (re:scan ":exclusive$" role)
-        (progn
-          (check errors exclusive
-            "Bad name for an exclusive role. (role='~a'; exclusive=~a)"
-            role exclusive)
-          (check errors (re:scan "^Exclusive role for user .+\\.$" description)
-            "Bad description for an exclusive role: '~a'." description))
-        (check errors (not exclusive)
-          "Bad name for a non-exclusive role: '~a'" role))
-      (report-errors "validate-add-role-params" errors)
-      permission-ids))
-  (:documentation "Validates add-role parameters and signals an error if
-there's a problem. Returns a hash table with permission-name keys and
-permission-ID values."))
+  (:documentation "Internal. Validates login parameters and signals an error if
+there's a problem. Returns T upon success"))
 
 (defun make-insert-name-query (table name &rest other-fields)
-  "This is an internal function that generates an SQL insert statement with
-placeholders and values for inserting a new row into TABLE with fields NAME and
-OTHER-FIELDS. Returns a list where the first element is the SQL string and the
-remaaining elements are the values to be used. The return value is suitable for
-passing to rbac-query or rbac-query-single."
+  "Internal. Generates an SQL insert statement with placeholders and values for
+inserting a new row into TABLE with fields NAME and OTHER-FIELDS. Returns a list
+where the first element is the SQL string and the remaaining elements are the
+values to be used. The return value is suitable for passing to rbac-query or
+rbac-query-single."
   (let* ((name-field (table-name-field table))
           (description-field (format nil "~a_description" (singular table)))
           (additional-fields (cond
@@ -973,8 +869,8 @@ passing to rbac-query or rbac-query-single."
           (check errors (valid-resource-p rbac name)
             "Invalid resource name '~a'." name)))
       (report-errors "check-insert-name-params" errors)))
-  (:documentation "Validates parameters for inserting NAME into TABLE. Internal
-helper function for insert-name. Internal use only."))
+  (:documentation "Internal. Validates parameters for inserting NAME into TABLE.
+Helper function for insert-name."))
 
 (defgeneric insert-name (rbac table name &key
                           description email password exclusive)
@@ -1007,16 +903,18 @@ helper function for insert-name. Internal use only."))
           :query query)
         (with-rbac (rbac)
           (rbac-query-single query)))))
-  (:documentation "Adds NAME to TABLE with DESCRIPTION. Raises an error if NAME
-already exists in TABLE. The users and roles tables require additional parameters
-which must be provided via the &KEY arguments. Returns the ID of the new row."))
+  (:documentation "Internal. Adds NAME to TABLE with DESCRIPTION. Raises an
+error if NAME already exists in TABLE. The users and roles tables require
+additional parameters which must be provided via the &KEY arguments. Returns the
+ID of the new row."))
 
 (defgeneric insert-user (rbac user-name email password)
   (:method ((rbac rbac-pg) (user-name string) (email string) (password string))
     (l:pdebug :in "insert-user" :user-name user-name :email email)
     (insert-name rbac "users" user-name :email email :password password))
-  (:documentation "Inserts a new user into the users table without validating
-any of the parameters. Returns the new user's ID. For internal use only."))
+  (:documentation "Internal. Inserts a new user into the users table without
+validating any of the parameters. Returns the new user's ID. For internal use
+only."))
 
 (defgeneric insert-role (rbac role &key description exclusive)
   (:method ((rbac rbac-pg) (role string) &key
@@ -1024,9 +922,11 @@ any of the parameters. Returns the new user's ID. For internal use only."))
              exclusive)
     (l:pdebug :in "insert-role" :status "inserting new role" :role role
       :exclusive exclusive)
-    (insert-name rbac "roles" role :description description :exclusive exclusive))
-  (:documentation "Inserts a new role into the roles table without validating
-any of the parameters. Returns the new role's ID. For internal use only."))
+    (insert-name rbac "roles" role :description description
+      :exclusive exclusive))
+  (:documentation "Internal. Inserts a new role into the roles table without
+ validating any of the parameters. Returns the new role's ID. For internal use
+only."))
 
 (defgeneric set-exclusive-role (rbac user-name)
   (:method ((rbac rbac-pg) (user-name string))
@@ -1040,25 +940,26 @@ any of the parameters. Returns the new role's ID. For internal use only."))
         "Exclusive role '~a' already exists." role)
       (report-errors "set-exclusive-role" errors)
       (insert-name rbac "roles" role :description description :exclusive t)))
-  (:documentation "Add an exclusive role for USER, returning the ID of the new
-role"))
+  (:documentation "Internal. Add an exclusive role for USER, returning the ID
+of the new role"))
 
 (defgeneric insert-permission (rbac permission &key description)
   (:method ((rbac rbac-pg) (permission string) &key
              (description (format nil "permission '~a'" permission)))
     (l:pdebug :in "insert-permission" :permission permission)
     (insert-name rbac "permissions" permission :description description))
-  (:documentation "Inserts a new permission into the permissions table without
-validating any of the parameters. Returns the new permission's ID. For internal
-use only."))
+  (:documentation "Internal. Inserts a new permission into the permissions table
+without validating any of the parameters. Returns the new permission's ID. For
+internal use only."))
 
 (defgeneric insert-resource (rbac resource &key description)
   (:method ((rbac rbac-pg) (resource string) &key
              (description (format nil "resource '~a'" resource)))
     (l:pdebug :in "insert-resource" :resource resource)
     (insert-name rbac "resources" resource :description description))
-  (:documentation "Inserts a new resource into the resources table without
-validating any of the parameters. Returns the new resource's ID. For internal"))
+  (:documentation "Internal. Inserts a new resource into the resources table
+without validating any of the parameters. Returns the new resource's ID. For
+internal"))
 
 (defgeneric compute-link-table-name (rbac &rest tables)
   (:method ((rbac rbac-pg) &rest tables)
@@ -1072,15 +973,15 @@ validating any of the parameters. Returns the new resource's ID. For internal"))
           ((table-exists-p rbac option-1) option-1)
           ((table-exists-p rbac option-2) option-2)
           (t (error "No link table exists for ~a and ~a" t1 t2))))))
-  (:documentation "Internal helper function that computes the name of the link
-table that links the tables in TABLES. TABLES can contain 1 or 2 table names.
-If TABLES contains 1 table name, the function returns the singluar of that
-table name. If TABLES contains 2 table names, the function finds the and
-existing table that links the 2 tables, and returns its name. If no such
-link table exists, the function signals an error."))
+  (:documentation "Internal. Computes the name of the link table that links the
+tables in TABLES. TABLES can contain 1 or 2 table names.  If TABLES contains 1
+table name, the function returns the singluar of that table name. If TABLES
+contains 2 table names, the function finds the and existing table that links the
+2 tables, and returns its name. If no such link table exists, the function
+signals an error."))
 
 (defun link-table-p (rbac table)
-  "Internal helper function that checks if TABLE is a link table."
+  "Internal. Checks if TABLE is a link table."
   (let* ((parts (re:split "_" table)))
     (and
       (> (length parts) 1)
@@ -1100,9 +1001,9 @@ link table exists, the function signals an error."))
               "insert into ~a (~a, ~a) values ($1, $2) returning id"
               link-table
               id-1-field id-2-field))))
-  (:documentation "This is an internal helper function. It creates SQL that
-upserts a row into a link table that has fields that reference TABLE-1 and
-TABLE-2, creating a new link between rows in TABLE-1 and TABLE-2.
+  (:documentation "Internal. Creates SQL that upserts a row into a link table
+that has fields that reference TABLE-1 and TABLE-2, creating a new link between
+rows in TABLE-1 and TABLE-2.
 
 Parameters:
   - TABLE-1 (string): The name of the first table.
@@ -1166,11 +1067,11 @@ function will make the following concrete assumptions:
         :sql sql)
       (with-rbac (rbac)
         (rbac-query-single (list sql id-1 id-2 :single)))))
-  (:documentation "Internal helper function that inserts a row into a link table
-that has fields that reference TABLE-1 and TABLE-2, creating a new link between
-rows in TABLE-1 and TABLE-2. The rows are given by ID-1 and ID-2. The name of
-the table that references TABLE-1 and TABLE-2 is derived from the names of
-TABLE-1 and TABLE-2, as described in the documentation for insert-link-sql."))
+  (:documentation "Internal. Inserts a row into a link table that has fields that
+reference TABLE-1 and TABLE-2, creating a new link between rows in TABLE-1 and
+TABLE-2. The rows are given by ID-1 and ID-2. The name of the table that
+references TABLE-1 and TABLE-2 is derived from the names of TABLE-1 and TABLE-2,
+as described in the documentation for insert-link-sql."))
 
 (defgeneric filters-valid-p (rbac filters)
   (:method ((rbac rbac-pg) (filters list))
@@ -1184,11 +1085,16 @@ TABLE-1 and TABLE-2, as described in the documentation for insert-link-sql."))
             (member (second f) ops :test 'equal)
             (field-exists-p rbac (field-no-prefix (first f)))))
         filters)))
-  (:documentation  "Internal helper function. Check that the operators
-in FILTERS are valid. A FILTER is a list of three elements: field name,
-operator, and value."))
+  (:documentation  "Internal. Checks that the operators in FILTERS are valid. A
+FILTER is a list of three elements: field name, operator, and value."))
 
 (defun render-placeholder (value index)
+  "Internal. Given a string VALUE and an integer INDEX, this funtion returns a
+cons where the car is the number of values to be added to the query parameters
+(0 or 1) and the cdr is the placeholder string to be used in the SQL query.
+When VALUE is :null, :true, or :false, no value needs to be added to the query
+parameters, so the car of the returned cons is 0. When VALUE is any other value,
+the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
   (cond
     ((or (not value) (eql value :null)) (cons 0 "null"))
     ((eql value :false) (cons 0 "false"))
@@ -1220,12 +1126,10 @@ operator, and value."))
       (when (= (length tables) 4)
         (check errors
           (or (equal tables '("users" "roles" "permissions" "resources"))
-            (equal tables '("resources" "roles" "permissions" "users"))
-            (equal tables '("users" "roles" "resources" "permissions")))
-          "When specifying 4 tables, they must be either ~a, ~a, or ~a."
-          "users, roles, permissions, resources"
-          "users, roles, resources, permissions"
-          "resources, roles, permissions, users"))
+            (equal tables '("resources" "roles" "permissions" "users")))
+          "When specifying 4 tables, they must be either ~a, or ~a."
+          "(users, roles, permissions, resources)"
+          "(resources, roles, permissions, users)"))
       (report-errors "make-query" errors))
     (let* ((table-count (nth (1- (length tables)) '(:one :two :three :four)))
             (select (case table-count
@@ -1283,7 +1187,24 @@ operator, and value."))
         :fields fields :filters filters :page page :page-size page-size
         :select select :where where :order order :limit-offset limit-offset
         :query query)
-      query)))
+      query))
+  (:documentation "Internal. Constructs an SQL query string with parameters.
+Returns a list where the first element is the SQL string and the remaining
+elements are the parameters to be used for the placeholders in the SQL
+string. This functions computes the names of the link tables needed to join
+TABLES together. FIELDS defaults to all fields. If FIELDS is provided, it should
+be a list of strings (field names) to be included in the select clause. However,
+when FOR-COUNT is T, the select clause consists of 'count(*)' FIELDS is ignored.
+FILTERS is a list of filters to be applied in the where clause. Each filter is a
+list of three elements: field name, operator, and value. Operator must be =, <>,
+<, >, <=, >=, is, is not, like, ilike, not like, or not ilike. VALUE can be a
+string, a number, :null, :true, or :false. ORDER-BY is a list of strings
+representing the names of the fields to be used to order the results. Those
+fields need not be listed in FIELDS. ORDER-BY defaults to the name field of the
+last table in TABLES, but is ignored if FOR-COUNT is T or if the last table is
+a link table. PAGE and PAGE-SIZE are used to paginate the results. PAGE defaults
+to 1 and PAGE-SIZE defaults to *default-page-size*. If FOR-COUNT is T, the query
+returns the count of rows that match the filters instead of the rows."))
 
 (defgeneric user-allowed (rbac user-name permission resource)
   (:method ((rbac rbac-pg)
@@ -1298,8 +1219,9 @@ RESOURCE. If the list is empty, the user does not have access."
       :resource resource
       :permission permission)
     (with-rbac (rbac)
-      (db:query
-        "select
+      (when
+        (db:query
+          "select
              rp.id,
              u.user_name,
              ru.id as role_user_id,
@@ -1323,8 +1245,10 @@ RESOURCE. If the list is empty, the user does not have access."
              r.role_name,
              p.permission_name,
              s.resource_name"
-        user-name resource permission :plists)))
-  (:documentation "Determine if user with USER-ID has PERMISSION on RESOURCE."))
+          user-name resource permission :plists)
+        t)))
+  (:documentation "Returns T if USER-NAME has PERMISSION on RESOURCE, NIL
+otherwise. Note that this permission may exist via more than one role."))
 
 (defgeneric user-has-role (rbac user-name &rest role)
   (:method ((rbac rbac-pg)
@@ -1347,7 +1271,7 @@ RESOURCE. If the list is empty, the user does not have access."
               (query-params (cons user-name role))
               (count (rbac-query-single (cons query query-params))))
         (> count 0))))
-  (:documentation "Check if USER-NAME has any of the specified ROLE(s)."))
+  (:documentation "Returns T if USER-NAME has any of the specified ROLE(s)."))
 
 (defgeneric login (rbac user-name password)
   (:method ((rbac rbac-pg)
@@ -1429,13 +1353,11 @@ for this user only, and adds the user to the public and logged-in roles
       user-id))
   (:documentation "Remove USER-NAME from the database."))
 
-(defgeneric add-role (rbac role &key description exclusive permissions)
+(defgeneric add-role (rbac role &key description permissions)
   (:method ((rbac rbac-pg) (role string) &key
              (description (make-description "role" role))
-             (exclusive (when (re:scan ":exclusive$" role) t))
              (permissions *default-permissions*))
-    (l:pdebug :in "add-role"
-      :role role :exclusive exclusive :permissions permissions)
+    (l:pdebug :in "add-role" :role role :permissions permissions)
     (let (errors
            (missing-permissions
               (remove-if (lambda (p) (get-id rbac "permissions" p))
@@ -1452,7 +1374,7 @@ for this user only, and adds the user to the public and logged-in roles
     (l:pdebug :in "add-role" :status "created role"
       :role role :role-id (get-id rbac "roles" role))
     (get-id rbac "roles" role))
-  (:documentation "Add a new role. Description is optional and auto-generated
+  (:documentation "Add a new ROLE. Description is optional and auto-generated
 if not provided. If the role name ends with ':exclusive', the role is marked
 as exclusive, so the EXCLUSIVE parameter is optional. PERMISSIONS is a list
 of permission names to add to the role, defaulting to *DEFAULT-PERMISSIONS*.
@@ -1470,10 +1392,17 @@ All PERMISSIONS must already exist. Returns the new role's ID."))
   (:documentation "Remove a role from the database. Returns the ID of the
 removed role."))
 
-(defgeneric add-resource (rbac name &key description roles)
+(defgeneric add-resource (rbac resource &key description roles)
   (:method ((rbac rbac-pg) (resource string) &key
              (description (make-description "resource" resource))
              roles)
+    (let (errors
+           (missing-roles (remove-if
+                             (lambda (r) (get-id rbac "roles" r))
+                             roles)))
+      (check errors (not missing-roles)
+        "The following roles do not exist: ~{~a~^, ~}." missing-roles)
+      (report-errors "add-resource" errors))
     (let ((all-roles (append *default-resource-roles* roles)))
       (insert-name rbac "resources" resource :description description)
       (loop for role in all-roles
@@ -1597,23 +1526,23 @@ resource role."))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun name-to-identifier (name format)
-    "Convert NAME to an identifier using FORMAT."
+    "Internal. Convert NAME to an identifier using FORMAT."
     (intern (format nil format (string-upcase (re:regex-replace "_" name "-")))))
 
   (defun singular (string)
-    "If STRING ends with an 's', this function returns the string without
-the 's'at the end."
+    "Internal. If STRING ends with an 's', this function returns the string
+without the 's'at the end."
     (re:regex-replace "s$" string ""))
 
   (defun table-name-field (table &optional as-keyword)
-    "Returns the name field for TABLE. The name field is the singular form of
-the table name, with '_name' appended."
+    "Internal. Returns the name field for TABLE. The name field is the singular
+form of the table name, with '_name' appended."
     (format nil "~a~aname" (singular table) (if as-keyword "-" "_")))
 
   (defun make-documentation (format-string &rest values)
-    "Internal helper function that creates documentation strings.
-FORMAT-STRING is a string with ~a placeholders. VALUES is a list of values for
-the placeholders. This function removes extra spaces."
+    "Internal. Creates documentation strings. FORMAT-STRING is a string with
+placeholders like '~a'. VALUES is a list of values for the placeholders. This
+function removes extra spaces."
     (let* ((doc-1 (apply #'format (append (list nil format-string) values)))
             (doc-2 (re:regex-replace-all "  +" doc-1 " "))
             (lines (remove-if (lambda (s) (zerop (length s)))
@@ -1631,6 +1560,17 @@ the placeholders. This function removes extra spaces."
                                             "resource_roles" "sr"))))
 
 (defmacro define-list-functions (&rest tables)
+  "Internal. This macro defines three list functions for the given tables: all,
+names, and count. The functions are named according to the tables provided. For
+example, if the table 'users' is provided as the only table, the functions are
+named list-users, list-user-names, and user-count. IF the table 'permissions' is
+provided, the functions are named list-permissions, list-permission-names, and
+permission-count. The all function lists all the rows in the results, in plist
+format. The names function returns a list of strings representing the values
+from the last table's name field of each row in the results. The count function
+returns the number of rows in the result.  Each function supports filtering, and
+the all and names functions support pagination, filtering, ordering, and field
+selection."
   (let* ((fname (if (= (length tables) 1)
                   (first tables)
                   (format nil "~a-~a"
@@ -1694,9 +1634,15 @@ like, or ilike. Value is a string, number, :null, :true, or :false."
          (:method ((rbac rbac-pg) &key filters)
            (list-rows rbac ',tables
              :filters filters :result-type :single :for-count t))
-         (:documentation ,doc-count)))))))
+         (:documentation ,doc-count)))))
 
 (defmacro define-list-functions-1 (&rest tables)
+  "Internal. See DEFINE-LIST-FUNCTIONS. This macro works exactly the same, except
+that the functions generated take an additional parameter representing the object
+for which you want a list. For example, if the tables 'users' and 'roles' are
+provided, the functions generated are list-user-roles, list-user-role-names, and
+user-role-count, and they accept a parameter USER representing the user for whom
+you want to list roles."
   (let* ((fname (format nil "~a-~a"
                   (singular (first tables)) (second tables)))
           (f-all (name-to-identifier fname "LIST-~a"))
@@ -1767,6 +1713,16 @@ is not, like, ilike. Value is a string, number, :null, :true, or :false."
          (:documentation ,doc-count)))))
 
 (defmacro define-list-functions-2 (&rest tables)
+  "Internal. See DEFINE-LIST-FUNCTIONS and DEFINE-LIST-FUNCTIONS-1. This macro
+works exactly the same as those, except that the generated functions take two
+additional parameters representing the objects for which you want a list. For
+example, if the tables 'users', 'roles', 'permissions', and 'resources' are
+provided, the following functions are generated: list-user-resources,
+list-user-resource-names, and user-resource-count, and they accept the
+additional parameters USER and PERMISSION, such that resources are listed where
+USER has PERMISSION on the resource. Currently, only the following table
+combinations are supported: (users, roles, permissions, resources)
+and (resources, roles, permissions, users)."
   (let* ((fname (if (string= (car tables) "users")
                   "user-resources"
                   "resource-users"))
