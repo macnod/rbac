@@ -21,7 +21,7 @@ install-dependencies:
 	ros install cl-csv
 	ros install trivial-utf-8
 	ros install ironclad
-	ros install lru-cache
+	ros install swank
 	ros install macnod/lru-cache/v1.3
 	ros install macnod/dc-ds/v0.5
 	ros install macnod/dc-time/v0.5
