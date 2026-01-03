@@ -5,8 +5,7 @@
     (:u :dc-eclectic)
     (:re :ppcre)
     (:l :p-log)
-    (:db :postmodern)
-    (:c :lru-cache))
+    (:db :postmodern))
   (:export
     *default-page-size*
     *default-permissions*
@@ -21,8 +20,6 @@
     add-role-user
     add-user
     add-user-role
-    cache-size
-    clear-cache
     dbname
     email-length-max
     email-regex

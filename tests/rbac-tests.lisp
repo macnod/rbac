@@ -41,23 +41,23 @@
 ;; Test support
 (defparameter uuid-regex "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
 
+(setf *default-page-size* 1000)
+
 (when *log-file*
   (make-log-stream "tests" *log-file* :append nil))
 
 (defun clear-database ()
-  (with-rbac (*rbac*)
-    (loop for user in (u:exclude (list-user-names *rbac*) "system")
-      do (remove-user *rbac* user))
-    (loop for permission in (u:exclude (list-permission-names *rbac*)
-                              '("create" "read" "update" "delete"))
-      do (remove-permission *rbac* permission))
-    (loop for role in (u:exclude (list-role-names *rbac*)
-                         '("system" "system:exclusive" "logged-in" "public"))
-      do (remove-role *rbac* role))
-    (loop for resource in (list-resource-names *rbac*)
-      do (remove-resource *rbac* resource))
-    (clear-cache *rbac*)
-    t))
+  (loop for user in (u:exclude (list-user-names *rbac*) "system")
+    do (remove-user *rbac* user))
+  (loop for permission in (u:exclude (list-permission-names *rbac*)
+                            *default-permissions*)
+    do (remove-permission *rbac* permission))
+  (loop for role in (u:exclude (list-role-names *rbac*)
+                      '("system" "system:exclusive" "logged-in" "public"))
+    do (remove-role *rbac* role))
+  (loop for resource in (list-resource-names *rbac*)
+    do (remove-resource *rbac* resource))
+  t)
 
 (defun is-uuid (s)
   (when (re:scan uuid-regex s) t))
@@ -83,17 +83,16 @@
 
 (test basic-operations
   (clear-database)
-
   ;; Add a permission
   (is-true (is-uuid (add-permission *rbac* "bogus-permission")))
-
   ;; Add a couple of roles
   (is-true (is-uuid (add-role *rbac* "role-a" :permissions '("read"))))
   (is-true (is-uuid (add-role *rbac* "role-b")))
   (is-true (is-uuid (add-role *rbac* "role-c"
                       :permissions (cons "bogus-permission"
                                      *default-permissions*))))
-
+  (is-true (is-uuid (add-role *rbac* "role-d"
+                      :permissions '("bogus-permission"))))
   ;; Add a few users
   (loop
     with user-roles = (ds:ds '(:map
@@ -101,17 +100,16 @@
                                 "user-02" (:list "role-b")
                                 "user-03" (:list "role-a" "role-b")
                                 "user-04" (:list "role-c")
-                                "user-05" (:list "role-a" "role-c")))
+                                "user-05" (:list "role-a" "role-c")
+                                "user-06" (:list "role-d")))
     for user in (u:hash-keys user-roles)
     for email = (format nil "~a@sinistercode.com" user)
     for password = (format nil "~a-password" user)
     for roles = (gethash user user-roles)
     do (is-true (is-uuid (add-user *rbac* user email password :roles roles))))
-
   ;; Add a user without roles
-  (is-true (is-uuid (add-user *rbac* "user-06" "user-09@sinistercode.com"
+  (is-true (is-uuid (add-user *rbac* "user-07" "user-09@sinistercode.com"
                       "user-06-password")))
-
   ;; Add some resources
   (loop
     with resource-roles = (ds:ds
@@ -123,29 +121,28 @@
                                "test:resource-05" (:list "role-a")
                                "test:resource-06" (:list "role-c")
                                "test:resource-07" (:list "role-a" "role-b"
-                                                    "role-c")))
+                                                    "role-c")
+                               "test:resource-08" (:list "role-d")))
     for resource in (u:hash-keys resource-roles)
     for roles = (gethash resource resource-roles)
     do (is-true (is-uuid (add-resource *rbac* resource :roles roles))))
-
   ;; Add a resource without roles
-  (is-true (is-uuid (add-resource *rbac* "test:resource-08")))
-
+  (is-true (is-uuid (add-resource *rbac* "test:resource-09")))
   ;; Let's see if everything got added correctly
-
   ;; Check users, roles, permissions, and resources
   (is (equal (sort (cons "bogus-permission" *default-permissions*) #'string<)
         (list-permission-names *rbac*)))
-  (is (equal (u:safe-sort '("role-a" "role-b" "role-c"
+  (is (equal (u:safe-sort '("role-a" "role-b" "role-c" "role-d"
                              "system" "logged-in" "public"))
         (u:exclude-regex (list-role-names *rbac*) ":exclusive$")))
-  (is (equal (loop for a from 1 to 6
+  (is (equal (loop for a from 1 to 7
                collect (format nil "user-~2,'0d" a))
         (u:exclude (list-user-names *rbac*) "system")))
   (is (equal '("test:resource-01" "test:resource-02"
                 "test:resource-03" "test:resource-04"
                 "test:resource-05" "test:resource-06"
-                "test:resource-07" "test:resource-08")
+                "test:resource-07" "test:resource-08"
+                "test:resource-09")
         (list-resource-names *rbac*)))
   (is (equal '("read")
         (list-user-resource-permission-names *rbac*
@@ -158,7 +155,67 @@
           "user-03" "test:resource-07")))
   (is (equal (cons "bogus-permission" *default-permissions*)
         (list-user-resource-permission-names *rbac*
-          "user-04" "test:resource-06"))))
+          "user-04" "test:resource-06")))
+  (is (equal '("bogus-permission")
+        (list-user-resource-permission-names *rbac*
+          "user-06" "test:resource-08"))))
+
+(test default-roles
+  (clear-database)
+  (let ((resource "test:resource")
+         (role "custom-role")
+         (user "some-user"))
+    ;; Add a resource with no roles
+    (is-true (is-uuid (add-resource *rbac* resource)))
+    ;; Add a custom role
+    (is-true (is-uuid (add-role *rbac* role :permissions '("read"))))
+    ;; Add a user with the custom role
+    (is-true (is-uuid (add-user *rbac* user "no-email" "password-01"
+                        :roles (list role))))
+    ;; User should have default user roles plus the custom role
+    (is (equal (u:safe-sort (cons role *default-user-roles*))
+          (list-user-role-names *rbac* user)))
+    ;; Resource should have default resource roles
+    (is (equal *default-resource-roles*
+          (list-resource-role-names *rbac* resource)))
+    ;; User should not have any permissions on the resource
+    (loop for permission in *default-permissions*
+      do (is-false (user-allowed *rbac* user permission resource)))
+    (is-false (list-user-resource-permission-names *rbac*
+                user resource))
+    ;; Add the "logged-in" and custom roles to the resource
+    (add-resource-role *rbac* resource "logged-in")
+    (add-resource-role *rbac* resource role)
+    ;; Now the user should have read permission on the resource
+    (is-true (user-allowed *rbac* user "read" resource))
+    (is (equal '("read") (list-user-resource-permission-names
+                           *rbac* user resource)))
+    ;; The default user roles don't have any other permission
+    (is-false (user-allowed *rbac* user "create" resource))
+    ;; Remove the "logged-in" role from the resource
+    (remove-resource-role *rbac* resource "logged-in")
+    ;; User should still have read permission on the resource, via the custom
+    ;; role
+    (is-true (user-allowed *rbac* user "read" resource))
+    ;; Remove the custom role from the resource
+    (remove-resource-role *rbac* resource role)
+    ;; Now the user should not have that read permission anymore
+    (is-false (user-allowed *rbac* user "read" resource))
+    ;; In fact, the user should have no permissions at all on the resource
+    (is-false (list-user-resource-permission-names *rbac* user resource))))
+
+(test permissions-via-multiple-roles
+  (clear-database)
+  (add-role *rbac* "role-1" :permissions '("read"))
+  (add-role *rbac* "role-2" :permissions '("create"))
+  (add-role *rbac* "role-3" :permissions '("update"))
+  (add-user *rbac* "multi-role-user" "multi@sinistercode.com" "password-01"
+    :roles '("role-1" "role-2" "role-3"))
+  (add-resource *rbac* "multi-role-resource"
+    :roles '("role-1" "role-2" "role-3"))
+  (is (equal (u:safe-sort '("create" "read" "update"))
+        (list-user-resource-permission-names *rbac*
+          "multi-role-user" "multi-role-resource"))))
 
 ;;; Run tests
 (if *run-tests*

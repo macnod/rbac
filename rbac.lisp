@@ -3,7 +3,8 @@
 ;;
 ;; Constants
 ;;
-(defparameter *default-permissions* (list "create" "read" "update" "delete")
+(defparameter *default-permissions*
+  (u:safe-sort (list "create" "read" "update" "delete"))
   "Default permissions for a new role.")
 
 ;; SQL to find tables that reference a table with a foreign key. We use this
@@ -43,7 +44,9 @@ key.")
   "Internal. Mapping from table names to table aliases.")
 
 ;; These roles are assigned to new users
-(defparameter *default-user-roles* (list "public" "logged-in") "Internal.")
+(defparameter *default-user-roles*
+  (u:safe-sort (list "public" "logged-in"))
+  "Internal.")
 (defparameter *default-resource-roles* (list "system") "Internal.")
 
 (defparameter *default-page-size* 20 "Default page size")
@@ -232,40 +235,8 @@ be used to create a default description."
     (host :accessor host :initarg :host :initform "postgres" :type string
       :documentation "Host name for connecting to the RBAC database.")
     (port :accessor port :initarg :port :initform 5432 :type integer
-      :documentation "Port number for connecting to the RBAC database.")
-    (cache-size :reader cache-size
-      :initarg :cache-size
-      :type integer
-      :initform 10000
-      :documentation "Maximum number of entries in the RBAC cache before LRU
-eviction occurs.")
-    ;; The cache is an lru-cache instance that maps from a key to a value. The
-    ;; key is derived from query parameters, and the value is the query result.
-    ;; This cache is intended to reduce the number database querires for
-    ;; frequently requested data.
-    (cache :accessor cache
-      :documentation "Internal. LRU cache for RBAC queries.")
-    ;; The anti-cache is an lru-cache instance that maps from a record ID to a
-    ;; cache key. This is used to evict cache entries when a record is updated
-    ;; or deleted.
-    (anti-cache :accessor anti-cache
-      :documentation "Internal LRU anti-cache for RBAC queries."))
+      :documentation "Port number for connecting to the RBAC database."))
   (:documentation "RBAC database class for PostgreSQL."))
-
-(defmethod initialize-instance :after ((rbac rbac-pg) &key)
-  "Internal. Initialize the lru cache for RBAC."
-  (setf (cache rbac)
-    (make-instance 'c:lru-cache :max-size (cache-size rbac)))
-  (setf (anti-cache rbac)
-    (make-instance 'c:lru-cache :max-size (cache-size rbac))))
-
-(defgeneric clear-cache (rbac)
-  (:method ((rbac rbac-pg))
-    (setf (cache rbac)
-      (make-instance 'c:lru-cache :max-size (cache-size rbac)))
-    (setf (anti-cache rbac)
-      (make-instance 'c:lru-cache :max-size (cache-size rbac))))
-  (:documentation "Clears the RBAC cache."))
 
 (defgeneric id-exists-p (rbac table id)
   (:method ((rbac rbac-pg) (table string) (id string))
@@ -275,25 +246,16 @@ eviction occurs.")
 (defgeneric delete-by-id (rbac table id)
   (:method ((rbac rbac-pg) (table string) (id string))
     (let ((sql (format nil "delete from ~a where id = $1" table))
-           (key (c:cache-get id (anti-cache rbac)))
-           (database-updated nil)
-           (cache-updated nil)
-           (anti-cache-updated nil))
+           (database-updated nil))
       (when (id-exists-p rbac table id)
         (with-rbac (rbac)
           (multiple-value-bind (value rows-affected)
             (db:query sql id)
             (declare (ignore value))
-            (setf database-updated (not (zerop rows-affected)))))
-        (when key
-          (setf
-            cache-updated (c:cache-remove key (cache rbac))
-            anti-cache-updated (c:cache-remove id (anti-cache rbac)))))
+            (setf database-updated (not (zerop rows-affected))))))
       (l:pdebug :in "delete-by-id"
         :status (if database-updated "deleted" "not found")
-        :table table :id id
-        :cache-updated cache-updated
-        :anti-cache-updated anti-cache-updated)
+        :table table :id id)
       (values id database-updated)))
   (:documentation "Internal. Deletes ID row from TABLE. Raises an error if ID
 is not present in TABLE. Returns the ID of the deleted row."))
@@ -660,8 +622,8 @@ TABLE-2. Computes the link table name. Returns the ID of the new link row."))
              (name-1 string)
              (name-2 string))
     (let* ((link-table (compute-link-table-name rbac table-1 table-2))
-            (link-table-field-1 (format nil "~a_id" table-1))
-            (link-table-field-2 (format nil "~a_id" table-2)))
+            (link-table-field-1 (format nil "~a_id" (singular table-1)))
+            (link-table-field-2 (format nil "~a_id" (singular table-2))))
       (let* (errors
               (id-1 (check errors (get-id rbac table-1 name-1)
                       "~a ~a doesn't exist." (singular table-1) name-1))
@@ -696,51 +658,30 @@ retrieved."
     (format nil "~{~a~^;~}" parts)))
 
 (defgeneric get-value (rbac table field &rest search)
-  (:method ((rbac rbac-pg)
-             (table string)
-             (field string)
-             &rest search)
-    (multiple-value-bind (result found)
-      (c:cache-get (make-search-key field search) (cache rbac))
-      (if found
-        (progn
-          (let ((id (first result))
-                 (value (second result)))
-            (l:pdebug :in "get-value" :status "cache hit" :id id :value value)
-            ;; Move this ID to the front of the anti-cache
-            (c:cache-get id (anti-cache rbac))
-            value))
-        (progn
-          (let* (errors)
-            (check errors (table-exists-p rbac table)
-              "Table '~a' does not exist." table)
-            (check errors (table-field-exists-p rbac table field)
-              "Field '~a' does not exist in table '~a'." field table)
-            (loop for key in search by #'cddr
-              do (check errors (table-field-exists-p rbac table key)
-                   "Seach Field '~a' does not exist in table '~a'." key table))
-            (check errors (and search (zerop (mod (length search) 2)))
-              "Invalid search. ~a"
-              "Must an even number of alternating field names and values.")
-            (report-errors "get-value" errors))
-          (let* ((tables (list table))
-                  (fields (list "id" field))
-                  (filters (loop for key in search by #'cddr
-                             for value in (cdr search) by #'cddr
-                             collect (list key "=" value)))
-                  (result (list-rows rbac (list table)
-                            :fields fields :filters filters
-                            :result-type :row))
-                  (id (when result (first result)))
-                  (value (when result (second result)))
-                  (key (when value (make-search-key field search))))
-            (when key
-              (c:cache-put key result (cache rbac))
-              (c:cache-put id key (anti-cache rbac)))
-            (l:pdebug :in "get-value" :status "cache miss"
-              :tables tables :fields fields :filters filters
-              :key key :value value)
-            value)))))
+  (:method ((rbac rbac-pg) (table string) (field string) &rest search)
+    (let* (errors)
+      (check errors (table-exists-p rbac table)
+        "Table '~a' does not exist." table)
+      (check errors (table-field-exists-p rbac table field)
+        "Field '~a' does not exist in table '~a'." field table)
+      (loop for key in search by #'cddr
+        do (check errors (table-field-exists-p rbac table key)
+             "Seach Field '~a' does not exist in table '~a'." key table))
+      (check errors (and search (zerop (mod (length search) 2)))
+        "Invalid search. ~a"
+        "Must an even number of alternating field names and values.")
+      (report-errors "get-value" errors))
+    (let* ((tables (list table))
+            (fields (list field))
+            (filters (loop for key in search by #'cddr
+                       for value in (cdr search) by #'cddr
+                       collect (list key "=" value)))
+            (value (list-rows rbac (list table)
+                     :fields fields :filters filters
+                     :result-type :single)))
+      (l:pdebug :in "get-value"
+        :tables tables :fields fields :filters filters :value value)
+      value))
   (:documentation "Retrieves the value from FIELD in TABLE where SEARCH points
 to a unique row. TABLE and FIELD are strings, and SEARCH is a series of field
 names and values that identify the row uniquely. TABLE, FIELD, and the field
@@ -748,13 +689,13 @@ names in SEARCH must exist in the database. If no row is found, this function
 returns NIL."))
 
 (defgeneric get-id (rbac table name)
-  (:method ((rbac rbac-pg)
-             (table string)
-             (name string))
-    (let ((name-field (table-name-field table)))
+  (:method ((rbac rbac-pg) (table string) (name string))
+    (let* ((name-field (table-name-field table))
+            (id (apply #'get-value (append (list rbac table "id")
+                                     (list name-field name)))))
       (l:pdebug :in "get-id"
-        :table table :name-field name-field :name name)
-      (get-value rbac table "id" name-field name)))
+        :table table :name-field name-field :name name :id id)
+      id))
   (:documentation "Returns the ID associated with NAME in TABLE."))
 
 (defgeneric get-permission-ids (rbac permissions)

@@ -23,7 +23,6 @@ install-dependencies:
 	ros install ironclad
 	ros install swank
 	ros install macnod/dc-dlist/v1.0
-	ros install macnod/lru-cache/v1.3
 	ros install macnod/dc-ds/v0.5
 	ros install macnod/dc-time/v0.5
 	ros install macnod/p-log/v0.9
