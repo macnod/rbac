@@ -29,6 +29,7 @@
 (defparameter *db-password* (u:getenv "DB_PASSWORD" :required t))
 (defparameter *log-file* (u:getenv "LOG_FILE"))
 (defparameter *run-tests* (u:getenv "RUN_TESTS" :type :boolean))
+(defparameter *rbac-repl* (u:getenv "RBAC_REPL" :type :boolean :default nil))
 (defparameter *swank-port* (u:getenv "SWANK_PORT" :type :integer))
 
 ;; Database connection
@@ -949,13 +950,15 @@
     (close-log-stream "tests")
     (unless test-results
       (sb-ext:quit :unix-status 1)))
-  (progn
-    (pinfo :in "rbac-tests"
-      :status "Starting Swank server for interactive debugging"
-      :port *swank-port*)
-    (defparameter *swank-server* (swank:create-server
-                                   :interface "0.0.0.0"
-                                   :port *swank-port*
-                                   :style :spawn
-                                   :dont-close t))
-    (pinfo :in "rbac-tests" :status "Swank server started" :port *swank-port*)))
+  (if *rbac-repl*
+    (progn
+      (pinfo :in "rbac-tests"
+        :status "Starting Swank server for interactive debugging"
+        :port *swank-port*)
+      (defparameter *swank-server* (swank:create-server
+                                     :interface "0.0.0.0"
+                                     :port *swank-port*
+                                     :style :spawn
+                                     :dont-close t))
+      (pinfo :in "rbac-tests" :status "Swank server started" :port *swank-port*))
+    (format t "Compiled and loaded.~%")))

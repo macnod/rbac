@@ -15,6 +15,7 @@ export DOCKER_COMPOSE_FILE="tests/docker-compose-${DB_CONTAINER}.yaml"
 export LOG_FILE=$(readlink -f "$PWD/tests/tests-repl.log")
 export SWANK_PORT="4009"
 export RUN_TESTS="false"
+export RBAC_REPL="true"
 
 # Needed to avoid prompting in psql calls
 export PGPASSWORD="$DB_PASSWORD"

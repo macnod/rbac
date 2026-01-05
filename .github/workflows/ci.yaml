@@ -60,6 +60,7 @@ jobs:
           DB_USER: "rbac"
           DB_PASSWORD: "rbac-password"
           RUN_TESTS: "false"
+          RBAC_REPL: "false"
 
       - name: Run tests
         run: make test-ci
@@ -70,3 +71,4 @@ jobs:
           DB_USER: "rbac"
           DB_PASSWORD: "rbac-password"
           RUN_TESTS: "true"
+          RBAC_REPL: "false"
