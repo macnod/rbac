@@ -62,6 +62,11 @@
 (defun is-uuid (s)
   (when (re:scan uuid-regex s) t))
 
+(defun ascii-all ()
+  (concatenate 'string
+    (u:ascii-alpha-num)
+    "[-!@#$%^&*()\+={}[\]|:;<>,.?/~`]"))
+
 (def-suite rbac-suite :description "FiveAM tests for the rbac package")
 
 (in-suite rbac-suite)
@@ -215,7 +220,124 @@
     :roles '("role-1" "role-2" "role-3"))
   (is (equal (u:safe-sort '("create" "read" "update"))
         (list-user-resource-permission-names *rbac*
+          "multi-role-user" "multi-role-resource")))
+  (is-true (user-allowed *rbac*
+             "multi-role-user" "read" "multi-role-resource"))
+  (remove-resource-role *rbac* "multi-role-resource" "role-1")
+  (remove-resource-role *rbac* "multi-role-resource" "role-2")
+  (is-false (user-allowed *rbac*
+              "multi-role-user" "read" "multi-role-resource"))
+  (is-false (user-allowed *rbac*
+              "multi-role-user" "create" "multi-role-resource"))
+  (is-true (user-allowed *rbac*
+              "multi-role-user" "update" "multi-role-resource"))
+  (is (equal '("update")
+        (list-user-resource-permission-names *rbac*
           "multi-role-user" "multi-role-resource"))))
+
+(test with-rbac
+  (clear-database)
+  (with-rbac (*rbac*)
+    (is (= 1 (db:query "select count(*) from users where user_name = $1"
+               "system" :single)))
+    (is (= 1 (rbac-query-single
+               '("select count(*) from users where user_name = $1"
+                  "system"))))
+    (is (= 1 (rbac-query
+               '("select count(*) from users where user_name = $1"
+                  "system")
+               :single)))
+    (is (equal '("system")
+          (rbac-query
+            '("select user_name from users where user_name = $1"
+               "system")
+            :column)))
+    (is (equal '((:user-name "system" :email "no-email"))
+          (rbac-query
+            '("select user_name, email from users where user_name = $1"
+               "system")
+            :plists)))))
+
+(test utils
+  (is (equal "select a from b where c = e and d = f"
+        (usql "select a
+               from b
+               where c = e
+                 and d = f")))
+  (is (equal "cats" (plural "cat")))
+  (is (equal "cats" (plural "cats")))
+  (is (equal "user_id" (rbac::external-reference-field "users")))
+  (is (equal "ba5943b4e73f11457efbb7ae7639462f"
+        (password-hash "user-01" "password")))
+  (is (equal "user-01:exclusive"
+        (exclusive-role-for "user-01")))
+  (is (equal "Role 'admin'" (rbac::make-description "role" "admin")))
+  (is (equal "role_name" (rbac::field-no-prefix "r.role_name")))
+  (is (equal (cons 1 "$1") (rbac::render-placeholder 1 1)))
+  (is (equal (cons 1 "$2") (rbac::render-placeholder "two" 2)))
+  (is (equal (cons 0 "null") (rbac::render-placeholder nil 3)))
+  (is (equal (cons 0 "null") (rbac::render-placeholder :null 4)))
+  (is (equal (cons 0 "false") (rbac::render-placeholder :false 5)))
+  (is (equal (cons 0 "true") (rbac::render-placeholder :true 6)))
+  (is (equal 'ALPHA-BRAVO (rbac::name-to-identifier "alpha_bravo" "~a")))
+  (is (equal "user" (rbac::singular "users")))
+  (is (equal "role_name" (rbac::table-name-field "roles"))))
+
+(test user-name-validation
+  (signals error (valid-user-name-p *rbac* nil))
+  (signals error (valid-user-name-p *rbac* 1))
+  (is-false (valid-user-name-p *rbac* ""))
+  (is-false (valid-user-name-p *rbac* "1"))
+  (is-false (valid-user-name-p *rbac* "1a"))
+  (is-false (valid-user-name-p *rbac* "-"))
+  (is-false (valid-user-name-p *rbac* "-a"))
+  (is-false (valid-user-name-p *rbac* "user!"))
+  (is-false (valid-user-name-p *rbac* "!user"))
+  (is-false (valid-user-name-p *rbac* "!"))
+  (is-false (valid-user-name-p *rbac* (u:random-string 65 (u:ascii-alpha))))
+  (is-true (valid-user-name-p *rbac* (u:random-string 64 (u:ascii-alpha))))
+  (is-true (valid-user-name-p *rbac* "a1"))
+  (is-true (valid-user-name-p *rbac* "a-"))
+  (is-true (valid-user-name-p *rbac* "a_"))
+  (is-true (valid-user-name-p *rbac* "ABC-def+123")))
+
+(test password-validation
+  (signals error (valid-password-p *rbac* nil))
+  (signals error (valid-password-p *rbac* 1))
+  (is-false (valid-password-p *rbac* ""))
+  (is-false (valid-password-p *rbac* "12345"))
+  (is-false (valid-password-p *rbac* "123456"))
+  (is-false (valid-password-p *rbac* "password"))
+  (is-false (valid-password-p *rbac* "password1"))
+  (is-false (valid-password-p *rbac* "password⋮"))
+  (is-true (valid-password-p *rbac* "password-01"))
+  (is-true (valid-password-p *rbac* "1-password"))
+  (is-false (valid-password-p *rbac* "pass1"))
+  (is-true (valid-password-p *rbac* "pass-1"))
+  (is-true (valid-password-p *rbac* "/complex_Pass0rd!"))
+  (is-true (valid-password-p *rbac* (u:random-string 64 (ascii-all))))
+  (is-false (valid-password-p *rbac* (u:random-string 65 (ascii-all)))))
+
+(test email-validation
+  (signals error (valid-email-p *rbac* nil))
+  (signals error (valid-email-p *rbac* 1))
+  (is-false (valid-email-p *rbac* ""))
+  (is-false (valid-email-p *rbac* "plainaddress"))
+  (is-false (valid-email-p *rbac* "@no-local-part.com"))
+  (is-false (valid-email-p *rbac* "Outlook Contact <"))
+  (is-false (valid-email-p *rbac* "example.com"))
+  (is-false (valid-email-p *rbac* "user@"))
+  (is-false (valid-email-p *rbac* "user@.com"))
+  (is-false (valid-email-p *rbac* "user@com"))
+  (is-false (valid-email-p *rbac* "user@site..com"))
+  (is-false (valid-email-p *rbac* "abc@def@site.com"))
+  (is-false (valid-email-p *rbac*
+              (format nil "~a@site.com" (u:random-string 120 (u:ascii-alpha)))))
+  (is-true (valid-email-p *rbac* "user@site.com"))
+  (is-true (valid-email-p *rbac*
+             (format nil "~a@site.com" (u:random-string 119 (u:ascii-alpha)))))
+  (is-true (valid-email-p *rbac* "no-email")))
+
 
 ;;; Run tests
 (if *run-tests*

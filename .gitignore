@@ -27,3 +27,4 @@
 /tests/archive/
 /tests/tests.log
 /tests/rbac.log
+*.log

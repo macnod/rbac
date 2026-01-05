@@ -200,7 +200,7 @@ be used to create a default description."
     (email-regex :accessor email-regex
       :initarg :email-regex
       :type string
-      :initform "^[-a-zA-Z0-9._%+]+@[-a-zA-Z0-9.]+\\.[a-zA-Z]{2,}$|^no-email$"
+      :initform "^[a-zA-Z0-9][-a-zA-Z0-9._%+]+@([a-zA-Z0-9]+)(\\.?[-a-zA-Z0-9])+\\.[a-zA-Z]{2,}$|^no-email$"
       :documentation "Regex for validation of email address strings.")
     (role-length-max :accessor role-length-max
       :initarg :role-length-max
@@ -646,16 +646,6 @@ TABLE-2. Computes the link table name. Returns the ID of the new link row."))
   (:documentation "Internal. Removes the link between NAME-1 in TABLE-1 and
 NAME-2 in TABLE-2. Computes the link table name. Returns the ID of the deleted
 link row, or NIL if the link did not exist."))
-
-(defun make-search-key (field search)
-  "Internal. Helper for the GET-VALUE function. Given a FIELD and a SEARCH list
-of alternating field names and values, this function computes a unique key
-string that represents the search conditions for FIELD. This value is useful for
-caching the result and avoiding a database call if the value has been recently
-retrieved."
-  (let ((parts (cons (u:safe-encode field)
-                 (mapcar #'u:safe-encode search))))
-    (format nil "~{~a~^;~}" parts)))
 
 (defgeneric get-value (rbac table field &rest search)
   (:method ((rbac rbac-pg) (table string) (field string) &rest search)
