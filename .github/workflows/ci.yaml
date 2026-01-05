@@ -51,6 +51,16 @@ jobs:
       - name: Install dependencies
         run: make install-dependencies
 
+      - name: Compile
+        run: make test-ci
+        env:
+          DB_HOST: "127.0.0.1"
+          DB_PORT: "5434"
+          DB_NAME: "rbac"
+          DB_USER: "rbac"
+          DB_PASSWORD: "rbac-password"
+          RUN_TESTS: "false"
+
       - name: Run tests
         run: make test-ci
         env:
