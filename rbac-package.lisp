@@ -25,6 +25,7 @@
     email-regex
     exclusive-role-for
     get-id
+    get-value
     host
     id-exists-p
     list-permission-names

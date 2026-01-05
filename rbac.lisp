@@ -573,7 +573,7 @@ ROLE must:
 (defgeneric valid-description-p (rbac description)
   (:method ((rbac rbac-pg) (description string))
     (when (and (not (zerop (length description)))
-            (< (length description) 250))
+            (<= (length description) 256))
       t))
   (:documentation "Validates new DESCRIPTION string."))
 
@@ -688,32 +688,6 @@ returns NIL."))
       id))
   (:documentation "Returns the ID associated with NAME in TABLE."))
 
-(defgeneric get-permission-ids (rbac permissions)
-  (:method ((rbac rbac-pg) (permissions list))
-    (loop
-      with errors
-      and permissions = (if permissions
-                          permissions
-                          (with-rbac (rbac)
-                            (db:query
-                              "select permission_name from permissions
-                               order by permission_name"
-                              :column)))
-      and permission-ids = (make-hash-table :test 'equal)
-      for permission in permissions
-      do (setf (gethash permission permission-ids)
-           (check errors (get-id rbac "permissions" permission)
-             "Permission '~a' not found." permission))
-      finally (return (progn
-                        (report-errors "get-permission-ids" errors)
-                        permission-ids))))
-  (:documentation "Returns a hash table where the keys consist of permission
-names and the values consist of permission IDs. If PERMISSIONS is NIL, the hash
-table contains all existing permissions and their IDs. Otherwise, if PERMISSIONS
-is not NIL, the hash table contains IDs for the permissions in PERMISSIONS only.
-If PERMISSIONS contains a permission that doesn't exist, this function signals
-an error."))
-
 (defgeneric validate-login-params (rbac user-name password)
   (:method ((rbac rbac-pg)
              (user-name string)
@@ -747,15 +721,15 @@ rbac-query-single."
                       ((equal table "users")
                         (list
                           ;; email
-                          (car other-fields)
+                          (second other-fields)
                           ;; password
-                          (password-hash name (cadr other-fields))))
+                          (password-hash name (third other-fields))))
                       ((equal table "roles")
                         (list
                           ;; description
                           (car other-fields)
                           ;; exclusive
-                          (cadr other-fields)))
+                          (car (last other-fields))))
                       (t (list
                            ;; description
                            (car other-fields))))))
@@ -1736,7 +1710,7 @@ defaults to (list \"~a\")."
                :fields (list ,name-field) :result-type :column)))
          (:documentation ,doc-names))
        (defgeneric ,f-count (rbac ,param permission &key filters)
-         (:method ((rbac rbac-pg) (param string) (permission string) &key
+         (:method ((rbac rbac-pg) (,param string) (permission string) &key
                     filters)
            (list-rows rbac ',tables
              :filters (append
