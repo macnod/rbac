@@ -692,14 +692,18 @@ returns NIL."))
   (:method ((rbac rbac-pg)
              (user-name string)
              (password string))
-    (let* ((errors nil))
-      (check errors (valid-user-name-p rbac user-name)
-        "Invalid user-name '~a'." user-name)
-      (check errors (valid-password-p rbac password) "Invalid password.")
-      (report-errors "validate-login-params" errors nil)
-      t))
-  (:documentation "Internal. Validates login parameters and signals an error if
-there's a problem. Returns T upon success"))
+    (cond
+      ((not (valid-user-name-p rbac user-name))
+        (l:pwarn :in "validate-login-params"
+          :status "invalid user-name" :user-name user-name)
+        nil)
+      ((not (valid-password-p rbac password))
+        (l:pwarn :in "validate-login-params"
+          :status "invalid password" :user-name user-name)
+        nil)
+      (t t)))
+  (:documentation "Internal. Returns T if the login parameters validate.
+Otherwise, logs a warning and returns NIL."))
 
 (defun make-insert-name-query (table name &rest other-fields)
   "Internal. Generates an SQL insert statement with placeholders and values for
@@ -1183,22 +1187,22 @@ otherwise. Note that this permission may exist via more than one role."))
              (user-name string)
              (password string))
     (l:pdebug :in "login" :user-name user-name)
-    (validate-login-params rbac user-name password)
-    (let* ((hash (password-hash user-name password))
-            (user-id (get-value rbac "users" "id"
-                       "user_name" user-name
-                       "password_hash" hash)))
-      (if user-id
-        (progn
-          (l:pdebug :in "login" :status "success" :user user-name)
-          (with-rbac (rbac)
-            (db:query
-              "update users set last_login = now() where id = $1"
-              user-id))
-          user-id)
-        (progn
-          (l:pdebug :in "login" :status "fail" :user user-name)
-          nil))))
+    (when (validate-login-params rbac user-name password)
+      (let* ((hash (password-hash user-name password))
+              (user-id (get-value rbac "users" "id"
+                         "user_name" user-name
+                         "password_hash" hash)))
+        (if user-id
+          (progn
+            (l:pdebug :in "login" :status "success" :user user-name)
+            (with-rbac (rbac)
+              (db:query
+                "update users set last_login = now() where id = $1"
+                user-id))
+            user-id)
+          (progn
+            (l:pdebug :in "login" :status "fail" :user user-name)
+            nil)))))
   (:documentation "If USER-NAME exists and PASSWORD is correct, update last_login
 for USER-NAME and return the user ID. Otherwise, return NIL."))
 

@@ -375,7 +375,15 @@
   (is-false (valid-resource-p *rbac* "1-a:one"))
   (is-true (valid-resource-p *rbac* "a-1:one"))
   (is-true (valid-resource-p *rbac*
-              (u:random-string 64 (format nil "a~a" (u:ascii-alpha-num))))))
+             (format nil "x~a:x~a"
+               (u:random-string 6 (u:ascii-alpha-num))
+               (u:random-string (- (rbac::resource-length-max *rbac*) 9)
+                 (u:ascii-alpha-num)))))
+  (is-false (valid-resource-p *rbac*
+              (format nil "x~a:x~a"
+                (u:random-string 6 (u:ascii-alpha-num))
+                (u:random-string (- (rbac::resource-length-max *rbac*) 8)
+                  (u:ascii-alpha-num))))))
 
 (test description-validation
   (signals error (valid-description-p *rbac* nil))
@@ -697,7 +705,6 @@
     (is-true (every (lambda (u) (integerp (getf u :updated-at))) users))
     (is-true (every (lambda (u) (equal (getf u :email) "no-email")) users))
     (is-true (every (lambda (u) (equal (getf u :last-login) :null)) users))
-    (is-true (every (lambda (u) (is-uuid (getf u :password-hash))) users))
     (is-true (every (lambda (u)
                       (re:scan "^[a-f0-9]{32}$" (getf u :password-hash)))
                users)))
