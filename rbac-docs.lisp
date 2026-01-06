@@ -13,7 +13,7 @@ A role can be exclusive, which means that it can be associated with only one use
 
 All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission.
 
-Unless you specify specific permissions when creating a new role, it's permission default to 'create', 'read', 'updated', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
+Unless you specify specific permissions when creating a new role, it's permission default to 'create', 'read', 'update', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
 
 All new resources are created with the default roles 'system'. The 'system' role should never be assigned to a user.
 
