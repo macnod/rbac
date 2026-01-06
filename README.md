@@ -454,7 +454,7 @@ Accessors and methods for manipulating [`RBAC`][898b] objects.
 
 - [generic-function] **VALID-USER-NAME-P** *RBAC USER-NAME*
 
-    Validates new USERNANME string.
+    Validates new USER-NAME string.
     `USER-NAME` must:
     - Have at least 1 character
     - Have at most user-name-length-max characters
