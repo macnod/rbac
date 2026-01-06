@@ -424,7 +424,7 @@ Accessors and methods for manipulating [`RBAC`][898b] objects.
 - [generic-function] **VALID-PERMISSION-P** *RBAC PERMISSION*
 
     Validates new `PERMISSION` string.
-    PMERISSION must:
+    PERMISSION must:
     - start with a letter
     - consist of letters, digits, and hyphens
     - optionally have a colon that is not at the beginning or the end
