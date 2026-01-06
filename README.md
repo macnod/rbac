@@ -15,7 +15,7 @@ This is a simple Role-Based Access Control ([`RBAC`][898b]) system implemented i
 
 ## Overview
 
-This library provides functions and initial SQL for supporting Role-Based Access Control.
+This library provides functions and initial `SQL` for supporting Role-Based Access Control.
 
 The system provides users, roles, permissions, and resources. Users have roles. Roles have permissions. Resources also have roles. However, resources do not have users. To determine if user 'adam' has 'read' access to resource 'book', the user and the book must both have the same role and the role must have the 'read' permission.
 
@@ -85,6 +85,18 @@ See the API reference below for details.
 Usage examples.
 
 ```lisp
+(require :rbac)
+
+(defpackage :rbac-example (:use :cl :rbac))
+
+(in-package :rbac-example)
+
+(defparameter *rbac* (make-instance 'rbac-pg
+                       :host *db-host*
+                       :port *db-port*
+                       :user-name *db-user*
+                       :password *db-password*))
+
 (add-permission *rbac* "bogus-permission")
 (add-role *rbac* "role-a" :permissions '("read"))
 (add-role *rbac* "role-b")
@@ -424,7 +436,7 @@ Accessors and methods for manipulating [`RBAC`][898b] objects.
 - [generic-function] **VALID-PERMISSION-P** *RBAC PERMISSION*
 
     Validates new `PERMISSION` string.
-    PERMISSION must:
+    PMERISSION must:
     - start with a letter
     - consist of letters, digits, and hyphens
     - optionally have a colon that is not at the beginning or the end
@@ -454,7 +466,7 @@ Accessors and methods for manipulating [`RBAC`][898b] objects.
 
 - [generic-function] **VALID-USER-NAME-P** *RBAC USER-NAME*
 
-    Validates new USER-NAME string.
+    Validates new USERNANME string.
     `USER-NAME` must:
     - Have at least 1 character
     - Have at most user-name-length-max characters
