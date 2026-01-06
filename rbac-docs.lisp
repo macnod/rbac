@@ -75,7 +75,7 @@ See the API reference below for details."
   (rbac-pg class))
 
 (defsection @rbac-functions
-  (:title "Accessors and Methods")
+  (:title "Functions")
   "Accessors and methods for manipulating RBAC objects."
   (add-permission function)
   (add-resource function)
@@ -171,7 +171,6 @@ See the API reference below for details."
 ```
 ")
 
-(defun generate-readme ()
-  (with-open-file (stream "README.md"
-                    :direction :output :if-exists :supersede)
+(defun generate-readme (file-name)
+  (with-open-file (stream file-name :direction :output :if-exists :supersede)
     (document @rbac-manual :format :markdown :stream stream)))
