@@ -1,5 +1,5 @@
 (defpackage :rbac
-  (:use :cl)
+  (:use :cl :mgl-pax)
   (:local-nicknames
     (:ds :dc-ds)
     (:u :dc-eclectic)
