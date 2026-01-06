@@ -6,8 +6,9 @@
 ## Table of Contents
 
 - [1 Classes][bd0a]
-- [2 Functions][94ab]
-- [3 Examples][967f]
+- [2 Accessors and Methods][943e]
+- [3 Functions][94ab]
+- [4 Examples][967f]
 
 ###### \[in package RBAC\]
 This is a simple Role-Based Access Control ([`RBAC`][898b]) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class, together with accessors, methods, and functions for managing users, roles, permissions, and resources.
@@ -97,10 +98,70 @@ Core classes for the [`RBAC`][898b] system.
 
     [`RBAC`][898b] database class for PostgreSQL.
 
+<a id="x-28RBAC-3A-40RBAC-ACCESSORS-AND-METHODS-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-ACCESSORS-AND-METHODS%20MGL-PAX:SECTION"></a>
+
+## 2 Accessors and Methods
+
+Accessors and methods for manipulating [`RBAC`][898b] objects.
+
+<a id="x-28RBAC-3ARESOURCE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:RESOURCE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
+
+- [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9\]\[-a-zA-Z0-9\]\*$")*
+
+    Defaults to an absolute directory path string that ends with a /
+
+<a id="x-28RBAC-3ARESOURCE-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:RESOURCE-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
+
+- [accessor] **RESOURCE-LENGTH-MAX** *RBAC (:RESOURCE-LENGTH-MAX = 512)*
+
+    Maximum length of resource name string.
+
+<a id="x-28RBAC-3AUSER-NAME-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:USER-NAME-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
+
+- [accessor] **USER-NAME-LENGTH-MAX** *RBAC (:USER-NAME-LENGTH-MAX = 64)*
+
+    Maximum length of user name string.
+
+<a id="x-28RBAC-3AUSER-NAME-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:USER-NAME-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
+
+- [accessor] **USER-NAME-REGEX** *RBAC (:USER-NAME-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\_.+\]\*$")*
+
+    Regex for validating user name strings.
+
+<a id="x-28RBAC-3AID-EXISTS-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ID-EXISTS-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **ID-EXISTS-P** *RBAC TABLE ID*
+
+    Returns `T` when `ID` exists in `TABLE`.
+
+<a id="x-28RBAC-3AVALID-USER-NAME-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-USER-NAME-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-USER-NAME-P** *RBAC USER-NAME*
+
+    Validates new USERNANME string.
+    `USER-NAME` must:
+    - Have at least 1 character
+    - Have at most user-name-length-max characters
+    - Start with a letter
+    - Contain only ASCII characters for
+      - letters (any case)
+      - digits
+      - underscores
+      - dashes
+      - periods
+      - plus sign (+)
+
 <a id="x-28RBAC-3A-40RBAC-FUNCTIONS-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION"></a>
 
-## 2 Functions
+## 3 Functions
 
 Exported support functions.
 
@@ -131,7 +192,7 @@ Exported support functions.
 <a id="x-28RBAC-3A-40RBAC-EXAMPLES-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION"></a>
 
-## 3 Examples
+## 4 Examples
 
 Usage examples.
 
@@ -155,6 +216,7 @@ Usage examples.
 
   [5ba5]: #RBAC:RBAC-PG%20CLASS "RBAC:RBAC-PG CLASS"
   [898b]: #RBAC:RBAC%20CLASS "RBAC:RBAC CLASS"
+  [943e]: #RBAC:@RBAC-ACCESSORS-AND-METHODS%20MGL-PAX:SECTION "Accessors and Methods"
   [94ab]: #RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION "Functions"
   [967f]: #RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION "Examples"
   [bd0a]: #RBAC:@RBAC-CLASSES%20MGL-PAX:SECTION "Classes"

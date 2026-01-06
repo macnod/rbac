@@ -64,7 +64,7 @@ Then, Quicklisp will take care of installing any additional dependencies.
 See the API reference below for details."
 
   (@rbac-classes section)
-  ;; (@rbac-accessors-and-methods section)
+  (@rbac-accessors-and-methods section)
   (@rbac-functions section)
   ;; (@rbac-macros section)
   (@rbac-examples section))
@@ -81,9 +81,9 @@ See the API reference below for details."
   (resource-regex (accessor rbac))
   (resource-length-max (accessor rbac))
   (user-name-length-max (accessor rbac))
-  (user-name-regex (acccessor rbac)))
-  ;; (id-exists-p method)
-  ;; (valid-user-name-p method))
+  (user-name-regex (accessor rbac))
+  (id-exists-p function)
+  (valid-user-name-p function))
 
 (defsection @rbac-functions
   (:title "Functions")
@@ -121,6 +121,6 @@ See the API reference below for details."
 ")
 
 (defun generate-readme ()
-  (with-open-file (stream "/home/macnod/common-lisp/rbac/README.md"
+  (with-open-file (stream "README.md"
                     :direction :output :if-exists :supersede)
     (document @rbac-manual :format :markdown :stream stream)))
