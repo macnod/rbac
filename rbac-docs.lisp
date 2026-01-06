@@ -154,6 +154,18 @@ See the API reference below for details."
   "Usage examples.
 
 ```lisp
+(require :rbac)
+
+(defpackage :rbac-example (:use :cl :rbac))
+
+(in-package :rbac-example)
+
+(defparameter *rbac* (make-instance 'rbac-pg
+                       :host *db-host*
+                       :port *db-port*
+                       :user-name *db-user*
+                       :password *db-password*))
+
 (add-permission *rbac* \"bogus-permission\")
 (add-role *rbac* \"role-a\" :permissions '(\"read\"))
 (add-role *rbac* \"role-b\")
