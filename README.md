@@ -1,6 +1,17 @@
-# rbac
+<a id="x-28RBAC-3A-40RBAC-MANUAL-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-MANUAL%20MGL-PAX:SECTION"></a>
 
-Simple RBAC Library in Common Lisp
+# `RBAC` System Reference Manual
+
+## Table of Contents
+
+- [1 Examples][967f]
+- [2 Classes][bd0a]
+- [3 Functions][94ab]
+- [4 Macros][d0c7]
+
+###### \[in package RBAC\]
+This is a simple Role-Based Access Control ([`RBAC`][898b]) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class, together with accessors, methods, and functions for managing users, roles, permissions, and resources.
 
 ## Overview
 
@@ -8,386 +19,658 @@ This library provides functions and initial SQL for supporting Role-Based Access
 
 The system provides users, roles, permissions, and resources. Users have roles. Roles have permissions. Resources also have roles. However, resources do not have users. To determine if user 'adam' has 'read' access to resource 'book', the user and the book must both have the same role and the role must have the 'read' permission.
 
-A role can be exclusive, which means that it can be associated with only one user. Whenever a user is created, with the `d-add-user` or `add-user` function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that single user only, and represents only that user when associated with a resource. In this way, it's possible to give a specific user access to the resource.
+A role can be exclusive, which means that it can be associated with only one user. Whenever a user is created, with the d-add-user or add-user function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that single user only, and represents only that user when associated with a resource. In this way, it's possible to give a specific user access to the resource.
 
-All new users are created with default roles: 'logged-in' and 'public'. If a resource has these roles, then every user has access to the resource.
+All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission.
 
-All new resources are created with default roles too: 'admin' and 'system'. The 'system' role should never be assigned to a user. The 'admin' role should give God-like powers to a user.
+Unless you specify specific permissions when creating a new role, it's permission default to 'create', 'read', 'update', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
 
-## Functions Overview
+All new resources are created with the default roles 'system'. The 'system' role should never be assigned to a user.
 
-The library sometimes provides similar functionality via two separate functions. This is for convenience, as you'll see.
+## Installation
 
-### List Functions
+### Roswell
 
-List functions allow you to list users, roles, permissions, resources, and other objects. These functions generally return lists of plists with keys and values that correspond loosely to rows in the database.  However, list functions that end in 'name' return a list of strings representing the names of the objects. Therefore, if you want a list of user names, you can use `list-usernames`. On the other hand, if you want details about the users, you can use `list-users`. All of the other list functions differ from these two in that they end in '-name' rather than just 'name'.
+You'll need to install some dependencies first:
+`sh
+ros install postmodern
+ros install fiveam
+ros install cl-csv
+ros install trivial-utf-8
+ros install ironclad
+ros install swank
+ros install macnod/dc-dlist/v1.0
+ros install macnod/dc-ds/v0.5
+ros install macnod/dc-time/v0.5
+ros install macnod/p-log/v0.9
+ros install macnod/dc-eclectic/v0.51
+`
 
-There are many list functions for retrieving user roles, user permissions, resource roles, and so forth.
+Then, you can install `rbac` like this:
+`ros install macnod/rbac/v0.2`
 
-### Add/Remove Functions
+### GitHub
 
-Add/Remove functions allow you to add and remove objects. They also have counterparts, just like the list functions do, but the counterpart functions start with a 'd-'. For example, the `add-role` function requires the following parameters: `rbac`, `role`, `description`, `exclusive`, `permissions`, and `actor`. The `d-add-role` provides defaults for most of these parameters, which can be optionally provided with keywords. Its required parameters are `rbac` and `role`.
+Clone the repo to a directory that Quicklisp or ASDF can see, such as ~/common-lisp. For example:
 
-### Summary
+```sh
+cd ~/common-lisp
+git clone git@github.com:macnod/rbac.git
+cd rbac
+```
 
-The alternate functions should suffice almost always.
+Then, install the dependencies in a similar fashion.
+
+### Quicklisp
+
+Clone the repo to a directory that Quicklisp or ASDF can see, such as ~/common-lisp. For example:
+
+```sh
+cd ~/common-lisp
+git clone git@github.com:macnod/rbac.git
+cd rbac
+```
+
+Then, Quicklisp will take care of installing any additional dependencies.
 
 ## Usage
 
-Create an RBAC instance:
+See the API reference below for details.
+
+<a id="x-28RBAC-3A-40RBAC-EXAMPLES-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION"></a>
+
+## 1 Examples
+
+Usage examples.
 
 ```lisp
-(defparameter *rbac* (make-instance 'rbac-pg
-                        :dbname "your-db"
-                        :username "db-user"
-                        :password "db-pass"
-                        :host "localhost"
-                        :port 5432))
+(add-permission *rbac* "bogus-permission")
+(add-role *rbac* "role-a" :permissions '("read"))
+(add-role *rbac* "role-b")
+(add-role *rbac* "role-c"
+  :permissions (cons "bogus-permission" *default-permissions*))
+(add-role *rbac* "role-d"
+  :permissions '("bogus-permission"))
+(add-user *rbac* "user-1" "user-1@example.com" "password-01" :roles roles)
+(add-resource *rbac* "test:resource-1" :roles "public")
+(list-user-names *rbac*)
+(list-permission-names *rbac*)
+(list-user-role-names *rbac* "user-1")
+(list-user-resource-permission-names *rbac* "user-1" "test:resource-1")
+(user-allowed *rbac* "user-1" "read" "test:resource-1")
 ```
 
-Add a role:
 
-```lisp
-(d-add-role *rbac* "worker")
-```
+<a id="x-28RBAC-3A-40RBAC-CLASSES-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-CLASSES%20MGL-PAX:SECTION"></a>
 
-Add a user:
+## 2 Classes
 
-```lisp
-(d-add-user *rbac* "adam" "password"
-    :email "adam@example.com"
-    :roles '("worker"))
-```
+Core classes for the [`RBAC`][898b] system.
 
-Add a resource:
+<a id="x-28RBAC-3ARBAC-20CLASS-29"></a>
+<a id="RBAC:RBAC%20CLASS"></a>
 
-```lisp
-(d-add-resource *rbac* "/work/"
-    :roles '("worker"))
+- [class] **RBAC**
 
-Check access:
+    Abstract base class for user database.
 
-```lisp
-(user-allowed *rbac* "adam" "read" "/worker/")
-```
+<a id="x-28RBAC-3ARBAC-PG-20CLASS-29"></a>
+<a id="RBAC:RBAC-PG%20CLASS"></a>
 
-## Reference
+- [class] **RBAC-PG** *[RBAC][898b]*
 
-Below is a reference for all exported symbols, grouped by category. For functions and generics, the signature is provided along with a brief description (drawn from the function's documentation where available).
+    [`RBAC`][898b] database class for PostgreSQL.
 
-### Functions
+<a id="x-28RBAC-3A-40RBAC-FUNCTIONS-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION"></a>
 
-- **password-hash** `(username password)`
-  Returns the hash of PASSWORD, using USERNAME as the salt. This is how RBAC stores the password in the database.
+## 3 Functions
 
-### Classes
+Accessors and methods for manipulating [`RBAC`][898b] objects.
 
-- **rbac**
-  Abstract base class for user database. For auditing purposes, methods that update the database require an actor parameter, which consists of a username that exists in the users database.
+<a id="x-28RBAC-3AADD-PERMISSION-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-PERMISSION%20GENERIC-FUNCTION"></a>
 
-  Slots:
-  - `resource-regex`: Defaults to an absolute directory path string that ends with a /
-  - `resource-length-max`: 512
-  - `username-length-max`: 64
-  - `username-regex`: "^[a-zA-Z][-a-zA-Z0-9_.+]*$"
-  - `password-length-min`: 6
-  - `password-length-max`: 64
-  - `password-regexes`: List of regexes for password validation
-  - `email-length-max`: 128
-  - `email-regex`: "^[-a-zA-Z0-9._%+]+@[-a-zA-Z0-9.]+\\.[a-zA-Z]{2,}$|^no-email$"
-  - `role-length-max`: 64
-  - `role-regex`: "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"
-  - `permission-length-max`: 64
-  - `permission-regex`: "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"
+- [generic-function] **ADD-PERMISSION** *RBAC PERMISSION &KEY DESCRIPTION*
 
-- **rbac-pg** (inherits from `rbac`)
-  RBAC database class for PostgreSQL.
+    Add a new permission and returns the ID of the new entry.
+    `DESCRIPTION` is optional and auto-generated if not provided.
 
-  Slots:
-  - `dbname`: "rbac"
-  - `username`: "cl-user"
-  - `password`: ""
-  - `host`: "postgres"
-  - `port`: 5432
+<a id="x-28RBAC-3AADD-RESOURCE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-RESOURCE%20GENERIC-FUNCTION"></a>
 
-### Generic Functions
+- [generic-function] **ADD-RESOURCE** *RBAC RESOURCE &KEY DESCRIPTION ROLES*
 
-- **add-permission** `(rbac permission description actor)`
-  Add a new permission and return its ID.
+    Add a new resource and returns the ID of the new entry. The
+    resource is automatically linked to the roles in *default-resource-roles* plus
+    any additional `ROLES` provided. `DESCRIPTION` is optional and auto-generated if
+    not provided.
 
-- **add-resource** `(rbac name description roles actor)`
-  Add a new resource.
+<a id="x-28RBAC-3AADD-RESOURCE-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-RESOURCE-ROLE%20GENERIC-FUNCTION"></a>
 
-- **add-resource-role** `(rbac resource role actor)`
-  Add a role permission to a resource.
+- [generic-function] **ADD-RESOURCE-ROLE** *RBAC RESOURCE ROLE*
 
-- **add-role** `(rbac role description exclusive permissions actor)`
-  Add a new role.
+    Add an existing role to an existing resource. Returns the ID
+    of the new resource\_roles row.
 
-- **add-role-permission** `(rbac role permission actor)`
-  Add a permission to a role.
+<a id="x-28RBAC-3AADD-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-ROLE%20GENERIC-FUNCTION"></a>
 
-- **add-role-user** `(rbac role user actor)`
-  Add a user to a role.
+- [generic-function] **ADD-ROLE** *RBAC ROLE &KEY DESCRIPTION PERMISSIONS*
 
-- **add-user** `(rbac username email password roles actor)`
-  Add a new user. This creates an exclusive role, which is for this user only, and adds the user to the public and logged-in roles (given by *default-user-roles*). Returns the new user's ID.
+    Add a new `ROLE`. Description is optional and auto-generated
+    if not provided. If the role name ends with ':exclusive', the role is marked
+    as exclusive, so the `EXCLUSIVE` parameter is optional. `PERMISSIONS` is a list
+    of permission names to add to the role, defaulting to `*DEFAULT-PERMISSIONS*`.
+    All `PERMISSIONS` must already exist. Returns the new role's ID.
 
-- **get-id** `(rbac table name)`
-  Returns the ID associated with NAME in TABLE. TABLE can be one of `users`, `roles`, `permissions`, or `resources`. NAME is the value that you expect in the name field of the table. NAME is a value for the `username` field in the `users` table. The name fields of the other tables are `role_name`, `permission_name`, and `resource-name`.
+<a id="x-28RBAC-3AADD-ROLE-PERMISSION-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-ROLE-PERMISSION%20GENERIC-FUNCTION"></a>
 
-- **get-permission-ids** `(rbac permissions)`
-  Returns a hash table where the keys consist of permission names and the values consist of permission IDs. If PERMISSIONS is NIL, the hash table contains all existing permissions and their IDs. Otherwise, if PERMISSIONS is not NIL, the hash table contains IDs for the permissions in PERMISSIONS only. If PERMISSIONS contains a permission that doesn't exist, this function signals an error.
+- [generic-function] **ADD-ROLE-PERMISSION** *RBAC ROLE PERMISSION*
 
-- **get-role-ids** `(rbac roles)`
-  Returns a hash table where the keys consist of role names and the values consist of role IDs. If ROLES is NIL, the hash table contains all existing roles and their IDs. Otherwise, if ROLES is not NIL, the hash table contains IDs for the roles in ROLES only. If ROLES contains a role that doesn't exist, this function signals an error.
+    Add an existing permission to an existing role. Returns the
+    ID of the new role\_permissions row.
 
-- **get-value** `(rbac table field &rest search)`
-  Retrieves the value from FIELD in TABLE where SEARCH points to a unique row. TABLE and FIELD are strings, and SEARCH is a series of field names and values that identify the row uniquely. TABLE, FIELD, and the field names in SEARCH must exist in the database. If no row is found, this function returns NIL.
+<a id="x-28RBAC-3AADD-ROLE-USER-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-ROLE-USER%20GENERIC-FUNCTION"></a>
 
-- **list-permissions** `(rbac page page-size)`
-  List permissions, returning PAGE-SIZE permissions starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+- [generic-function] **ADD-ROLE-USER** *RBAC ROLE USER*
 
-- **list-permissions-count** `(rbac)`
-  Return the count of permissions in the database.
+    Add an existing user to an existing role. Returns the ID of
+    the new role\_users row.
 
-- **list-resource-roles** `(rbac resource page page-size)`
-  List roles for a resource, returning PAGE-SIZE roles starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+<a id="x-28RBAC-3AADD-USER-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-USER%20GENERIC-FUNCTION"></a>
 
-- **list-resource-roles-count** `(rbac resource)`
-  Return the count of roles for a resource.
+- [generic-function] **ADD-USER** *RBAC USER-NAME EMAIL PASSWORD &KEY ROLES*
 
-- **list-resource-roles-regular** `(rbac resource page page-size)`
-  List non-exclusive roles for a resource, returning PAGE-SIZE
+    Add a new user. This creates an exclusive role, which is
+    for this user only, and adds the user to the public and logged-in roles
+    (given by *default-user-roles*). Returns the new user's ID.
 
-- **list-resource-roles-regular-count** `(rbac resource)`
-  Return the count of non-exclusive roles for a resource.
+<a id="x-28RBAC-3AADD-USER-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ADD-USER-ROLE%20GENERIC-FUNCTION"></a>
 
-- **list-resource-users** `(rbac resource permission page page-size)`
-  List the users have PERMISSION on RESOURCE, returning PAGE-SIZE rows from PAGE. If PERMISSION is nil, this function lists RESOURCE users with any permission. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+- [generic-function] **ADD-USER-ROLE** *RBAC USER ROLE*
 
-- **list-resource-users-count** `(rbac resource permission)`
-  Return the count of users who have PERMISSION on RESOURCE.
+    Add an existing role to an existing user. Returns the ID of
+    the new role\_users row.
 
-- **list-resources** `(rbac page page-size)`
-  List resources, returning PAGE-SIZE resources starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+<a id="x-28RBAC-3AGET-ID-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:GET-ID%20GENERIC-FUNCTION"></a>
 
-- **list-resources-count** `(rbac)`
-  Return the count of resources in the database.
+- [generic-function] **GET-ID** *RBAC TABLE NAME*
 
-- **list-role-permissions** `(rbac role page page-size)`
-  List permissions for a role, returning PAGE-SIZE permissions starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+    Returns the ID associated with `NAME` in `TABLE`.
 
-- **list-role-permissions-count** `(rbac role)`
-  Return the count of permissions for a role.
+<a id="x-28RBAC-3AGET-VALUE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:GET-VALUE%20GENERIC-FUNCTION"></a>
 
-- **list-role-users** `(rbac role page page-size)`
-  List users for a role, returning PAGE-SIZE users starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+- [generic-function] **GET-VALUE** *RBAC TABLE FIELD &REST SEARCH*
 
-- **list-role-users-count** `(rbac role)`
-  Return the count of users for a role.
+    Retrieves the value from `FIELD` in `TABLE` where `SEARCH` points
+    to a unique row. `TABLE` and `FIELD` are strings, and `SEARCH` is a series of field
+    names and values that identify the row uniquely. `TABLE`, `FIELD`, and the field
+    names in `SEARCH` must exist in the database. If no row is found, this function
+    returns `NIL`.
 
-- **list-roles** `(rbac page page-size)`
-  List roles, returning PAGE-SIZE roles starting on page PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+<a id="x-28RBAC-3AID-EXISTS-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ID-EXISTS-P%20GENERIC-FUNCTION"></a>
 
-- **list-roles-count** `(rbac)`
-  Return the count of roles in the database.
+- [generic-function] **ID-EXISTS-P** *RBAC TABLE ID*
 
-- **list-roles-regular** `(rbac page page-size)`
-  List non-exclusive roles, returning PAGE-SIZE roles starting
+    Returns `T` when `ID` exists in `TABLE`.
 
-- **list-roles-regular-count** `(rbac)`
-  Return the count of regular roles in the database.
+<a id="x-28RBAC-3ALIST-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>
 
-- **list-rows** `(rbac select-fields tables where-clauses values order-by-fields page page-size)`
-  Returns a list of rows, with each row represented as a plist.
+- [generic-function] **LIST-PERMISSION-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-- **list-users** `(rbac page page-size)`
-  List users sorted by SORT-BY. Return PAGE-SIZE users starting from PAGE. SORT-BY is a list of fields, where each field string consists of the name of a field optionally followed by ASC or DESC. :PAGE is the page number, starting from 1, and PAGE-SIZE is an integer between 1 and 1000.
+    List of permission names (all permissions by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
 
-- **list-users-count** `(rbac)`
-  Return the count of users in the database.
+<a id="x-28RBAC-3ALIST-PERMISSIONS-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-PERMISSIONS%20GENERIC-FUNCTION"></a>
 
-- **list-users-filtered** `(rbac sort-by descending filters page page-size)`
-  List users sorted by SORT-BY and filtered by FILTERS. SORT-BY is a string consisting of the name of a field. DESCENDING is a boolean that indicates whether the sort is descending or not. FILTERS is a list of filters, where each filter is a list of three elements: field name, operator, and value. The supported operators are =, <>, <, >, <=, >=, like, ilike, not like, not ilike, is, is not. Return PAGE-SIZE users starting from PAGE. PAGE starts from 1. PAGE-SIZE is an integer between 1 and 1000.
+- [generic-function] **LIST-PERMISSIONS** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-- **list-users-filtered-count** `(rbac filters)`
-  Returns the count of users filtered by FILTERS. FILTERS is a list of filters, where each filter is a list of three elements: field name, operator, and value. The supported operators are =, <>, <, >, <=, >=, like, ilike, not like, not ilike, is, is not.
+    List information about permissions (all permissions by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
 
-- **list-user-roles** `(rbac user page page-size)`
-  List the roles for a given user, returning PAGE-SIZE roles starting on page PAGE. Page starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+<a id="x-28RBAC-3ALIST-USER-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-NAMES%20GENERIC-FUNCTION"></a>
 
-- **list-user-roles-count** `(rbac user)`
-  Return the count of roles for USER.
+- [generic-function] **LIST-USER-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-- **list-user-roles-regular** `(rbac user page page-size)`
-  List the roles for USER excluding the user's exclusive role, the public role, and the logged-in role, returning PAGE-SIZE roles starting on page PAGE.
+    List of user names (all users by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
 
-- **list-user-roles-regular-count** `(rbac user)`
-  Return the count of roles for USER excluding the user's exclusive role, the public role, and the logged-in role.
+<a id="x-28RBAC-3ALIST-USERS-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USERS%20GENERIC-FUNCTION"></a>
 
-- **list-user-resources** `(rbac user page page-size)`
-  List the resources that USER has access to, returning PAGE-SIZE rows from PAGE. PAGE starts at 1. PAGE-SIZE is an integer between 1 and 1000.
+- [generic-function] **LIST-USERS** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-- **list-user-resources-count** `(rbac user)`
-  Return the count of resources that USER has access to.
+    List information about users (all users by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
 
-- **login** `(rbac username password actor)`
-  If USERNAME exists and PASSWORD is correct, update last_login for USERNAME and return the user ID. Otherwise, return NIL.
+<a id="x-28RBAC-3ALOGIN-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LOGIN%20GENERIC-FUNCTION"></a>
 
-- **remove-permission** `(rbac permission actor)`
-  Remove (soft delete) PERMISSION from the database.
+- [generic-function] **LOGIN** *RBAC USER-NAME PASSWORD*
 
-- **remove-resource** `(rbac resource actor)`
-  Remove (soft delete) RESOURCE from the database.
+    If `USER-NAME` exists and `PASSWORD` is correct, update last\_login
+    for `USER-NAME` and return the user ID. Otherwise, return `NIL`.
 
-- **remove-resource-role** `(rbac resource role actor)`
-  Remove (soft delete) a role permission from a resource.
+<a id="x-28RBAC-3APASSWORD-HASH-20FUNCTION-29"></a>
+<a id="RBAC:PASSWORD-HASH%20FUNCTION"></a>
 
-- **remove-role** `(rbac role actor)`
-  Remove (soft delete) a role from the database.
+- [function] **PASSWORD-HASH** *USER-NAME PASSWORD*
 
-- **remove-role-permission** `(rbac role permission actor)`
-  Remove (soft delete) a permission from a role.
+    Returns the hash of `PASSWORD`, using `USER-NAME` as the salt. This is how [`RBAC`][898b]
+    stores the password in the database.
 
-- **remove-role-user** `(rbac role user actor)`
-  Remove (soft delete) a user from a role.
+<a id="x-28RBAC-3APERMISSION-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:PERMISSION-COUNT%20GENERIC-FUNCTION"></a>
 
-- **remove-user** `(rbac username actor)`
-  Remove (soft delete) USERNAME from the database.
+- [generic-function] **PERMISSION-COUNT** *RBAC &KEY FILTERS*
 
-- **soft-delete** `(rbac delete-target-sql delete-refs-sql details delete-exclusive-role-sql)`
-  Executes the given SQL statements in a transaction, to soft delete a row and references to that row, updating the audit table.
+    Count the number of permissions (all permissions by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
 
-- **sql-for-list** `(rbac select-fields tables where-clauses values order-by-fields page page-size)`
-  Generates an SQL statement that selects a list of records, each containing SELECT-FIELDS, from TABLES. SELECT-FIELDS is a list of field names to select. TABLES is a table name, or a string representing the tables to select from, including any join SQL syntax. WHERE-CLAUSES is a list of conditions, in SQL syntax, that must all be true for a record to be selected. ORDER-BY-FIELDS is a list of field names to order the results by, with each string in the list optionally followed by a space and either ASC or DESC, to indicate the sort order. PAGE is the page number, starting from 1, and PAGE-SIZE is the number of records to return per page. It must be an integer between 1 and 1000. The SQL statement consists of a list with an SQL string followed by values that are used to replace the placeholders in the string. The generated SQL includes a WHERE clause that excludes deleted records, i.e. records where the deleted_at field is not null.
+<a id="x-28RBAC-3AREMOVE-PERMISSION-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-PERMISSION%20GENERIC-FUNCTION"></a>
 
-- **to-hash-table** `(rbac row)`
-  Convert a row into a hash table where the table keys correspond to the field names and the table values correspond to the field values.
+- [generic-function] **REMOVE-PERMISSION** *RBAC PERMISSION*
 
-- **to-hash-tables** `(rbac row)`
-  Convert a list of rows representing the result of a database query from the :STR-ALISTS format into a list of hash tables where each hash table represents a row.
+    Remove `PERMISSION` from the database. Returns the ID of the
+    removed permission.
 
-- **user-allowed** `(rbac username permission resource)`
-  Determine if user with USER-ID has PERMISSION on RESOURCE.
+<a id="x-28RBAC-3AREMOVE-RESOURCE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-RESOURCE%20GENERIC-FUNCTION"></a>
 
-- **user-has-role** `(rbac username &rest role)`
-  Check if USERNAME has any of the specified ROLE(s).
+- [generic-function] **REMOVE-RESOURCE** *RBAC RESOURCE*
 
-- **valid-description-p** `(rbac description)`
-  Validates new DESCRIPTION string.
+    Remove `RESOURCE` from the database. Returns the ID of the
+    removed resource.
 
-- **valid-email-p** `(rbac email)`
-  Validates new EMAIL string. The string must look like an email address, with a proper domain name, and it must have a length that doesn't exceed 128 characters.
+<a id="x-28RBAC-3AREMOVE-RESOURCE-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-RESOURCE-ROLE%20GENERIC-FUNCTION"></a>
 
-- **valid-password-p** `(rbac password)`
-  Validates new PASSWORD string. PASSWORD must have - at least password-length-min characters - at least one letter - at least one digit - at least one common punctuation character - at most password-length-max characters
+- [generic-function] **REMOVE-RESOURCE-ROLE** *RBAC RESOURCE ROLE*
 
-- **valid-permission-p** `(rbac permission)`
-  Validates new PERMISSION string. PMERISSION must: - start with a letter - consist of letters, digits, and hyphens - optionally have a colon that is not at the beginning or the end - contain at most permission-length-max characters
+    Remove a role from a resource. Returns the ID of the removed
+    resource role.
 
-- **valid-resource-p** `(rbac resource)`
-  Validates new RESOURCE string.
+<a id="x-28RBAC-3AREMOVE-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-ROLE%20GENERIC-FUNCTION"></a>
 
-- **valid-role-p** `(rbac role)`
-  Validates new ROLE string. ROLE must: - start with a letter - consist of letters, digits, and hyphens - have at most role-length-max characters - optionally have a colon that is not at the beginning or the end
+- [generic-function] **REMOVE-ROLE** *RBAC ROLE*
 
-- **valid-username-p** `(rbac username)`
-  Validates new USERNANME string. USERNAME must: - Have at least 1 character - Have at most username-length-max characters - Start with a letter - Contain only ASCII characters for - letters (any case) - digits - underscores - dashes - periods - plus sign (+)
+    Remove a role from the database. Returns the ID of the
+    removed role.
 
-### Functions with Defaults
+<a id="x-28RBAC-3AREMOVE-ROLE-PERMISSION-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-ROLE-PERMISSION%20GENERIC-FUNCTION"></a>
 
-- **d-add-permission** `(rbac permission &key description actor)`
-  Add a permission with defaults.
+- [generic-function] **REMOVE-ROLE-PERMISSION** *RBAC ROLE PERMISSION*
 
-- **d-add-resource** `(rbac resource &key description roles actor)`
-  Add a resource with defaults.
+    Remove a permission from a role. Returns the ID of the
+    removed role-permission.
 
-- **d-add-resource-role** `(rbac resource role &key actor)`
-  Add a role to a resource with defaults.
+<a id="x-28RBAC-3AREMOVE-ROLE-USER-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-ROLE-USER%20GENERIC-FUNCTION"></a>
 
-- **d-add-role** `(rbac role &key description exclusive permissions actor)`
-  Add a role with defaults.
+- [generic-function] **REMOVE-ROLE-USER** *RBAC ROLE USER*
 
-- **d-add-role-permission** `(rbac role permission &key actor)`
-  Add a permission to a role with defaults.
+    Remove a user from a role. Returns the ID of the removed
+    role user.
 
-- **d-add-role-user** `(rbac role user &key actor)`
-  Add a user to a role with defaults.
+<a id="x-28RBAC-3AREMOVE-USER-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-USER%20GENERIC-FUNCTION"></a>
 
-- **d-add-user** `(rbac username password &key email roles actor)`
-  Add a user with defaults.
+- [generic-function] **REMOVE-USER** *RBAC USER-NAME*
 
-- **d-add-user-role** `(rbac user role &key actor)`
-  Add a role to a user with defaults.
+    Remove `USER-NAME` from the database.
 
-- **d-login** `(rbac username password &key actor)`
-  Log in user.
+<a id="x-28RBAC-3AREMOVE-USER-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:REMOVE-USER-ROLE%20GENERIC-FUNCTION"></a>
 
-- **d-remove-permission** `(rbac permission &key actor)`
-  Remove permission with defaults.
+- [generic-function] **REMOVE-USER-ROLE** *RBAC USER ROLE*
 
-- **d-remove-resource** `(rbac resource &key actor)`
-  Remove resource with defaults.
+    Remove a role from a user. Returns the ID of the removed
+    user role.
 
-- **d-remove-resource-role** `(rbac resource role &key actor)`
-  Remove a role from a resource with defaults.
+<a id="x-28RBAC-3ARESOURCE-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:RESOURCE-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- **d-remove-role** `(rbac role &key actor)`
-  Remove ROLE with defauls.
+- [accessor] **RESOURCE-LENGTH-MAX** *RBAC (:RESOURCE-LENGTH-MAX = 512)*
 
-- **d-remove-role-permission** `(rbac role permission &key actor)`
-  Remove a permission from a role with defaults.
+    Maximum length of resource name string.
 
-- **d-remove-role-user** `(rbac role user &key actor)`
-  Remove a user from a role with defaults.
+<a id="x-28RBAC-3ARESOURCE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:RESOURCE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- **d-remove-user** `(rbac username &key actor)`
-  Remove a user with defaults.
+- [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9\]\[-a-zA-Z0-9\]\*$")*
 
-- **d-remove-user-role** `(rbac user role &key actor)`
-  Remove a role from a user with defaults.
+    Defaults to an absolute directory path string that ends with a /
 
-### Simple List Functions
+<a id="x-28RBAC-3AUSER-ALLOWED-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:USER-ALLOWED%20GENERIC-FUNCTION"></a>
 
-- **list-usernames** `(rbac &key page page-size)`
-  List all usernames
+- [generic-function] **USER-ALLOWED** *RBAC USER-NAME PERMISSION RESOURCE*
 
-- **list-user-resource-names** `(rbac user &key page page-size)`
-  List resources for user
+    Returns `T` if `USER-NAME` has `PERMISSION` on `RESOURCE`, `NIL`
+    otherwise. Note that this permission may exist via more than one role.
 
-- **list-role-names** `(rbac &key page page-size)`
-  List all roles
+<a id="x-28RBAC-3AUSER-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:USER-COUNT%20GENERIC-FUNCTION"></a>
 
-- **list-role-names-regular** `(rbac &key page page-size)`
-  List all regular roles
+- [generic-function] **USER-COUNT** *RBAC &KEY FILTERS*
 
-- **list-permission-names** `(rbac &key page page-size)`
-  List all permissions
+    Count the number of users (all users by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
 
-- **list-resource-names** `(rbac &key page page-size)`
-  List all resources
+<a id="x-28RBAC-3AUSER-HAS-ROLE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:USER-HAS-ROLE%20GENERIC-FUNCTION"></a>
 
-- **list-resource-usernames** `(rbac resource permission &key page page-size)`
-  List usernames that have PERMISSION on RESOURCE.
+- [generic-function] **USER-HAS-ROLE** *RBAC USER-NAME &REST ROLE*
 
-- **list-role-usernames** `(rbac role &key page page-size)`
-  List users for role
+    Returns `T` if `USER-NAME` has any of the specified `ROLE`(s).
 
-- **list-user-role-names** `(rbac user &key page page-size)`
-  List roles for user
+<a id="x-28RBAC-3AUSER-NAME-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:USER-NAME-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- **list-user-role-names-regular** `(rbac user &key page page-size)`
-  List regular roles for user
+- [accessor] **USER-NAME-LENGTH-MAX** *RBAC (:USER-NAME-LENGTH-MAX = 64)*
 
-- **list-role-permission-names** `(rbac role &key page page-size)`
-  List permissions for role
+    Maximum length of user name string.
 
-- **list-resource-role-names** `(rbac resource &key page page-size)`
-  List roles for resource
+<a id="x-28RBAC-3AUSER-NAME-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
+<a id="RBAC:USER-NAME-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- **list-resource-role-names-regular** `(rbac resource &key page page-size)`
-  List regular roles for resource
+- [accessor] **USER-NAME-REGEX** *RBAC (:USER-NAME-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\_.+\]\*$")*
 
-- **list-role-resource-names** `(rbac role &key page page-size)`
-  List resources for role
+    Regex for validating user name strings.
+
+<a id="x-28RBAC-3AVALID-DESCRIPTION-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-DESCRIPTION-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-DESCRIPTION-P** *RBAC DESCRIPTION*
+
+    Validates new `DESCRIPTION` string.
+
+<a id="x-28RBAC-3AVALID-EMAIL-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-EMAIL-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-EMAIL-P** *RBAC EMAIL*
+
+    Validates new `EMAIL` string. The string must look like an
+    email address, with a proper domain name, and it must have a length that
+    doesn't exceed 128 characters.
+
+<a id="x-28RBAC-3AVALID-PASSWORD-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-PASSWORD-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-PASSWORD-P** *RBAC PASSWORD*
+
+    Validates new `PASSWORD` string.
+    `PASSWORD` must have
+    - at least password-length-min characters
+    - at least one letter
+    - at least one digit
+    - at least one common punctuation character
+    - at most password-length-max characters
+
+<a id="x-28RBAC-3AVALID-PERMISSION-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-PERMISSION-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-PERMISSION-P** *RBAC PERMISSION*
+
+    Validates new `PERMISSION` string.
+    PERMISSION must:
+    - start with a letter
+    - consist of letters, digits, and hyphens
+    - optionally have a colon that is not at the beginning or the end
+    - contain at most permission-length-max characters
+
+<a id="x-28RBAC-3AVALID-RESOURCE-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-RESOURCE-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-RESOURCE-P** *RBAC RESOURCE*
+
+    Validates new `RESOURCE` string.
+
+<a id="x-28RBAC-3AVALID-ROLE-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-ROLE-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-ROLE-P** *RBAC ROLE*
+
+    Validates new `ROLE` string.
+    `ROLE` must:
+    - start with a letter
+    - consist of letters, digits, and hyphens
+    - have at most role-length-max characters
+    - optionally have a colon that is not at the beginning or the end
+
+<a id="x-28RBAC-3AVALID-USER-NAME-P-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:VALID-USER-NAME-P%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **VALID-USER-NAME-P** *RBAC USER-NAME*
+
+    Validates new USER-NAME string.
+    `USER-NAME` must:
+    - Have at least 1 character
+    - Have at most user-name-length-max characters
+    - Start with a letter
+    - Contain only ASCII characters for
+      - letters (any case)
+      - digits
+      - underscores
+      - dashes
+      - periods
+      - plus sign (+)
+
+<a id="x-28RBAC-3ALIST-RESOURCES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-RESOURCES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-RESOURCES** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about resources (all resources by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+
+<a id="x-28RBAC-3ALIST-RESOURCE-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-RESOURCE-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-RESOURCE-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List of resource names (all resources by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+
+<a id="x-28RBAC-3ARESOURCE-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:RESOURCE-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **RESOURCE-COUNT** *RBAC &KEY FILTERS*
+
+    Count the number of resources (all resources by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
+
+<a id="x-28RBAC-3ALIST-USER-ROLES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-ROLES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-USER-ROLES** *RBAC USER &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about roles associated with `USER`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+
+<a id="x-28RBAC-3ALIST-USER-ROLE-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-ROLE-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-USER-ROLE-NAMES** *RBAC USER &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List names of roles associated with `USER`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+
+<a id="x-28RBAC-3AUSER-ROLE-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:USER-ROLE-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **USER-ROLE-COUNT** *RBAC USER &KEY FILTERS*
+
+    Count the number of roles associated with `USER`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+
+<a id="x-28RBAC-3ALIST-ROLE-PERMISSIONS-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-ROLE-PERMISSIONS%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-ROLE-PERMISSIONS** *RBAC ROLE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about permissions associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
+
+<a id="x-28RBAC-3ALIST-ROLE-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-ROLE-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-ROLE-PERMISSION-NAMES** *RBAC ROLE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List names of permissions associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
+
+<a id="x-28RBAC-3AROLE-PERMISSION-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ROLE-PERMISSION-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **ROLE-PERMISSION-COUNT** *RBAC ROLE &KEY FILTERS*
+
+    Count the number of permissions associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+
+<a id="x-28RBAC-3ALIST-ROLE-USERS-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-ROLE-USERS%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-ROLE-USERS** *RBAC ROLE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about users associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
+
+<a id="x-28RBAC-3ALIST-ROLE-USER-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-ROLE-USER-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-ROLE-USER-NAMES** *RBAC ROLE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List names of users associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
+
+<a id="x-28RBAC-3AROLE-USER-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ROLE-USER-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **ROLE-USER-COUNT** *RBAC ROLE &KEY FILTERS*
+
+    Count the number of users associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+
+<a id="x-28RBAC-3ALIST-ROLE-RESOURCES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-ROLE-RESOURCES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-ROLE-RESOURCES** *RBAC ROLE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about resources associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+
+<a id="x-28RBAC-3ALIST-ROLE-RESOURCE-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-ROLE-RESOURCE-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-ROLE-RESOURCE-NAMES** *RBAC ROLE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List names of resources associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+
+<a id="x-28RBAC-3AROLE-RESOURCE-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:ROLE-RESOURCE-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **ROLE-RESOURCE-COUNT** *RBAC ROLE &KEY FILTERS*
+
+    Count the number of resources associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+
+<a id="x-28RBAC-3ALIST-RESOURCE-ROLES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-RESOURCE-ROLES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-RESOURCE-ROLES** *RBAC RESOURCE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about roles associated with `RESOURCE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+
+<a id="x-28RBAC-3ALIST-RESOURCE-ROLE-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-RESOURCE-ROLE-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-RESOURCE-ROLE-NAMES** *RBAC RESOURCE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List names of roles associated with `RESOURCE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+
+<a id="x-28RBAC-3ARESOURCE-ROLE-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:RESOURCE-ROLE-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **RESOURCE-ROLE-COUNT** *RBAC RESOURCE &KEY FILTERS*
+
+    Count the number of roles associated with `RESOURCE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+
+<a id="x-28RBAC-3ALIST-USER-RESOURCES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-RESOURCES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-USER-RESOURCES** *RBAC USER PERMISSION &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about user resources where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+
+<a id="x-28RBAC-3ALIST-USER-RESOURCE-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-RESOURCE-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-USER-RESOURCE-NAMES** *RBAC USER PERMISSION &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List resource names of users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+
+<a id="x-28RBAC-3AUSER-RESOURCE-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:USER-RESOURCE-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **USER-RESOURCE-COUNT** *RBAC USER PERMISSION &KEY FILTERS*
+
+    Count the number of user resources where the user has `PERMISSION` on the resource. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+
+<a id="x-28RBAC-3ALIST-RESOURCE-USERS-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-RESOURCE-USERS%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-RESOURCE-USERS** *RBAC RESOURCE PERMISSION &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
+
+    List information about resource users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
+
+<a id="x-28RBAC-3ALIST-RESOURCE-USER-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-RESOURCE-USER-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-RESOURCE-USER-NAMES** *RBAC RESOURCE PERMISSION &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
+
+    List user names of resources where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
+
+<a id="x-28RBAC-3ARESOURCE-USER-COUNT-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:RESOURCE-USER-COUNT%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **RESOURCE-USER-COUNT** *RBAC RESOURCE PERMISSION &KEY FILTERS*
+
+    Count the number of resource users where the user has `PERMISSION` on the resource. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
+
+<a id="x-28RBAC-3ALIST-USER-RESOURCE-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-RESOURCE-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-USER-RESOURCE-PERMISSION-NAMES** *RBAC USER-NAME RESOURCE-NAME &KEY PAGE PAGE-SIZE*
+
+    List the names of the permissions that `USER-NAME` has on
+    `RESOURCE-NAME`. Supports pagination via `PAGE` and `PAGE-SIZE`. `PAGE` defaults to 1
+    and `PAGE-SIZE` defaults to `*DEFAULT-PAGE-SIZE*`
+
+<a id="x-28RBAC-3APASSWORD-HASH-20FUNCTION-29"></a>
+<a id="RBAC:PASSWORD-HASH%20FUNCTION"></a>
+
+- [function] **PASSWORD-HASH** *USER-NAME PASSWORD*
+
+    Returns the hash of `PASSWORD`, using `USER-NAME` as the salt. This is how [`RBAC`][898b]
+    stores the password in the database.
+
+<a id="x-28RBAC-3A-40RBAC-MACROS-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-MACROS%20MGL-PAX:SECTION"></a>
+
+## 4 Macros
+
+Exported macros.
+
+<a id="x-28RBAC-3AWITH-RBAC-20MGL-PAX-3AMACRO-29"></a>
+<a id="RBAC:WITH-RBAC%20MGL-PAX:MACRO"></a>
+
+- [macro] **WITH-RBAC** *(RBAC) &BODY BODY*
+
+    Opens a connection (pooled) to the rbac database to execute `BODY`. There's
+    no global connection, so this macro must be used wherever a connection is
+    needed. The connection is closed after `BODY` is executed.
+
+  [5ba5]: #RBAC:RBAC-PG%20CLASS "RBAC:RBAC-PG CLASS"
+  [898b]: #RBAC:RBAC%20CLASS "RBAC:RBAC CLASS"
+  [94ab]: #RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION "Functions"
+  [967f]: #RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION "Examples"
+  [bd0a]: #RBAC:@RBAC-CLASSES%20MGL-PAX:SECTION "Classes"
+  [d0c7]: #RBAC:@RBAC-MACROS%20MGL-PAX:SECTION "Macros"

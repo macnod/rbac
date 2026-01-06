@@ -260,11 +260,6 @@
             :plists)))))
 
 (test utils
-  (is (equal "select a from b where c = e and d = f"
-        (usql "select a
-               from b
-               where c = e
-                 and d = f")))
   (is (equal "cats" (plural "cat")))
   (is (equal "cats" (plural "cats")))
   (is (equal "user_id" (rbac::external-reference-field "users")))

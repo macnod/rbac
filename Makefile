@@ -22,6 +22,7 @@ install-dependencies:
 	ros install trivial-utf-8
 	ros install ironclad
 	ros install swank
+	ros install mgl-pax
 	ros install macnod/dc-dlist/v1.0
 	ros install macnod/dc-ds/v0.5
 	ros install macnod/dc-time/v0.5

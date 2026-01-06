@@ -113,14 +113,8 @@ row in the result is a plist, where the keys represent the field names."
                           sql-template-and-parameters
                           (list result-type)))))
 
-(defun usql (sql)
-  "Converts SQL into a one-line string, removing extra spaces and newlines.
-This does not work correctly if SQL contains quoted field names or values that
-include multiple consecutive whitespace characters."
-  (u:trim (re:regex-replace-all "\\s+" sql " ")))
-
 (defun plural (string)
-  "Adds 's' to STRING, unless STRING already ends with 's'."
+  "Internal. Adds 's' to STRING, unless STRING already ends with 's'."
   (if (re:scan "s$" string)
     string
     (format nil "~as" string)))
@@ -906,10 +900,9 @@ signals an error."))
     (let* ((link-table (compute-link-table-name rbac table-1 table-2))
             (id-1-field (format nil "~a_id" (singular table-1)))
             (id-2-field (format nil "~a_id" (singular table-2))))
-      (usql (format nil
-              "insert into ~a (~a, ~a) values ($1, $2) returning id"
-              link-table
-              id-1-field id-2-field))))
+      (format nil
+        "insert into ~a (~a, ~a) values ($1, $2) returning id"
+        link-table id-1-field id-2-field)))
   (:documentation "Internal. Creates SQL that upserts a row into a link table
 that has fields that reference TABLE-1 and TABLE-2, creating a new link between
 rows in TABLE-1 and TABLE-2.
@@ -1765,7 +1758,7 @@ defaults to (list \"~a\")."
 
 ;; These require 2 parameters
 
-;; Makes lust-user-resources, list-user-resource-names, and user-resource-count
+;; Makes list-user-resources, list-user-resource-names, and user-resource-count
 (define-list-functions-2 "users" "roles" "permissions" "resources")
 
 ;; Makes list-resource-users, list-resource-user-names, and resource-user-count
