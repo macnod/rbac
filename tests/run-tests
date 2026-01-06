@@ -11,7 +11,7 @@ export DB_USER="rbac"
 export DB_PASSWORD="rbac-password"
 export DB_CONTAINER="pg-rbac-test"
 export LOG_FILE=$(readlink -f "$PWD/tests/tests.log")
-export RUN_TESTS
+export RBAC_REPL="false"
 
 # Needed to avoid prompting in psql calls
 export PGPASSWORD="$DB_PASSWORD"

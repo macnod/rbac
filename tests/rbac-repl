@@ -15,6 +15,10 @@ export DB_PASSWORD="rbac-password"
 export DB_CONTAINER="pg-rbac-test"
 export LOG_FILE=$(readlink -f "$PWD/tests/rbac.log")
 export SWANK_PORT="4008"
+export RUN_TESTS="false"
+export RBAC_REPL="true"
+
+TEST_FILE=""
 
 # Needed to avoid prompting in psql calls
 export PGPASSWORD="$DB_PASSWORD"
@@ -28,6 +32,7 @@ function usage {
     echo "terminate the PostgreSQL service."
     echo
     echo "Options:"
+    echo "  --test-file    Path to the test file."
     echo "  --db-port      The host port for the PosgreSQL database. Defaults to 5435."
     echo "  --swank-port   The host port for the Swank service. Defaults to 4006."
     echo "  --stop         Stop the PostgreSQL service. Normally, this script stops"
@@ -38,16 +43,21 @@ function usage {
 
 while [ $# -gt 0 ]; do
     case "$1" in
+        --test-file)
+            shift
+            TEST_FILE="$1"
+            shift
+            ;;
         --stop)
             STOP=true
             ;;
         --db-port)
             shift
-            DB_PORT="$1"
+            export DB_PORT="$1"
             ;;
         --swank-port)
             shift
-            SWANK_PORT="$1"
+            export SWANK_PORT="$1"
             ;;
         --help)
             usage
@@ -64,6 +74,11 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+if [[ -z "$TEST_FILE" ]]; then
+    echo "Test file is required."
+    exit 1
+fi
 
 if [[ "$STOP" = false ]]; then
 	echo

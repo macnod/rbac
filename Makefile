@@ -34,5 +34,8 @@ test:
 test-ci:
 	ros run -- --disable-debugger --load "$(TEST_FILE)" --quit
 
+test-repl:
+	tests/rbac-tests-repl start "$(TEST_FILE)"
+
 .PHONY: install-roswell install-dependencies test
 .DEFAULT_GOAL := test
