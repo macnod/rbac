@@ -9,6 +9,7 @@ export DB_PORT="5436"
 export DB_NAME="rbac"
 export DB_USER="rbac"
 export DB_PASSWORD="rbac-password"
+export ADMIN_PASSWORD="admin-password-1"
 export DB_CONTAINER="pg-rbac-test"
 export LOG_FILE=$(readlink -f "$PWD/tests/tests.log")
 export RBAC_REPL="false"

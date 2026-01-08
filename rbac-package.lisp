@@ -28,6 +28,7 @@
     get-value
     host
     id-exists-p
+    initialize-database
     list-permission-names
     list-permissions
     list-resource-names

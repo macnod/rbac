@@ -27,6 +27,7 @@
 (defparameter *db-port* (u:getenv "DB_PORT" :required t :type :integer))
 (defparameter *db-user* (u:getenv "DB_USER" :required t))
 (defparameter *db-password* (u:getenv "DB_PASSWORD" :required t))
+(defparameter *admin-password* (u:getenv "ADMIN_PASSWORD" :required t))
 (defparameter *log-file* (u:getenv "LOG_FILE"))
 (defparameter *run-tests* (u:getenv "RUN_TESTS" :type :boolean :default t))
 (defparameter *rbac-repl* (u:getenv "RBAC_REPL" :type :boolean :default nil))
@@ -54,6 +55,8 @@
 
 (when *log-file*
   (make-log-stream "tests" *log-file* :append nil))
+
+(initialize-database *rbac* *admin-password*)
 
 (defun clear-database ()
   (loop for user in (u:exclude (list-user-names *rbac*) *init-users*)
@@ -944,10 +947,23 @@
   (add-user *rbac* "user-2" "no-email" "password-02" :roles '("role-1"))
   (let ((resource-user-names (list-resource-user-names *rbac* "resource-1" "read"))
          (resource-users (list-resource-users *rbac* "resource-1" "read")))
-    (is (= 4 (length resource-users)))
-    (is (equal resource-user-names
-          (u:distinct-values
-            (mapcar (lambda (u) (getf u :user-name)) resource-users))))
+    (is (equal
+          '((:user-name "admin" :role-name "admin")
+             (:user-name "admin"  :role-name "role-1")
+             (:user-name "user-1" :role-name "role-1")
+             (:user-name "user-2" :role-name "role-1"))
+          (u:safe-sort
+            (mapcar (lambda (u) (list
+                                  :user-name (getf u :user-name)
+                                  :role-name (getf u :role-name)))
+              resource-users)
+            :predicate (lambda (a b)
+                         (string<
+                           (concatenate 'string
+                             (getf a :user-name) "|" (getf a :role-name))
+                           (concatenate 'string
+                             (getf b :user-name) "|" (getf b :role-name)))))))
+    (is (equal '("admin" "user-1" "user-2") resource-user-names))
     (is (= (length
              (u:distinct-values
                (mapcar (lambda (u) (getf u :user-name)) resource-users)))

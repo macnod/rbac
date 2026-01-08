@@ -33,6 +33,7 @@
   (get-id function)
   (get-value function)
   (id-exists-p function)
+  (initialize-database function)
   (list-permission-names function)
   (list-permissions function)
   (list-user-names function)

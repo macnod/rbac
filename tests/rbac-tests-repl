@@ -10,6 +10,7 @@ export DB_PORT="5436"
 export DB_NAME="rbac"
 export DB_USER="rbac"
 export DB_PASSWORD="rbac-password"
+export ADMIN_PASSWORD="admin-password-1"
 export DB_CONTAINER="pg-tests-repl"
 export DOCKER_COMPOSE_FILE="tests/docker-compose-${DB_CONTAINER}.yaml"
 export LOG_FILE=$(readlink -f "$PWD/tests/tests-repl.log")

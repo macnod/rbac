@@ -1,10 +1,28 @@
 (in-package :rbac)
 
 ;;
+;; Environment variables
+;;
+
+;;
 ;; Constants
 ;;
-(defparameter *default-permissions*
+;; Users
+(defparameter *admin* "admin" "Administrator user name.")
+(defparameter *guest* "guest" "Guest user name.")
+
+(defparameter *init-permissions*
   (u:safe-sort (list "create" "read" "update" "delete"))
+    "Permissions that are created when the RBAC database is first initialized.")
+
+(defparameter *init-roles*
+  (u:safe-sort (list "admin" "public" "logged-in"))
+  "Roles that are created when the RBAC database is first initialized.")
+
+(defparameter *init-users* (list *admin* *guest*)
+  "Users that are created when the RBAC database is first initialized.")
+
+(defparameter *default-permissions* *init-permissions*
   "Default permissions for a new role.")
 
 ;; SQL to find tables that reference a table with a foreign key. We use this
@@ -42,9 +60,6 @@ key.")
             "role_users" "ru"
             "resource_roles" "sr"))
   "Internal. Mapping from table names to table aliases.")
-
-;; Users
-(defparameter *admin* "admin" "Administrator user name.")
 
 ;; These roles are assigned to new users
 (defparameter *default-user-roles*
@@ -85,9 +100,304 @@ part of setting a variable, for example."
        (push (format nil ,@error-message-args) ,errors))
      result))
 
+;; List function generators
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun name-to-identifier (name format)
+    "Internal. Convert NAME to an identifier using FORMAT."
+    (intern (format nil format (string-upcase (re:regex-replace "_" name "-")))))
+
+  (defun singular (string)
+    "Internal. If STRING ends with an 's', this function returns the string
+without the 's'at the end."
+    (re:regex-replace "s$" string ""))
+
+  (defun table-name-field (table &optional as-keyword)
+    "Internal. Returns the name field for TABLE. The name field is the singular
+form of the table name, with '_name' appended."
+    (format nil "~a~aname" (singular table) (if as-keyword "-" "_")))
+
+  (defun make-documentation (format-string &rest values)
+    "Internal. Creates documentation strings. FORMAT-STRING is a string with
+placeholders like '~a'. VALUES is a list of values for the placeholders. This
+function removes extra spaces."
+    (let* ((doc-1 (apply #'format (append (list nil format-string) values)))
+            (doc-2 (re:regex-replace-all "  +" doc-1 " "))
+            (lines (remove-if (lambda (s) (zerop (length s)))
+                     (re:split "\\n" doc-2)))
+            (doc-3 (format nil "~{~a~^ ~}" (mapcar #'u:trim lines))))
+      doc-3))
+
+  (defparameter *table-aliases*   (ds:ds '(:map
+                                            "users" "u"
+                                            "roles" "r"
+                                            "permissions" "p"
+                                            "resources" "s"
+                                            "role_permissions" "rp"
+                                            "role_users" "ru"
+                                            "resource_roles" "sr"))))
+
+(defmacro define-list-functions (&rest tables)
+  "Internal. This macro defines three list functions for the given tables: all,
+names, and count. The functions are named according to the tables provided. For
+example, if the table 'users' is provided as the only table, the functions are
+named list-users, list-user-names, and user-count. IF the table 'permissions' is
+provided, the functions are named list-permissions, list-permission-names, and
+permission-count. The all function lists all the rows in the results, in plist
+format. The names function returns a list of strings representing the values
+from the last table's name field of each row in the results. The count function
+returns the number of rows in the result.  Each function supports filtering, and
+the all and names functions support pagination, filtering, ordering, and field
+selection."
+  (let* ((fname (if (= (length tables) 1)
+                  (first tables)
+                  (format nil "~a-~a"
+                    (singular (first tables)) (second tables))))
+          (f-all (name-to-identifier fname "LIST-~a"))
+          (f-names (name-to-identifier (singular fname) "LIST-~a-NAMES"))
+          (f-count (name-to-identifier (singular fname) "~a-COUNT"))
+          (name-field (table-name-field (car (last tables))))
+          (doc-row (make-documentation "List information about ~a (all ~a by
+default). Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE
+defaults to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FIELDS
+parameter, a list of strings, can be used to limit which fields are included in
+the result. The FILTERS parameter can be used to filter the results. It consists
+of a list of filters, where each filter is a list of three elements: field name,
+operator, and value. Operator, a string, can be =, <>, <, >, <=, >=, is, is not,
+like, or ilike. Value is a string, number, :null, :true, or :false. The ORDER-BY
+parameter is a list of strings that represent field names and are used to order
+the results. It defaults to (list \"~a\")."
+                     (first tables) (first tables) name-field))
+          (doc-names (make-documentation "List of ~a names (all ~a by default).
+Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE defaults to
+1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FILTERS parameter can be
+used to filter the results. It consists of a list of filters, where each filter
+is a list of three elements: field name, operator, and value. Operator, a
+string, can be =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a
+string, number, :null, :true, or :false. The ORDER-BY parameter is a list of
+strings that represent field names and are used to order the results. It
+defaults to
+(list \"~a\")."
+                       (singular (first tables)) (first tables) name-field))
+          (doc-count (make-documentation "Count the number of ~a (all ~a by
+default). The FILTERS parameter can be used to filter the results. It consists
+of a list of filters, where each filter is a list of three elements: field name,
+operator, and value. Operator, a string, can be =, <>, <, >, <=, >=, is, is not,
+like, or ilike. Value is a string, number, :null, :true, or :false."
+                        (first tables) (first tables))))
+    `(progn
+       (defgeneric ,f-all (rbac &key page page-size fields filters order-by)
+         (:method ((rbac rbac-pg) &key
+                    (page 1)
+                    (page-size *default-page-size*)
+                    fields
+                    filters
+                    order-by)
+           (list-rows rbac ',tables
+             :page page :page-size page-size :fields fields
+             :filters filters :order-by order-by))
+         (:documentation ,doc-row))
+       (defgeneric ,f-names (rbac &key page page-size filters order-by)
+         (:method ((rbac rbac-pg) &key
+                    (page 1)
+                    (page-size *default-page-size*)
+                    filters
+                    order-by)
+           (list-rows rbac ',tables
+             :page page :page-size page-size
+             :filters filters :order-by order-by
+             :fields (list ,name-field) :result-type :column))
+         (:documentation ,doc-names))
+       (defgeneric ,f-count (rbac &key filters)
+         (:method ((rbac rbac-pg) &key filters)
+           (list-rows rbac ',tables
+             :filters filters :result-type :single :for-count t))
+         (:documentation ,doc-count)))))
+
+(defmacro define-list-functions-1 (&rest tables)
+  "Internal. See DEFINE-LIST-FUNCTIONS. This macro works exactly the same, except
+that the functions generated take an additional parameter representing the object
+for which you want a list. For example, if the tables 'users' and 'roles' are
+provided, the functions generated are list-user-roles, list-user-role-names, and
+user-role-count, and they accept a parameter USER representing the user for whom
+you want to list roles."
+  (let* ((fname (format nil "~a-~a"
+                  (singular (first tables)) (second tables)))
+          (f-all (name-to-identifier fname "LIST-~a"))
+          (f-names (name-to-identifier (singular fname) "LIST-~a-NAMES"))
+          (f-count (name-to-identifier (singular fname) "~a-COUNT"))
+          (name-field (table-name-field (car (last tables))))
+          (filter-field (table-name-field (car tables)))
+          (param (name-to-identifier (singular (first tables)) "~a"))
+          (doc-row (make-documentation "List information about ~a associated
+with ~a. Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE
+defaults to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FIELDS
+parameter, a list of strings, can be used to limit which fields are included in
+the result. The FILTERS parameter can be used to filter the results. It consists
+of a list of filters, where each filter is a list of three elements: field name,
+operator, and value. Operator, a string, can be =, <>, <, >, <=, >=, is, is not,
+like, or ilike. Value is a string, number, :null, :true, or :false. The ORDER-BY
+parameter is a list of strings that represent field names and are used to order
+the results. It defaults to (list \"~a\")."
+                     (second tables) param name-field))
+          (doc-names (make-documentation "List names of ~a associated with ~a.
+Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE defaults to
+1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FILTERS parameter can be
+used to filter the results. It consists of a list of filters, where each filter
+is a list of three elements: field name, operator, and value. Operator, a
+string, can be =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a
+string, number, :null, :true, or :false. The ORDER-BY parameter is a list of
+strings that represent field names and are used to order the results. It
+defaults to
+(list \"~a\")."
+                       (second tables) param name-field))
+          (doc-count (make-documentation "Count the number of ~a associated
+with ~a. The FILTERS parameter can be used to filter the results. It consists of
+a list of filters, where each filter is a list of three elements: field name,
+operator, and value. Operator, a string, can be one of =, <>, <, >, <=, >=, is,
+is not, like, ilike. Value is a string, number, :null, :true, or :false."
+                        (second tables) param)))
+
+    `(progn
+       (defgeneric ,f-all (rbac ,param &key page page-size fields filters order-by)
+         (:method ((rbac rbac-pg) (,param string) &key
+                    (page 1)
+                    (page-size *default-page-size*)
+                    fields
+                    filters
+                    order-by)
+           (list-rows rbac ',tables
+             :page page :page-size page-size :fields fields
+             :filters (cons (list ,filter-field "=" ,param) filters)
+             :order-by order-by))
+         (:documentation ,doc-row))
+       (defgeneric ,f-names (rbac ,param &key page page-size filters order-by)
+         (:method ((rbac rbac-pg) (,param string) &key
+                    (page 1)
+                    (page-size *default-page-size*)
+                    filters
+                    order-by)
+           (list-rows rbac ',tables
+             :page page :page-size page-size
+             :filters (cons (list ,filter-field "=" ,param) filters)
+             :fields (list ,name-field)
+             :order-by order-by :result-type :column))
+         (:documentation ,doc-names))
+       (defgeneric ,f-count (rbac ,param &key filters)
+         (:method ((rbac rbac-pg) (,param string) &key filters)
+           (list-rows rbac ',tables
+             :filters (cons (list ,filter-field "=" ,param) filters)
+             :result-type :single :for-count t))
+         (:documentation ,doc-count)))))
+
+(defmacro define-list-functions-2 (&rest tables)
+  "Internal. See DEFINE-LIST-FUNCTIONS and DEFINE-LIST-FUNCTIONS-1. This macro
+works exactly the same as those, except that the generated functions take two
+additional parameters representing the objects for which you want a list. For
+example, if the tables 'users', 'roles', 'permissions', and 'resources' are
+provided, the following functions are generated: list-user-resources,
+list-user-resource-names, and user-resource-count, and they accept the
+additional parameters USER and PERMISSION, such that resources are listed where
+USER has PERMISSION on the resource. Currently, only the following table
+combinations are supported: (users, roles, permissions, resources)
+and (resources, roles, permissions, users)."
+  (let* ((fname (if (string= (car tables) "users")
+                  "user-resources"
+                  "resource-users"))
+          (f-all (name-to-identifier fname "LIST-~a"))
+          (f-names (name-to-identifier (singular fname) "LIST-~a-NAMES"))
+          (f-count (name-to-identifier (singular fname) "~a-COUNT"))
+          (name-field (format nil "~a.~a"
+                        (gethash (car (last tables)) *table-aliases*)
+                        (table-name-field (car (last tables)))))
+          (filter-field-1 (table-name-field (car tables)))
+          (filter-field-2 (table-name-field (third tables)))
+          (param (if (string= fname "user-resources")
+                   (name-to-identifier "user" "~a")
+                   (name-to-identifier "resource" "~a")))
+          (doc-row (make-documentation "List information about ~a ~a where
+the user has PERMISSION on the resource. Pagination is supported via the PAGE
+and PAGE-SIZE parameters. PAGE defaults to 1 and PAGE-SIZE defaults to
+*DEFAULT-PAGE-SIZE*. The FIELDS parameter, a list of strings, can be used to
+limit which fields are included in the result. The FILTERS parameter can be used
+to filter the results. It consists of a list of filters, where each filter is a
+list of three elements: field name, operator, and value. Operator, a string, can
+be =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a string, number,
+:null, :true, or :false. The ORDER-BY parameter is a list of strings that
+represent field names and are used to order the results. It defaults to (list
+\"~a\")."
+                     (singular (car tables)) (car (last tables)) name-field))
+          (doc-names (make-documentation "List ~a names of ~a where the user
+has PERMISSION on the resource. Pagination is supported via the PAGE and
+PAGE-SIZE parameters. PAGE defaults to 1 and PAGE-SIZE defaults to
+*DEFAULT-PAGE-SIZE*. The FILTERS parameter can be used to filter the results. It
+consists of a list of filters, where each filter is a list of three elements:
+field name, operator, and value. Operator, a string, can be =, <>, <, >, <=,
+>=, is, is not, like, or ilike. Value is a string, number, :null, :true, or
+:false. The ORDER-BY parameter is a list of strings that represent field names and
+are used to order the results. It defaults to (list \"~a\")."
+                       (singular (car (last tables))) (car tables) name-field))
+          (doc-count (make-documentation "Count the number of ~a ~a where the
+user has PERMISSION on the resource. The FILTERS parameter can be used to
+filter the results. It consists of a list of filters, where each filter is a
+list of three elements: field name, operator, and value. Operator, a string,
+can be one of =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a
+string, number, :null, :true, or :false. The ORDER-BY parameter is a list of
+strings that represent field names and are used to order the results. It
+defaults to (list \"~a\")."
+                       (singular (car tables)) (car (last tables)) name-field)))
+    `(progn
+       (defgeneric ,f-all (rbac ,param permission &key
+                            page page-size fields filters order-by)
+         (:method ((rbac rbac-pg) (,param string) (permission string) &key
+                    (page 1)
+                    (page-size *default-page-size*)
+                    fields
+                    filters
+                    order-by)
+           (list-rows rbac ',tables
+             :page page :page-size page-size :fields fields
+             :filters (append
+                        (list
+                          (list ,filter-field-1 "=" ,param)
+                          (list ,filter-field-2 "=" permission))
+                        filters)
+             :order-by order-by))
+         (:documentation ,doc-row))
+       (defgeneric ,f-names (rbac ,param permission &key
+                              page page-size filters order-by)
+         (:method ((rbac rbac-pg) (,param string) (permission string) &key
+                    (page 1)
+                    (page-size *default-page-size*)
+                    filters
+                    order-by)
+           (u:distinct-values
+             (list-rows rbac ',tables
+               :page page :page-size page-size
+               :filters (append
+                          (list
+                            (list ,filter-field-1 "=" ,param)
+                            (list ,filter-field-2 "=" permission))
+                          filters)
+               :order-by order-by
+               :fields (list ,name-field) :result-type :column)))
+         (:documentation ,doc-names))
+       (defgeneric ,f-count (rbac ,param permission &key filters)
+         (:method ((rbac rbac-pg) (,param string) (permission string) &key
+                    filters)
+           (list-rows rbac ',tables
+             :filters (append
+                        (list
+                          (list ,filter-field-1 "=" ,param)
+                          (list ,filter-field-2 "=" permission))
+                        filters)
+             :result-type :single :for-count t))
+         (:documentation ,doc-count)))))
+
 ;;
-;; Global functions
+;; Support functions
 ;;
+
 (defun report-errors (function-name errors &optional (fail-on-error t))
   "Internal. If ERRORS is not NIL, this function signals an error with a message
 that consists the strings in ERRORS, separated by spaces."
@@ -142,6 +452,79 @@ description field in several tables, and sometimes the description is optional
 when creating a new row. When a description is not provided, this function can
 be used to create a default description."
   (format nil "~@(~a~) '~a'" name value))
+
+(defun field-no-prefix (field)
+  "Internal. In SQL query strings, fields are often prefixed with the table alias,
+such as 'r.id' or 'rs.created_at'. This function removes the prefix and the dot,
+so that it returns just the field name, such as 'id' or 'created_at'. If FIELD
+doesn't have a prefix, it is returned unchanged."
+  (if (re:scan "\\." field)
+    (second (re:split "\\." field))
+    field))
+
+(defun make-insert-name-query (table name &rest other-fields)
+  "Internal. Generates an SQL insert statement with placeholders and values for
+inserting a new row into TABLE with fields NAME and OTHER-FIELDS. Returns a list
+where the first element is the SQL string and the remaaining elements are the
+values to be used. The return value is suitable for passing to rbac-query or
+rbac-query-single."
+  (let* ((name-field (table-name-field table))
+          (description-field (format nil "~a_description" (singular table)))
+          (additional-fields (cond
+                               ((equal table "users")
+                                 (list "email" "password_hash"))
+                               ((equal table "roles")
+                                 (list description-field "exclusive"))
+                               (t (list description-field))))
+          (all-fields (cons name-field additional-fields))
+          (values (cons name
+                    (cond
+                      ((equal table "users")
+                        (list
+                          ;; email
+                          (second other-fields)
+                          ;; password
+                          (password-hash name (third other-fields))))
+                      ((equal table "roles")
+                        (list
+                          ;; description
+                          (car other-fields)
+                          ;; exclusive
+                          (car (last other-fields))))
+                      (t (list
+                           ;; description
+                           (car other-fields))))))
+          (value-placeholders (loop for a from 1 to (length all-fields)
+                                collect (format nil "$~d" a))))
+    (cons
+      (format nil
+        "insert into ~a (~{~a~^, ~}) values (~{~a~^, ~}) returning id"
+        table all-fields value-placeholders)
+      values)))
+
+(defun link-table-p (rbac table)
+  "Internal. Checks if TABLE is a link table."
+  (let* ((parts (re:split "_" table)))
+    (and
+      (> (length parts) 1)
+      (every (lambda (p)
+               (or
+                 (table-exists-p rbac p)
+                 (table-exists-p rbac (plural p))))
+        parts))))
+
+(defun render-placeholder (value index)
+  "Internal. Given a string VALUE and an integer INDEX, this funtion returns a
+cons where the car is the number of values to be added to the query parameters
+(0 or 1) and the cdr is the placeholder string to be used in the SQL query.
+When VALUE is :null, :true, or :false, no value needs to be added to the query
+parameters, so the car of the returned cons is 0. When VALUE is any other value,
+the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
+  (cond
+    ((or (not value) (eql value :null)) (cons 0 "null"))
+    ((eql value :false) (cons 0 "false"))
+    ((eql value :true) (cons 0 "true"))
+    (t (cons 1 (format nil "$~d" index)))))
 
 ;;
 ;; Class definitions
@@ -426,15 +809,6 @@ database."))
   (:documentation "Internal. Returns T if FIELD exists in any RBAC table in the
 database."))
 
-(defun field-no-prefix (field)
-  "Internal. In SQL query strings, fields are often prefixed with the table alias,
-such as 'r.id' or 'rs.created_at'. This function removes the prefix and the dot,
-so that it returns just the field name, such as 'id' or 'created_at'. If FIELD
-doesn't have a prefix, it is returned unchanged."
-  (if (re:scan "\\." field)
-    (second (re:split "\\." field))
-    field))
-
 (defgeneric list-rows (rbac tables &key
                         fields filters order-by page page-size for-count
                         result-type)
@@ -702,46 +1076,6 @@ returns NIL."))
   (:documentation "Internal. Returns T if the login parameters validate.
 Otherwise, logs a warning and returns NIL."))
 
-(defun make-insert-name-query (table name &rest other-fields)
-  "Internal. Generates an SQL insert statement with placeholders and values for
-inserting a new row into TABLE with fields NAME and OTHER-FIELDS. Returns a list
-where the first element is the SQL string and the remaaining elements are the
-values to be used. The return value is suitable for passing to rbac-query or
-rbac-query-single."
-  (let* ((name-field (table-name-field table))
-          (description-field (format nil "~a_description" (singular table)))
-          (additional-fields (cond
-                               ((equal table "users")
-                                 (list "email" "password_hash"))
-                               ((equal table "roles")
-                                 (list description-field "exclusive"))
-                               (t (list description-field))))
-          (all-fields (cons name-field additional-fields))
-          (values (cons name
-                    (cond
-                      ((equal table "users")
-                        (list
-                          ;; email
-                          (second other-fields)
-                          ;; password
-                          (password-hash name (third other-fields))))
-                      ((equal table "roles")
-                        (list
-                          ;; description
-                          (car other-fields)
-                          ;; exclusive
-                          (car (last other-fields))))
-                      (t (list
-                           ;; description
-                           (car other-fields))))))
-          (value-placeholders (loop for a from 1 to (length all-fields)
-                                collect (format nil "$~d" a))))
-    (cons
-      (format nil
-        "insert into ~a (~{~a~^, ~}) values (~{~a~^, ~}) returning id"
-        table all-fields value-placeholders)
-      values)))
-
 (defgeneric check-insert-name-params (rbac table name &key
                                        description email password exclusive)
   (:method ((rbac rbac-pg) (table string) (name string) &key
@@ -886,17 +1220,6 @@ contains 2 table names, the function finds the and existing table that links the
 2 tables, and returns its name. If no such link table exists, the function
 signals an error."))
 
-(defun link-table-p (rbac table)
-  "Internal. Checks if TABLE is a link table."
-  (let* ((parts (re:split "_" table)))
-    (and
-      (> (length parts) 1)
-      (every (lambda (p)
-               (or
-                 (table-exists-p rbac p)
-                 (table-exists-p rbac (plural p))))
-        parts))))
-
 (defgeneric insert-link-sql (rbac table-1 table-2)
   (:method ((rbac rbac-pg) (table-1 string) (table-2 string))
     (l:pdebug :in "insert-link-sql" :table-1 table-1 :table-2 table-2)
@@ -992,19 +1315,6 @@ as described in the documentation for insert-link-sql."))
         filters)))
   (:documentation  "Internal. Checks that the operators in FILTERS are valid. A
 FILTER is a list of three elements: field name, operator, and value."))
-
-(defun render-placeholder (value index)
-  "Internal. Given a string VALUE and an integer INDEX, this funtion returns a
-cons where the car is the number of values to be added to the query parameters
-(0 or 1) and the cdr is the placeholder string to be used in the SQL query.
-When VALUE is :null, :true, or :false, no value needs to be added to the query
-parameters, so the car of the returned cons is 0. When VALUE is any other value,
-the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
-  (cond
-    ((or (not value) (eql value :null)) (cons 0 "null"))
-    ((eql value :false) (cons 0 "false"))
-    ((eql value :true) (cons 0 "true"))
-    (t (cons 1 (format nil "$~d" index)))))
 
 (defgeneric make-query (rbac tables &key
                          fields filters order-by page page-size for-count)
@@ -1429,300 +1739,6 @@ of the new resource_roles row."))
   (:documentation "Remove a role from a resource. Returns the ID of the removed
 resource role."))
 
-;; List function generators
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun name-to-identifier (name format)
-    "Internal. Convert NAME to an identifier using FORMAT."
-    (intern (format nil format (string-upcase (re:regex-replace "_" name "-")))))
-
-  (defun singular (string)
-    "Internal. If STRING ends with an 's', this function returns the string
-without the 's'at the end."
-    (re:regex-replace "s$" string ""))
-
-  (defun table-name-field (table &optional as-keyword)
-    "Internal. Returns the name field for TABLE. The name field is the singular
-form of the table name, with '_name' appended."
-    (format nil "~a~aname" (singular table) (if as-keyword "-" "_")))
-
-  (defun make-documentation (format-string &rest values)
-    "Internal. Creates documentation strings. FORMAT-STRING is a string with
-placeholders like '~a'. VALUES is a list of values for the placeholders. This
-function removes extra spaces."
-    (let* ((doc-1 (apply #'format (append (list nil format-string) values)))
-            (doc-2 (re:regex-replace-all "  +" doc-1 " "))
-            (lines (remove-if (lambda (s) (zerop (length s)))
-                     (re:split "\\n" doc-2)))
-            (doc-3 (format nil "~{~a~^ ~}" (mapcar #'u:trim lines))))
-      doc-3))
-
-  (defparameter *table-aliases*   (ds:ds '(:map
-                                            "users" "u"
-                                            "roles" "r"
-                                            "permissions" "p"
-                                            "resources" "s"
-                                            "role_permissions" "rp"
-                                            "role_users" "ru"
-                                            "resource_roles" "sr"))))
-
-(defmacro define-list-functions (&rest tables)
-  "Internal. This macro defines three list functions for the given tables: all,
-names, and count. The functions are named according to the tables provided. For
-example, if the table 'users' is provided as the only table, the functions are
-named list-users, list-user-names, and user-count. IF the table 'permissions' is
-provided, the functions are named list-permissions, list-permission-names, and
-permission-count. The all function lists all the rows in the results, in plist
-format. The names function returns a list of strings representing the values
-from the last table's name field of each row in the results. The count function
-returns the number of rows in the result.  Each function supports filtering, and
-the all and names functions support pagination, filtering, ordering, and field
-selection."
-  (let* ((fname (if (= (length tables) 1)
-                  (first tables)
-                  (format nil "~a-~a"
-                    (singular (first tables)) (second tables))))
-          (f-all (name-to-identifier fname "LIST-~a"))
-          (f-names (name-to-identifier (singular fname) "LIST-~a-NAMES"))
-          (f-count (name-to-identifier (singular fname) "~a-COUNT"))
-          (name-field (table-name-field (car (last tables))))
-          (doc-row (make-documentation "List information about ~a (all ~a by
-default). Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE
-defaults to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FIELDS
-parameter, a list of strings, can be used to limit which fields are included in
-the result. The FILTERS parameter can be used to filter the results. It consists
-of a list of filters, where each filter is a list of three elements: field name,
-operator, and value. Operator, a string, can be =, <>, <, >, <=, >=, is, is not,
-like, or ilike. Value is a string, number, :null, :true, or :false. The ORDER-BY
-parameter is a list of strings that represent field names and are used to order
-the results. It defaults to (list \"~a\")."
-                     (first tables) (first tables) name-field))
-          (doc-names (make-documentation "List of ~a names (all ~a by default).
-Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE defaults to
-1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FILTERS parameter can be
-used to filter the results. It consists of a list of filters, where each filter
-is a list of three elements: field name, operator, and value. Operator, a
-string, can be =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a
-string, number, :null, :true, or :false. The ORDER-BY parameter is a list of
-strings that represent field names and are used to order the results. It
-defaults to
-(list \"~a\")."
-                       (singular (first tables)) (first tables) name-field))
-          (doc-count (make-documentation "Count the number of ~a (all ~a by
-default). The FILTERS parameter can be used to filter the results. It consists
-of a list of filters, where each filter is a list of three elements: field name,
-operator, and value. Operator, a string, can be =, <>, <, >, <=, >=, is, is not,
-like, or ilike. Value is a string, number, :null, :true, or :false."
-                        (first tables) (first tables))))
-    `(progn
-       (defgeneric ,f-all (rbac &key page page-size fields filters order-by)
-         (:method ((rbac rbac-pg) &key
-                    (page 1)
-                    (page-size *default-page-size*)
-                    fields
-                    filters
-                    order-by)
-           (list-rows rbac ',tables
-             :page page :page-size page-size :fields fields
-             :filters filters :order-by order-by))
-         (:documentation ,doc-row))
-       (defgeneric ,f-names (rbac &key page page-size filters order-by)
-         (:method ((rbac rbac-pg) &key
-                    (page 1)
-                    (page-size *default-page-size*)
-                    filters
-                    order-by)
-           (list-rows rbac ',tables
-             :page page :page-size page-size
-             :filters filters :order-by order-by
-             :fields (list ,name-field) :result-type :column))
-         (:documentation ,doc-names))
-       (defgeneric ,f-count (rbac &key filters)
-         (:method ((rbac rbac-pg) &key filters)
-           (list-rows rbac ',tables
-             :filters filters :result-type :single :for-count t))
-         (:documentation ,doc-count)))))
-
-(defmacro define-list-functions-1 (&rest tables)
-  "Internal. See DEFINE-LIST-FUNCTIONS. This macro works exactly the same, except
-that the functions generated take an additional parameter representing the object
-for which you want a list. For example, if the tables 'users' and 'roles' are
-provided, the functions generated are list-user-roles, list-user-role-names, and
-user-role-count, and they accept a parameter USER representing the user for whom
-you want to list roles."
-  (let* ((fname (format nil "~a-~a"
-                  (singular (first tables)) (second tables)))
-          (f-all (name-to-identifier fname "LIST-~a"))
-          (f-names (name-to-identifier (singular fname) "LIST-~a-NAMES"))
-          (f-count (name-to-identifier (singular fname) "~a-COUNT"))
-          (name-field (table-name-field (car (last tables))))
-          (filter-field (table-name-field (car tables)))
-          (param (name-to-identifier (singular (first tables)) "~a"))
-          (doc-row (make-documentation "List information about ~a associated
-with ~a. Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE
-defaults to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FIELDS
-parameter, a list of strings, can be used to limit which fields are included in
-the result. The FILTERS parameter can be used to filter the results. It consists
-of a list of filters, where each filter is a list of three elements: field name,
-operator, and value. Operator, a string, can be =, <>, <, >, <=, >=, is, is not,
-like, or ilike. Value is a string, number, :null, :true, or :false. The ORDER-BY
-parameter is a list of strings that represent field names and are used to order
-the results. It defaults to (list \"~a\")."
-                     (second tables) param name-field))
-          (doc-names (make-documentation "List names of ~a associated with ~a.
-Pagination is supported via the PAGE and PAGE-SIZE parameters. PAGE defaults to
-1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*. The FILTERS parameter can be
-used to filter the results. It consists of a list of filters, where each filter
-is a list of three elements: field name, operator, and value. Operator, a
-string, can be =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a
-string, number, :null, :true, or :false. The ORDER-BY parameter is a list of
-strings that represent field names and are used to order the results. It
-defaults to
-(list \"~a\")."
-                       (second tables) param name-field))
-          (doc-count (make-documentation "Count the number of ~a associated
-with ~a. The FILTERS parameter can be used to filter the results. It consists of
-a list of filters, where each filter is a list of three elements: field name,
-operator, and value. Operator, a string, can be one of =, <>, <, >, <=, >=, is,
-is not, like, ilike. Value is a string, number, :null, :true, or :false."
-                        (second tables) param)))
-
-    `(progn
-       (defgeneric ,f-all (rbac ,param &key page page-size fields filters order-by)
-         (:method ((rbac rbac-pg) (,param string) &key
-                    (page 1)
-                    (page-size *default-page-size*)
-                    fields
-                    filters
-                    order-by)
-           (list-rows rbac ',tables
-             :page page :page-size page-size :fields fields
-             :filters (cons (list ,filter-field "=" ,param) filters)
-             :order-by order-by))
-         (:documentation ,doc-row))
-       (defgeneric ,f-names (rbac ,param &key page page-size filters order-by)
-         (:method ((rbac rbac-pg) (,param string) &key
-                    (page 1)
-                    (page-size *default-page-size*)
-                    filters
-                    order-by)
-           (list-rows rbac ',tables
-             :page page :page-size page-size
-             :filters (cons (list ,filter-field "=" ,param) filters)
-             :fields (list ,name-field)
-             :order-by order-by :result-type :column))
-         (:documentation ,doc-names))
-       (defgeneric ,f-count (rbac ,param &key filters)
-         (:method ((rbac rbac-pg) (,param string) &key filters)
-           (list-rows rbac ',tables
-             :filters (cons (list ,filter-field "=" ,param) filters)
-             :result-type :single :for-count t))
-         (:documentation ,doc-count)))))
-
-(defmacro define-list-functions-2 (&rest tables)
-  "Internal. See DEFINE-LIST-FUNCTIONS and DEFINE-LIST-FUNCTIONS-1. This macro
-works exactly the same as those, except that the generated functions take two
-additional parameters representing the objects for which you want a list. For
-example, if the tables 'users', 'roles', 'permissions', and 'resources' are
-provided, the following functions are generated: list-user-resources,
-list-user-resource-names, and user-resource-count, and they accept the
-additional parameters USER and PERMISSION, such that resources are listed where
-USER has PERMISSION on the resource. Currently, only the following table
-combinations are supported: (users, roles, permissions, resources)
-and (resources, roles, permissions, users)."
-  (let* ((fname (if (string= (car tables) "users")
-                  "user-resources"
-                  "resource-users"))
-          (f-all (name-to-identifier fname "LIST-~a"))
-          (f-names (name-to-identifier (singular fname) "LIST-~a-NAMES"))
-          (f-count (name-to-identifier (singular fname) "~a-COUNT"))
-          (name-field (format nil "~a.~a"
-                        (gethash (car (last tables)) *table-aliases*)
-                        (table-name-field (car (last tables)))))
-          (filter-field-1 (table-name-field (car tables)))
-          (filter-field-2 (table-name-field (third tables)))
-          (param (if (string= fname "user-resources")
-                   (name-to-identifier "user" "~a")
-                   (name-to-identifier "resource" "~a")))
-          (doc-row (make-documentation "List information about ~a ~a where
-the user has PERMISSION on the resource. Pagination is supported via the PAGE
-and PAGE-SIZE parameters. PAGE defaults to 1 and PAGE-SIZE defaults to
-*DEFAULT-PAGE-SIZE*. The FIELDS parameter, a list of strings, can be used to
-limit which fields are included in the result. The FILTERS parameter can be used
-to filter the results. It consists of a list of filters, where each filter is a
-list of three elements: field name, operator, and value. Operator, a string, can
-be =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a string, number,
-:null, :true, or :false. The ORDER-BY parameter is a list of strings that
-represent field names and are used to order the results. It defaults to (list
-\"~a\")."
-                     (singular (car tables)) (car (last tables)) name-field))
-          (doc-names (make-documentation "List ~a names of ~a where the user
-has PERMISSION on the resource. Pagination is supported via the PAGE and
-PAGE-SIZE parameters. PAGE defaults to 1 and PAGE-SIZE defaults to
-*DEFAULT-PAGE-SIZE*. The FILTERS parameter can be used to filter the results. It
-consists of a list of filters, where each filter is a list of three elements:
-field name, operator, and value. Operator, a string, can be =, <>, <, >, <=,
->=, is, is not, like, or ilike. Value is a string, number, :null, :true, or
-:false. The ORDER-BY parameter is a list of strings that represent field names and
-are used to order the results. It defaults to (list \"~a\")."
-                       (singular (car (last tables))) (car tables) name-field))
-          (doc-count (make-documentation "Count the number of ~a ~a where the
-user has PERMISSION on the resource. The FILTERS parameter can be used to
-filter the results. It consists of a list of filters, where each filter is a
-list of three elements: field name, operator, and value. Operator, a string,
-can be one of =, <>, <, >, <=, >=, is, is not, like, or ilike. Value is a
-string, number, :null, :true, or :false. The ORDER-BY parameter is a list of
-strings that represent field names and are used to order the results. It
-defaults to (list \"~a\")."
-                       (singular (car tables)) (car (last tables)) name-field)))
-    `(progn
-       (defgeneric ,f-all (rbac ,param permission &key
-                            page page-size fields filters order-by)
-         (:method ((rbac rbac-pg) (,param string) (permission string) &key
-                    (page 1)
-                    (page-size *default-page-size*)
-                    fields
-                    filters
-                    order-by)
-           (list-rows rbac ',tables
-             :page page :page-size page-size :fields fields
-             :filters (append
-                        (list
-                          (list ,filter-field-1 "=" ,param)
-                          (list ,filter-field-2 "=" permission))
-                        filters)
-             :order-by order-by))
-         (:documentation ,doc-row))
-       (defgeneric ,f-names (rbac ,param permission &key
-                              page page-size filters order-by)
-         (:method ((rbac rbac-pg) (,param string) (permission string) &key
-                    (page 1)
-                    (page-size *default-page-size*)
-                    filters
-                    order-by)
-           (u:distinct-values
-             (list-rows rbac ',tables
-               :page page :page-size page-size
-               :filters (append
-                          (list
-                            (list ,filter-field-1 "=" ,param)
-                            (list ,filter-field-2 "=" permission))
-                          filters)
-               :order-by order-by
-               :fields (list ,name-field) :result-type :column)))
-         (:documentation ,doc-names))
-       (defgeneric ,f-count (rbac ,param permission &key filters)
-         (:method ((rbac rbac-pg) (,param string) (permission string) &key
-                    filters)
-           (list-rows rbac ',tables
-             :filters (append
-                        (list
-                          (list ,filter-field-1 "=" ,param)
-                          (list ,filter-field-2 "=" permission))
-                        filters)
-             :result-type :single :for-count t))
-         (:documentation ,doc-count)))))
-
 ;;
 ;; List functions
 ;;
@@ -1797,3 +1813,62 @@ defaults to (list \"~a\")."
   (:documentation "List the names of the permissions that USER-NAME has on
 RESOURCE-NAME. Supports pagination via PAGE and PAGE-SIZE. PAGE defaults to 1
 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*"))
+
+;;
+;; Database initialization
+;;
+
+(defgeneric initialize-database (rbac admin-password)
+  (:method ((rbac rbac-pg) (admin-password string))
+    ;; Determine if the database is already initialized. We'll assume that it
+    ;; is if the admin user already exists.
+    (l:pdebug :in "initialize-database" :status "database initialized check")
+    (unless (get-id rbac "users" *admin*)
+
+      ;; Create initial permissions
+      (l:pdebug :in "initialize-database" :status "create initial permissions")
+      (loop for permission in *init-permissions*
+        for description = (format nil "Base permission '~a'." permission)
+        do (add-permission rbac permission :description description))
+
+      ;; Create initial roles
+      ;;
+      ;; Instead of the normal add-role function, we use the internal function
+      ;; insert-role here, because the admin user doesn't exist yet, and
+      ;; add-role links new roles to the admin user. This means that we'll have
+      ;; to link the role permissions ourselves, with the link function, which
+      ;; is another internal function.
+      (l:pdebug :in "initialize-database" :status "create initial roles")
+      (loop for role in *init-roles*
+        for description = (format nil "Base role '~a'." role)
+        for permissions = (if (equal role "admin")
+                            *default-permissions*
+                            (list "read"))
+        do
+        (insert-role rbac role :description description)
+        (loop for permission in permissions
+          do (link rbac "roles" "permissions" role permission)))
+
+      ;; Create the admin user
+      (l:pdebug :in "initialize-database" :status "create admin user")
+      (add-user rbac *admin* "no-email" admin-password :roles *init-roles*)
+
+      ;; Create the guest user
+      (l:pdebug :in "initialize-database" :status "create guest user")
+      (add-user rbac *guest* "no-email" "guest-password-1")
+
+      ;; The but the logged-in and public roles are automatically assigned to
+      ;; all new users, but the guest user should not have the logged-in role.
+      (remove-user-role rbac *guest* "logged-in")))
+  (:documentation "Idempotent function that checks if the database, given by
+RBAC, has been initialized. If not, then this function initializes the database,
+which involves creating some base permissions, roles, and users. The base
+permissions are 'create', 'read', 'update', and 'delete'. The base roles are
+'admin', 'admin:exclusive', 'logged-in', and 'public'. All of the roles have all
+the base permissions, except for the 'public' and 'logged-in' roles, which have
+the 'read' permission only. The base users are 'guest' and 'admin'. The 'guest'
+user is assigned the 'public' role and the 'admin' user is assigned all of the
+roles and created with the password ADMIN-PASSWORD. The 'guest' user doesn't
+need a password, so the bogus value 'guest-password-1' is used. The database is
+considered initialized if the 'admin' user already exists, in which case this
+function does nothing."))

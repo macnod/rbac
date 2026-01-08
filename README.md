@@ -265,6 +265,24 @@ Accessors and methods for manipulating [`RBAC`][898b] objects.
 
     Returns `T` when `ID` exists in `TABLE`.
 
+<a id="x-28RBAC-3AINITIALIZE-DATABASE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:INITIALIZE-DATABASE%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **INITIALIZE-DATABASE** *RBAC ADMIN-PASSWORD*
+
+    Idempotent function that checks if the database, given by
+    `RBAC`, has been initialized. If not, then this function initializes the database,
+    which involves creating some base permissions, roles, and users. The base
+    permissions are 'create', 'read', 'update', and 'delete'. The base roles are
+    'admin', 'admin:exclusive', 'logged-in', and 'public'. All of the roles have all
+    the base permissions, except for the 'public' and 'logged-in' roles, which have
+    the 'read' permission only. The base users are 'guest' and 'admin'. The 'guest'
+    user is assigned the 'public' role and the 'admin' user is assigned all of the
+    roles and created with the password `ADMIN-PASSWORD`. The 'guest' user doesn't
+    need a password, so the bogus value 'guest-password-1' is used. The database is
+    considered initialized if the 'admin' user already exists, in which case this
+    function does nothing.
+
 <a id="x-28RBAC-3ALIST-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>
 
