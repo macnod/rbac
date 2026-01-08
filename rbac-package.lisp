@@ -11,7 +11,6 @@
     *default-permissions*
     *default-resource-roles*
     *default-user-roles*
-    *max-page-size*
     add-permission
     add-resource
     add-resource-role
@@ -94,7 +93,6 @@
     user-name-regex
     user-resource-count
     user-role-count
-    usql
     valid-description-p
     valid-email-p
     valid-password-p

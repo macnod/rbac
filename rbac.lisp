@@ -22,33 +22,8 @@
 (defparameter *init-users* (list *admin* *guest*)
   "Users that are created when the RBAC database is first initialized.")
 
-(defparameter *default-permissions* *init-permissions*
+(defvar *default-permissions* *init-permissions*
   "Default permissions for a new role.")
-
-;; SQL to find tables that reference a table with a foreign key. We use this
-;; so that we can soft delete a row in a table, and then soft delete all the
-;; rows in other tables that reference the row in the first table. This is
-;; akin to a cascading delete, but we don't actually delete the rows.
-(defparameter *referencing-tables-sql*
-  "SELECT DISTINCT tc.table_name
-   FROM
-       information_schema.table_constraints tc
-       JOIN information_schema.referential_constraints rc
-           ON tc.constraint_name = rc.constraint_name
-           AND tc.table_schema = rc.constraint_schema
-       JOIN information_schema.constraint_table_usage ctu
-           ON rc.constraint_name = ctu.constraint_name
-           AND rc.constraint_schema = ctu.table_schema
-       JOIN information_schema.key_column_usage kcu
-           ON tc.constraint_name = kcu.constraint_name
-           AND tc.table_schema = kcu.table_schema
-           AND tc.table_name = kcu.table_name
-   WHERE
-       tc.constraint_type = 'FOREIGN KEY'
-       AND ctu.table_name = $1
-   ORDER BY tc.table_name"
-  "Internal. SQL query to find all tables that reference a table with a foreign
-key.")
 
 (defparameter *table-aliases*
   (ds:ds '(:map
@@ -68,7 +43,6 @@ key.")
 (defparameter *default-resource-roles* (list *admin*) "Internal.")
 
 (defparameter *default-page-size* 20 "Default page size")
-(defparameter *max-page-size* 1000 "Maximum page size")
 
 ;; Caches
 (defparameter *table-fields* nil "Internal. Cache of table field names.")
