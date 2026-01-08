@@ -33,7 +33,7 @@ test:
 	tests/run-tests "$(TEST_FILE)"
 
 test-ci:
-	export ADMIN_PASSWORD="admin-password-1"
+	ADMIN_PASSWORD="admin-password-1" \
 	ros run -- --disable-debugger --load "$(TEST_FILE)" --quit
 
 test-repl:
