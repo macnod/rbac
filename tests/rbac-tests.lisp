@@ -41,6 +41,14 @@
 
 ;; Test support
 (defparameter uuid-regex "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
+(defparameter *admin* "admin")
+(defparameter *admin-exclusive* (exclusive-role-for *admin*))
+(defparameter *guest* "guest")
+(defparameter *guest-exclusive* (exclusive-role-for *guest*))
+(defparameter *init-users* (list *admin* *guest*))
+(defparameter *init-roles* (list *admin* *admin-exclusive* *guest-exclusive*
+                             "logged-in" "public"))
+(defparameter *init-permissions* *default-permissions*)
 
 (setf *default-page-size* 1000)
 
@@ -48,13 +56,12 @@
   (make-log-stream "tests" *log-file* :append nil))
 
 (defun clear-database ()
-  (loop for user in (u:exclude (list-user-names *rbac*) "system")
+  (loop for user in (u:exclude (list-user-names *rbac*) *init-users*)
     do (remove-user *rbac* user))
   (loop for permission in (u:exclude (list-permission-names *rbac*)
-                            *default-permissions*)
+                            *init-permissions*)
     do (remove-permission *rbac* permission))
-  (loop for role in (u:exclude (list-role-names *rbac*)
-                      '("system" "system:exclusive" "logged-in" "public"))
+  (loop for role in (u:exclude (list-role-names *rbac*) *init-roles*)
     do (remove-role *rbac* role))
   (loop for resource in (list-resource-names *rbac*)
     do (remove-resource *rbac* resource))
@@ -85,7 +92,7 @@
 (test with-rbac
   (with-rbac (*rbac*)
     (is (= 1 (db:query "select count(*) from users where user_name = $1"
-               "system" :single)))))
+               *admin* :single)))))
 
 (test basic-operations
   (clear-database)
@@ -119,10 +126,10 @@
   ;; Add some resources
   (loop
     with resource-roles = (ds:ds
-                            '(:map
+                            `(:map
                                "test:resource-01" (:list "public")
                                "test:resource-02" (:list "logged-in")
-                               "test:resource-03" (:list "system")
+                               "test:resource-03" (:list ,*admin*)
                                "test:resource-04" (:list "role-a")
                                "test:resource-05" (:list "role-a")
                                "test:resource-06" (:list "role-c")
@@ -138,12 +145,12 @@
   ;; Check users, roles, permissions, and resources
   (is (equal (sort (cons "bogus-permission" *default-permissions*) #'string<)
         (list-permission-names *rbac*)))
-  (is (equal (u:safe-sort '("role-a" "role-b" "role-c" "role-d"
-                             "system" "logged-in" "public"))
+  (is (equal (u:safe-sort `("role-a" "role-b" "role-c" "role-d"
+                             ,*admin* "logged-in" "public"))
         (u:exclude-regex (list-role-names *rbac*) ":exclusive$")))
   (is (equal (loop for a from 1 to 7
                collect (format nil "user-~2,'0d" a))
-        (u:exclude (list-user-names *rbac*) "system")))
+        (u:exclude (list-user-names *rbac*) *init-users*)))
   (is (equal '("test:resource-01" "test:resource-02"
                 "test:resource-03" "test:resource-04"
                 "test:resource-05" "test:resource-06"
@@ -210,6 +217,20 @@
     ;; In fact, the user should have no permissions at all on the resource
     (is-false (list-user-resource-permission-names *rbac* user resource))))
 
+(test new-item-roles
+  (clear-database)
+  (add-user *rbac* "user-1" "no-email" "password-01")
+  (is (equal *default-user-roles* (list-user-role-names *rbac* "user-1")))
+  (add-resource *rbac* "resource-1")
+  (is (equal *default-resource-roles*
+        (list-resource-role-names *rbac* "resource-1"))))
+
+(test new-role-permissions
+  (clear-database)
+  (add-role *rbac* "role-1")
+  (is (equal *default-permissions*
+        (list-role-permission-names *rbac* "role-1"))))
+
 (test permissions-via-multiple-roles
   (clear-database)
   (add-role *rbac* "role-1" :permissions '("read"))
@@ -240,23 +261,23 @@
   (clear-database)
   (with-rbac (*rbac*)
     (is (= 1 (db:query "select count(*) from users where user_name = $1"
-               "system" :single)))
+               *admin* :single)))
     (is (= 1 (rbac-query-single
                '("select count(*) from users where user_name = $1"
-                  "system"))))
+                  *admin*))))
     (is (= 1 (rbac-query
                '("select count(*) from users where user_name = $1"
-                  "system")
+                  *admin*)
                :single)))
-    (is (equal '("system")
+    (is (equal (list *admin*)
           (rbac-query
             '("select user_name from users where user_name = $1"
-               "system")
+               *admin*)
             :column)))
-    (is (equal '((:user-name "system" :email "no-email"))
+    (is (equal '((:user-name *admin* :email "no-email"))
           (rbac-query
             '("select user_name, email from users where user_name = $1"
-               "system")
+               *admin*)
             :plists)))))
 
 (test utils
@@ -693,8 +714,8 @@
   (add-user *rbac* "user-1" "no-email" "password-01")
   (add-user *rbac* "user-2" "no-email" "password-02")
   (let ((users (list-users *rbac*)))
-    (is (= 3 (length users)))
-    (is (equal '("system" "user-1" "user-2")
+    (is (= 4 (length users)))
+    (is (equal (append *init-users* (list "user-1" "user-2"))
           (mapcar (lambda (user) (getf user :user-name)) users)))
     (is-true (every (lambda (u) (is-uuid (getf u :id))) users))
     (is-true (every (lambda (u) (integerp (getf u :created-at))) users))
@@ -704,8 +725,9 @@
     (is-true (every (lambda (u)
                       (re:scan "^[a-f0-9]{32}$" (getf u :password-hash)))
                users)))
-  (is (equal '("system" "user-1" "user-2") (list-user-names *rbac*)))
-  (is (= 3 (user-count *rbac*))))
+  (is (equal (append *init-users* (list "user-1" "user-2"))
+        (list-user-names *rbac*)))
+  (is (= 4 (user-count *rbac*))))
 
 (test list-roles
   (clear-database)
@@ -713,7 +735,7 @@
   (add-role *rbac* "role-2")
   (let ((all-roles (list-role-names *rbac*))
          (roles (list-roles *rbac*)))
-    (is (= 6 (length roles)))
+    (is (= 7 (length roles)))
     (is (equal all-roles (mapcar (lambda (r) (getf r :role-name)) roles)))
     (is-true (every (lambda (r) (is-uuid (getf r :id))) roles))
     (is-true (every (lambda (r) (integerp (getf r :created-at))) roles))

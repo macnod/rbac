@@ -8,7 +8,7 @@ create extension if not exists "uuid-ossp";
 
 --
 -- role-based access control (rbac) tables
--- 
+--
 
 -- users
 create table users (
@@ -183,7 +183,7 @@ begin
             and r.role_description = expected_role_description
             and r.exclusive = true
         ) then
-            raise exception 'Exclusive role % must have role_name ''%'' and role_description ''%''', 
+            raise exception 'Exclusive role % must have role_name ''%'' and role_description ''%''',
                 new.role_id, expected_role_name, expected_role_description;
         end if;
     end if;
@@ -204,10 +204,16 @@ execute function enforce_exclusive_role();
 
 insert into users (user_name, email, id, password_hash) values
     (
-        'system',                               -- user_name
+        'admin',                                -- user_name
         'no-email',                             -- email
         '0ed9f765-50ee-4e93-a711-f63db14b3cf5', -- id
         'a5ad2e9965d47e970d4d6b7e123dbdb5'      -- password_hash
+    ),
+    (
+        'guest',                                -- user_name
+        'no-email',                             -- email
+        '78b52fdc-57db-95b7-3dea-101d1a7d4a83', -- id
+        'ddc6cc21af9ae87db37962d28339d7b2'      -- password_hash
     );
 
 --
@@ -215,10 +221,10 @@ insert into users (user_name, email, id, password_hash) values
 --
 
 insert into roles (role_name, role_description, exclusive, id) values
-    -- System role
+    -- Admin role
     (
-        'system',
-        'Role for system operations. This role is not assigned to any user.',
+        'admin',
+        'Role with God-like access, for administrative operations.',
         false,
         '200f91db-d0c8-43d1-9430-72f1fd03b285'
     ),
@@ -234,12 +240,18 @@ insert into roles (role_name, role_description, exclusive, id) values
         false,
         'c9b6868a-0550-41eb-9c74-4d90e3ea03b5'
     ),
-    -- Exclusive roles. 
+    -- Exclusive roles.
     (
-        'system:exclusive',
-        'Exclusive role for user system.',
+        'admin:exclusive',
+        'Exclusive role for user admin.',
         true,
         '5afef606-07f8-4c7d-afe3-da66f00ed015'
+    ),
+    (
+        'guest:exclusive',
+        'Exclusive role for user guest.',
+        true,
+        '89c55ba2-7568-cad8-c5ec-b843a41f51a9'
     );
 
 --
@@ -276,42 +288,47 @@ insert into role_permissions (role_id, permission_id) values
     --
     -- General role permissions
     --
-    -- system: create, read, update, delete
+    -- admin: create, read, update, delete
     (
-        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- system role
+        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- admin role
         '1d8f1218-7518-4c17-80f6-edb9987e8a20'  -- create
     ),
     (
-        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- system role
+        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- admin role
         '784c7460-134e-4b06-9c80-d6db197a1bdf'  -- read
     ),
     (
-        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- system role
+        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- admin role
         '8563f298-df16-490d-aac1-92fea8dd196d'  -- update
     ),
     (
-        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- system role
+        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- admin role
         'f77b0d67-330a-4b0d-8166-d73229547f5f'  -- delete
     ),
     --
     -- Exclusive role permissions
     --
-    -- system:exclusive
+    -- admin:exclusive
     (
-        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- system:exclusive role
+        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- admin:exclusive role
         '1d8f1218-7518-4c17-80f6-edb9987e8a20'  -- create
     ),
     (
-        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- system:exclusive role
+        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- admin:exclusive role
         '784c7460-134e-4b06-9c80-d6db197a1bdf'  -- read
     ),
     (
-        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- system:exclusive role
+        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- admin:exclusive role
         '8563f298-df16-490d-aac1-92fea8dd196d'  -- update
     ),
     (
-        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- system:exclusive role
+        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- admin:exclusive role
         'f77b0d67-330a-4b0d-8166-d73229547f5f'  -- delete
+    ),
+    -- guest:exclusive
+    (
+        '89c55ba2-7568-cad8-c5ec-b843a41f51a9', -- admin:exclusive role
+        '784c7460-134e-4b06-9c80-d6db197a1bdf'  -- read
     ),
     --
     -- Public role permissions
@@ -337,14 +354,30 @@ insert into role_permissions (role_id, permission_id) values
 --
 
 insert into role_users (role_id, user_id) values
-    -- System role
+    -- Admin user roles
     (
-        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- system role
-        '0ed9f765-50ee-4e93-a711-f63db14b3cf5'  -- system user
+        '200f91db-d0c8-43d1-9430-72f1fd03b285', -- admin role
+        '0ed9f765-50ee-4e93-a711-f63db14b3cf5'  -- admin user
     ),
-    -- Exclusive roles
-    -- Each exclusive role has only one user
     (
-        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- system:exclusive
-        '0ed9f765-50ee-4e93-a711-f63db14b3cf5'  -- system user
+        'c9b6868a-0550-41eb-9c74-4d90e3ea03b5', -- public role
+        '0ed9f765-50ee-4e93-a711-f63db14b3cf5'  -- admin user
+    ),
+    (
+        '9ad10cfa-78fe-43af-a417-0f104b64766a', -- logged-in role
+        '0ed9f765-50ee-4e93-a711-f63db14b3cf5'  -- admin user
+    ),
+    (
+        '5afef606-07f8-4c7d-afe3-da66f00ed015', -- admin:exclusive
+        '0ed9f765-50ee-4e93-a711-f63db14b3cf5'  -- admin user
+    ),
+    -- Guest user roles. The guest user is the only one that
+    -- should never have a logged-in role.
+    (
+        'c9b6868a-0550-41eb-9c74-4d90e3ea03b5', -- public role
+        '78b52fdc-57db-95b7-3dea-101d1a7d4a83'  -- guest user
+    ),
+    (
+        '89c55ba2-7568-cad8-c5ec-b843a41f51a9', -- guest:exclusive
+        '78b52fdc-57db-95b7-3dea-101d1a7d4a83' -- guest user
     );

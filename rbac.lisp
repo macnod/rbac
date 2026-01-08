@@ -43,11 +43,14 @@ key.")
             "resource_roles" "sr"))
   "Internal. Mapping from table names to table aliases.")
 
+;; Users
+(defparameter *admin* "admin" "Administrator user name.")
+
 ;; These roles are assigned to new users
 (defparameter *default-user-roles*
   (u:safe-sort (list "public" "logged-in"))
   "Internal.")
-(defparameter *default-resource-roles* (list "system") "Internal.")
+(defparameter *default-resource-roles* (list *admin*) "Internal.")
 
 (defparameter *default-page-size* 20 "Default page size")
 (defparameter *max-page-size* 1000 "Maximum page size")
@@ -1273,6 +1276,8 @@ for this user only, and adds the user to the public and logged-in roles
     ;; Insert the role's permissions
     (loop for permission-name in permissions
       do (link rbac "roles" "permissions" role permission-name))
+    ;; Associate the role with the admin user
+    (link rbac "roles" "users" role *admin*)
     (l:pdebug :in "add-role" :status "created role"
       :role role :role-id (get-id rbac "roles" role))
     (get-id rbac "roles" role))

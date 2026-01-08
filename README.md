@@ -11,21 +11,21 @@
 - [4 Macros][d0c7]
 
 ###### \[in package RBAC\]
-This is a simple Role-Based Access Control ([`RBAC`][898b]) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class, together with accessors, methods, and functions for managing users, roles, permissions, and resources.
+This is a simple Role-Based Access Control ([`RBAC`][898b]) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class and functions for managing users, roles, permissions, and resources.
 
 ## Overview
 
-This library provides functions and initial `SQL` for supporting Role-Based Access Control.
+This library provides functions and initial SQL for supporting Role-Based Access Control (`RBAC`).
 
 The system provides users, roles, permissions, and resources. Users have roles. Roles have permissions. Resources also have roles. However, resources do not have users. To determine if user 'adam' has 'read' access to resource 'book', the user and the book must both have the same role and the role must have the 'read' permission.
 
-A role can be exclusive, which means that it can be associated with only one user. Whenever a user is created, with the d-add-user or add-user function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that single user only, and represents only that user when associated with a resource. In this way, it's possible to give a specific user access to the resource.
+A role can be exclusive, which means that it can be associated with only one user. Exclusive roles are managed by the system, so there's never any need to create or delete exclusive roles. However, you can manage the permission for an exclusive role. Whenever a user is created with the [`add-user`][e768] function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that user only. In this way, it's possible to give a specific user access to the resource. All users have a corresponding exclusive role, except for the `guest` user. You can obtaine the name of a user's exclusive role  with the `exclusive-role-for` function.
 
-All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission.
+All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user (that is, every user except for 'guest') has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission by default.
 
-Unless you specify specific permissions when creating a new role, it's permission default to 'create', 'read', 'update', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
+Unless you specify specific permissions when creating a new role, its permission defaults to 'create', 'read', 'update', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
 
-All new resources are created with the default roles 'system'. The 'system' role should never be assigned to a user.
+All new resources are created with the default role 'admin'.
 
 ## Installation
 
@@ -47,7 +47,10 @@ ros install macnod/dc-eclectic/v0.51
 `
 
 Then, you can install `rbac` like this:
-`ros install macnod/rbac/v0.2`
+
+`ros install macnod/rbac/vX.X`
+
+where X.X is the release.
 
 ### GitHub
 
@@ -59,23 +62,15 @@ git clone git@github.com:macnod/rbac.git
 cd rbac
 ```
 
-Then, install the dependencies in a similar fashion.
-
-### Quicklisp
-
-Clone the repo to a directory that Quicklisp or ASDF can see, such as ~/common-lisp. For example:
-
-```sh
-cd ~/common-lisp
-git clone git@github.com:macnod/rbac.git
-cd rbac
-```
-
-Then, Quicklisp will take care of installing any additional dependencies.
+Then, install the macnod dependencies in a similar fashion. If use Quicklisp, then Quicklisp will take care of installing the other dependencies (non-macnod) when you do `(ql:quickload :rbac)`.
 
 ## Usage
 
-See the API reference below for details.
+One way to use the `RBAC` library is to create a project that includes the `RBAC` init.sql file. You might want to edit the init.sql file to change the database name, for example, or to add some tables.
+
+Your project should start PostgreSQL, initialize the database with init.sql (if that hasn't already been done), and load the `RBAC` library.
+
+Your project can then use the library via the `RBAC` API.
 
 <a id="x-28RBAC-3A-40RBAC-EXAMPLES-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION"></a>
@@ -86,30 +81,63 @@ Usage examples.
 
 ```lisp
 (require :rbac)
-
 (defpackage :rbac-example (:use :cl :rbac))
-
 (in-package :rbac-example)
 
+;; Connect to the databse
 (defparameter *rbac* (make-instance 'rbac-pg
-                       :host *db-host*
-                       :port *db-port*
-                       :user-name *db-user*
-                       :password *db-password*))
+                       :host "127.0.0.1"
+                       :port "5432"
+                       :user-name "rbac"
+                       :password "rbac-password"))
 
+;; Add a bogus permission
 (add-permission *rbac* "bogus-permission")
+
+;; Add some roles. The first role has the "read" permission only.
 (add-role *rbac* "role-a" :permissions '("read"))
+
+;; role-b has the default permissions, "create", "read", "update",
+;; and "delete".
 (add-role *rbac* "role-b")
+
+;; role-c has the default permissions plus the "bogus-permission".
 (add-role *rbac* "role-c"
   :permissions (cons "bogus-permission" *default-permissions*))
+
+;; role-d has only the "bogus" permission only.
 (add-role *rbac* "role-d"
   :permissions '("bogus-permission"))
-(add-user *rbac* "user-1" "user-1@example.com" "password-01" :roles roles)
-(add-resource *rbac* "test:resource-1" :roles "public")
+
+;; Add a user with roles "role-a" and "role-b"
+(add-user *rbac* "user-1" "user-1@example.com" "password-01"
+    :roles '("role-a" "role-b")
+
+;; Add a resource that is accessible to the public
+(add-resource *rbac* "test:resource-1"
+    :roles '("public" "role-b"))
+
+;; Should list 3 users: "admin", "guest", and the user we just
+;; added, "user-1"
 (list-user-names *rbac*)
+
+;; Should list the default permissions
 (list-permission-names *rbac*)
+
+;; Lists the roles for user "user-1", including "role-a" and
+;; "role-b", which we assigned, the user's exclusive role,
+;; "user-1:exclusive", which the system assigned, and the
+;; "logged-in" role, also assigned by the system.
 (list-user-role-names *rbac* "user-1")
+
+;; Lists the permissions that "user-1" has on resource
+;; "test:resource-1", which should be all the permissions from
+;; the roles that the user and the resource share, "public"
+;; and "role-b". This amounts to all the default permissions.
 (list-user-resource-permission-names *rbac* "user-1" "test:resource-1")
+
+;; Returns T, because "read" is among the permissions that
+;; the user has on the resource.
 (user-allowed *rbac* "user-1" "read" "test:resource-1")
 ```
 
@@ -686,3 +714,4 @@ Exported macros.
   [967f]: #RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION "Examples"
   [bd0a]: #RBAC:@RBAC-CLASSES%20MGL-PAX:SECTION "Classes"
   [d0c7]: #RBAC:@RBAC-MACROS%20MGL-PAX:SECTION "Macros"
+  [e768]: #RBAC:ADD-USER%20GENERIC-FUNCTION "RBAC:ADD-USER GENERIC-FUNCTION"
