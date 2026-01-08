@@ -12,6 +12,11 @@ Usage examples.
                        :user-name "rbac"
                        :password "rbac-password"))
 
+;; Initialize the database. This will create the base users,
+;; roles, and permissions. The password would normally come
+;; from an environment variable.
+(initialize-database *rbac* "admin-password-1")
+
 ;; Add a bogus permission
 (add-permission *rbac* "bogus-permission")
 
