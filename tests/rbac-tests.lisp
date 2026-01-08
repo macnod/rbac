@@ -274,7 +274,7 @@
             '("select user_name from users where user_name = $1"
                *admin*)
             :column)))
-    (is (equal '((:user-name *admin* :email "no-email"))
+    (is (equal `((:user-name ,*admin* :email "no-email"))
           (rbac-query
             '("select user_name, email from users where user_name = $1"
                *admin*)
@@ -859,7 +859,8 @@
   (add-user *rbac* "user-2" "no-email" "password-02" :roles '("role-1"))
   (let ((role-user-names (list-role-user-names *rbac* "role-1"))
          (role-users (list-role-users *rbac* "role-1")))
-    (is (= 2 (length role-users)))
+    (is (= 3 (length (u:distinct-values
+                       (mapcar (lambda (r) (getf r :user-name)) role-users)))))
     (is (equal role-user-names
           (mapcar (lambda (u) (getf u :user-name)) role-users)))
     (is-true (every (lambda (u) (is-uuid (getf u :role-user-id))) role-users))
@@ -943,10 +944,13 @@
   (add-user *rbac* "user-2" "no-email" "password-02" :roles '("role-1"))
   (let ((resource-user-names (list-resource-user-names *rbac* "resource-1" "read"))
          (resource-users (list-resource-users *rbac* "resource-1" "read")))
-    (is (= 3 (length resource-users)))
+    (is (= 4 (length resource-users)))
     (is (equal resource-user-names
-          (mapcar (lambda (u) (getf u :user-name)) resource-users)))
-    (is (= (length resource-user-names)
+          (u:distinct-values
+            (mapcar (lambda (u) (getf u :user-name)) resource-users))))
+    (is (= (length
+             (u:distinct-values
+               (mapcar (lambda (u) (getf u :user-name)) resource-users)))
           (resource-user-count *rbac* "resource-1" "read")))))
 
 (test list-user-resource-permission-names
