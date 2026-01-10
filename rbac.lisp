@@ -1846,6 +1846,7 @@ to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*"))
         (funcall log :info "skipping initialization"
           "database already initialized")
         (return-from initialize-database))
+      (funcall log :debug "users table is empty; initializing database")
       ;; Create initial permissions
       (l:pdebug :in "initialize-database" :status "create initial permissions")
       (loop for permission in *init-permissions*
