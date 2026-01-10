@@ -134,8 +134,11 @@
              "examples-src.md")))
 
 (defun generate-readme ()
-  (let ((file-name (u:join-paths
-                     (asdf:system-relative-pathname :rbac #P"")
-                     "README.md")))
-    (with-open-file (stream file-name :direction :output :if-exists :supersede)
-      (document @rbac-manual :format :markdown :stream stream))))
+  (let* ((file-name (u:join-paths
+                      (asdf:system-relative-pathname :rbac #P"")
+                      "README.md"))
+          (raw-doc (with-output-to-string (s)
+                     (document @rbac-manual :format :markdown :stream s)))
+          (final-doc (re:regex-replace-all ":public: " raw-doc "")))
+    (u:spew final-doc file-name)
+    t))

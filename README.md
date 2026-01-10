@@ -160,49 +160,49 @@ Usage examples.
 
 - [class] **RBAC-PG** *RBAC*
 
-    \[public\] `RBAC` database class for PostgreSQL.
+    `RBAC` database class for PostgreSQL.
 
 <a id="x-28RBAC-3ADB-HOST-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-HOST%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
 - [accessor] **DB-HOST** *RBAC-PG (:DB-HOST = "postgres")*
 
-    \[public\] Host name for connecting to the `RBAC` database.
+    Host name for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-NAME-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-NAME%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
 - [accessor] **DB-NAME** *RBAC-PG (:DB-NAME = "rbac")*
 
-    \[public\] Name of the `RBAC` database.
+    Name of the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-PASSWORD-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-PASSWORD%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
 - [accessor] **DB-PASSWORD** *RBAC-PG (:DB-PASSWORD = "")*
 
-    \[public\] Password for connecting to the `RBAC` database.
+    Password for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-PORT-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-PORT%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
 - [accessor] **DB-PORT** *RBAC-PG (:DB-PORT = 5432)*
 
-    \[public\] Port number for connecting to the `RBAC` database.
+    Port number for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-USER-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-USER%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
 - [accessor] **DB-USER** *RBAC-PG (:DB-USER = "cl-user")*
 
-    \[public\] User name for connecting to the `RBAC` database.
+    User name for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3AEMAIL-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:EMAIL-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **EMAIL-LENGTH-MAX** *RBAC (:EMAIL-LENGTH-MAX = 128)*
 
-    \[public\] Maximum length of an email address.
+    Maximum length of an email address.
 
 <a id="x-28RBAC-3AEMAIL-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:EMAIL-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
@@ -210,21 +210,21 @@ Usage examples.
 - [accessor] **EMAIL-REGEX** *RBAC (:EMAIL-REGEX =
  "^\[a-zA-Z0-9\]\[-a-zA-Z0-9.\_%+\]+@(\[a-zA-Z0-9\]+)(\\\\.?\[-a-zA-Z0-9\])+\\\\.\[a-zA-Z\]{2,}$|^no-email$")*
 
-    \[public\] Regex for validation of email address strings.
+    Regex for validation of email address strings.
 
 <a id="x-28RBAC-3APASSWORD-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:PASSWORD-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **PASSWORD-LENGTH-MAX** *RBAC (:PASSWORD-LENGTH-MAX = 64)*
 
-    \[public\] Maximum length of password string.
+    Maximum length of password string.
 
 <a id="x-28RBAC-3APASSWORD-LENGTH-MIN-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:PASSWORD-LENGTH-MIN%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **PASSWORD-LENGTH-MIN** *RBAC (:PASSWORD-LENGTH-MIN = 6)*
 
-    \[public\] Minimum length of password string.
+    Minimum length of password string.
 
 <a id="x-28RBAC-3APASSWORD-REGEXES-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:PASSWORD-REGEXES%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
@@ -232,7 +232,7 @@ Usage examples.
 - [accessor] **PASSWORD-REGEXES** *RBAC (:PASSWORD-REGEXES =
  (LIST "^\[\\\\x00-\\\\x7f\]+$" "\[a-zA-Z\]" "\[-!@#$%^\&\*()+={}\[\]|:;\<>,.?/~\`\]" "\[0-9\]"))*
 
-    \[public\] List of regular expressions that a valid password must match.
+    List of regular expressions that a valid password must match.
     Every regex in the list must match.
 
 <a id="x-28RBAC-3APERMISSION-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
@@ -240,56 +240,56 @@ Usage examples.
 
 - [accessor] **PERMISSION-LENGTH-MAX** *RBAC (:PERMISSION-LENGTH-MAX = 64)*
 
-    \[public\] Maximum length of permission name string.
+    Maximum length of permission name string.
 
 <a id="x-28RBAC-3APERMISSION-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:PERMISSION-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **PERMISSION-REGEX** *RBAC (:PERMISSION-REGEX = "^\[a-z\](\[-a-z0-9\_.+\]\*\[a-z0-9\])\*(:\[a-z\]+)?$")*
 
-    \[public\] Regex for validating permission name strings.
+    Regex for validating permission name strings.
 
 <a id="x-28RBAC-3ARESOURCE-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:RESOURCE-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **RESOURCE-LENGTH-MAX** *RBAC (:RESOURCE-LENGTH-MAX = 512)*
 
-    \[public\] Maximum length of resource name string.
+    Maximum length of resource name string.
 
 <a id="x-28RBAC-3ARESOURCE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:RESOURCE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9\]\[-a-zA-Z0-9\]\*$")*
 
-    \[public\] Defaults to an absolute directory path string that ends with /
+    Defaults to an absolute directory path string that ends with /
 
 <a id="x-28RBAC-3AROLE-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:ROLE-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **ROLE-LENGTH-MAX** *RBAC (:ROLE-LENGTH-MAX = 64)*
 
-    \[public\] Maximum length of role name string.
+    Maximum length of role name string.
 
 <a id="x-28RBAC-3AROLE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:ROLE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **ROLE-REGEX** *RBAC (:ROLE-REGEX = "^\[a-z\](\[-a-z0-9\_.+\]\*\[a-z0-9\])\*(:\[a-z\]+)?$")*
 
-    \[public\] Regex for validating role name strings.
+    Regex for validating role name strings.
 
 <a id="x-28RBAC-3AUSER-NAME-LENGTH-MAX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:USER-NAME-LENGTH-MAX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **USER-NAME-LENGTH-MAX** *RBAC (:USER-NAME-LENGTH-MAX = 64)*
 
-    \[public\] Maximum length of user name string.
+    Maximum length of user name string.
 
 <a id="x-28RBAC-3AUSER-NAME-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:USER-NAME-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **USER-NAME-REGEX** *RBAC (:USER-NAME-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\_.+\]\*$")*
 
-    \[public\] Regex for validating user name strings.
+    Regex for validating user name strings.
 
 <a id="x-28RBAC-3A-40RBAC-FUNCTIONS-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION"></a>
@@ -303,7 +303,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-PERMISSION** *RBAC PERMISSION &KEY DESCRIPTION*
 
-    \[public\] Add a new permission and returns the ID of the
+    Add a new permission and returns the ID of the
     new entry.  `DESCRIPTION` is optional and auto-generated if not provided.
 
 <a id="x-28RBAC-3AADD-RESOURCE-20GENERIC-FUNCTION-29"></a>
@@ -311,7 +311,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-RESOURCE** *RBAC RESOURCE &KEY DESCRIPTION ROLES*
 
-    \[public\] Add a new resource and returns the ID of the
+    Add a new resource and returns the ID of the
     new entry. The resource is automatically linked to the roles in
     *default-resource-roles* plus any additional `ROLES` provided. `DESCRIPTION` is
     optional and auto-generated if not provided.
@@ -321,7 +321,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-RESOURCE-ROLE** *RBAC RESOURCE ROLE*
 
-    \[public\] Add an existing role to an existing resource.
+    Add an existing role to an existing resource.
     Returns the ID of the new resource\_roles row.
 
 <a id="x-28RBAC-3AADD-ROLE-20GENERIC-FUNCTION-29"></a>
@@ -329,7 +329,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-ROLE** *RBAC ROLE &KEY DESCRIPTION PERMISSIONS*
 
-    \[public\] Add a new `ROLE`. Description is optional and
+    Add a new `ROLE`. Description is optional and
     auto-generated if not provided. If the role name ends with ':exclusive', the
     role is marked as exclusive, so the `EXCLUSIVE` parameter is optional. `PERMISSIONS`
     is a list of permission names to add to the role, defaulting to
@@ -341,7 +341,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-ROLE-PERMISSION** *RBAC ROLE PERMISSION*
 
-    \[public\] Add an existing permission to an existing role.
+    Add an existing permission to an existing role.
     Returns the ID of the new role\_permissions row.
 
 <a id="x-28RBAC-3AADD-ROLE-USER-20GENERIC-FUNCTION-29"></a>
@@ -349,7 +349,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-ROLE-USER** *RBAC ROLE USER*
 
-    \[public\] Add an existing user to an existing role.
+    Add an existing user to an existing role.
     Returns the ID of the new role\_users row.
 
 <a id="x-28RBAC-3AADD-USER-20GENERIC-FUNCTION-29"></a>
@@ -357,7 +357,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-USER** *RBAC USER-NAME EMAIL PASSWORD &KEY ROLES*
 
-    \[public\] Add a new user. This creates an exclusive role,
+    Add a new user. This creates an exclusive role,
     which is for this user only, and adds the user to the public and logged-in roles
     (given by *default-user-roles*). Returns the new user's ID.
 
@@ -366,7 +366,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ADD-USER-ROLE** *RBAC USER ROLE*
 
-    \[public\] Add an existing role to an existing user.
+    Add an existing role to an existing user.
     Returns the ID of the new role\_users row.
 
 <a id="x-28RBAC-3AEXCLUSIVE-ROLE-FOR-20FUNCTION-29"></a>
@@ -374,21 +374,21 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [function] **EXCLUSIVE-ROLE-FOR** *USER-NAME*
 
-    \[public\] Returns the exclusive role for `USER-NAME`.
+    Returns the exclusive role for `USER-NAME`.
 
 <a id="x-28RBAC-3AGET-ID-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:GET-ID%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **GET-ID** *RBAC TABLE NAME*
 
-    \[public\] Returns the ID associated with `NAME` in `TABLE`.
+    Returns the ID associated with `NAME` in `TABLE`.
 
 <a id="x-28RBAC-3AGET-VALUE-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:GET-VALUE%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **GET-VALUE** *RBAC TABLE FIELD &REST SEARCH*
 
-    \[public\] Retrieves the value from `FIELD` in `TABLE` where
+    Retrieves the value from `FIELD` in `TABLE` where
     `SEARCH` points to a unique row. `TABLE` and `FIELD` are strings, and `SEARCH` is a
     series of field names and values that identify the row uniquely. `TABLE`, `FIELD`,
     and the field names in `SEARCH` must exist in the database. If no row is found,
@@ -399,14 +399,14 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **ID-EXISTS-P** *RBAC TABLE ID*
 
-    \[public\] Returns `T` when `ID` exists in `TABLE`.
+    Returns `T` when `ID` exists in `TABLE`.
 
 <a id="x-28RBAC-3AINITIALIZE-DATABASE-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:INITIALIZE-DATABASE%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **INITIALIZE-DATABASE** *RBAC ADMIN-PASSWORD*
 
-    \[public\] Idempotent function that checks if the database,
+    Idempotent function that checks if the database,
     given by `RBAC`, has been initialized. If not, then this function initializes the
     database, which involves creating some base permissions, roles, and users. The
     base permissions are 'create', 'read', 'update', and 'delete'. The base roles
@@ -424,133 +424,133 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **LIST-PERMISSION-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List of permission names (all permissions by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
+    List of permission names (all permissions by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
 
 <a id="x-28RBAC-3ALIST-PERMISSIONS-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-PERMISSIONS%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-PERMISSIONS** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about permissions (all permissions by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
+    List information about permissions (all permissions by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
 
 <a id="x-28RBAC-3ALIST-RESOURCE-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-RESOURCE-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-RESOURCE-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List of resource names (all resources by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+    List of resource names (all resources by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
 
 <a id="x-28RBAC-3ALIST-RESOURCE-ROLE-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-RESOURCE-ROLE-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-RESOURCE-ROLE-NAMES** *RBAC RESOURCE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List names of roles associated with `RESOURCE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+    List names of roles associated with `RESOURCE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
 
 <a id="x-28RBAC-3ALIST-RESOURCE-ROLES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-RESOURCE-ROLES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-RESOURCE-ROLES** *RBAC RESOURCE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about roles associated with `RESOURCE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+    List information about roles associated with `RESOURCE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
 
 <a id="x-28RBAC-3ALIST-RESOURCE-USER-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-RESOURCE-USER-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-RESOURCE-USER-NAMES** *RBAC RESOURCE PERMISSION &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List user names of resources where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
+    List user names of resources where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
 
 <a id="x-28RBAC-3ALIST-RESOURCE-USERS-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-RESOURCE-USERS%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-RESOURCE-USERS** *RBAC RESOURCE PERMISSION &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about resource users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
+    List information about resource users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
 
 <a id="x-28RBAC-3ALIST-RESOURCES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-RESOURCES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-RESOURCES** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about resources (all resources by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+    List information about resources (all resources by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List of role names (all roles by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+    List of role names (all roles by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-PERMISSION-NAMES** *RBAC ROLE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List names of permissions associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
+    List names of permissions associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-PERMISSIONS-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-PERMISSIONS%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-PERMISSIONS** *RBAC ROLE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about permissions associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
+    List information about permissions associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "permission\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-RESOURCE-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-RESOURCE-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-RESOURCE-NAMES** *RBAC ROLE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List names of resources associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+    List names of resources associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-RESOURCES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-RESOURCES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-RESOURCES** *RBAC ROLE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about resources associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
+    List information about resources associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "resource\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-USER-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-USER-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-USER-NAMES** *RBAC ROLE &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List names of users associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
+    List names of users associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
 
 <a id="x-28RBAC-3ALIST-ROLE-USERS-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLE-USERS%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLE-USERS** *RBAC ROLE &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about users associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
+    List information about users associated with `ROLE`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
 
 <a id="x-28RBAC-3ALIST-ROLES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-ROLES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-ROLES** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about roles (all roles by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+    List information about roles (all roles by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
 
 <a id="x-28RBAC-3ALIST-USER-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USER-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-USER-NAMES** *RBAC &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List of user names (all users by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
+    List of user names (all users by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
 
 <a id="x-28RBAC-3ALIST-USER-RESOURCE-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USER-RESOURCE-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-USER-RESOURCE-NAMES** *RBAC USER PERMISSION &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List resource names of users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+    List resource names of users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
 
 <a id="x-28RBAC-3ALIST-USER-RESOURCE-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USER-RESOURCE-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-USER-RESOURCE-PERMISSION-NAMES** *RBAC USER-NAME RESOURCE-NAME &KEY PAGE PAGE-SIZE*
 
-    \[public\] List the names of the permissions that `USER-NAME`
+    List the names of the permissions that `USER-NAME`
     has on `RESOURCE-NAME`. Supports pagination via `PAGE` and `PAGE-SIZE`. `PAGE` defaults
     to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]
 
@@ -559,35 +559,35 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **LIST-USER-RESOURCES** *RBAC USER PERMISSION &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about user resources where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+    List information about user resources where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
 
 <a id="x-28RBAC-3ALIST-USER-ROLE-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USER-ROLE-NAMES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-USER-ROLE-NAMES** *RBAC USER &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
-    \[public\] List names of roles associated with `USER`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+    List names of roles associated with `USER`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
 
 <a id="x-28RBAC-3ALIST-USER-ROLES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USER-ROLES%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-USER-ROLES** *RBAC USER &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about roles associated with `USER`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
+    List information about roles associated with `USER`. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "role\_name").
 
 <a id="x-28RBAC-3ALIST-USERS-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USERS%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LIST-USERS** *RBAC &KEY PAGE PAGE-SIZE FIELDS FILTERS ORDER-BY*
 
-    \[public\] List information about users (all users by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
+    List information about users (all users by default). Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FIELDS` parameter, a list of strings, can be used to limit which fields are included in the result. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "user\_name").
 
 <a id="x-28RBAC-3ALOGIN-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LOGIN%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **LOGIN** *RBAC USER-NAME PASSWORD*
 
-    \[public\] If `USER-NAME` exists and `PASSWORD` is correct,
+    If `USER-NAME` exists and `PASSWORD` is correct,
     update last\_login for `USER-NAME` and return the user ID. Otherwise, return `NIL`.
 
 <a id="x-28RBAC-3APASSWORD-HASH-20FUNCTION-29"></a>
@@ -595,7 +595,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [function] **PASSWORD-HASH** *USER-NAME PASSWORD*
 
-    \[public\] Returns the hash of `PASSWORD`, using `USER-NAME` as the salt. This
+    Returns the hash of `PASSWORD`, using `USER-NAME` as the salt. This
     is how `RBAC` stores the password in the database.
 
 <a id="x-28RBAC-3APASSWORD-HASH-20FUNCTION-29"></a>
@@ -603,7 +603,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [function] **PASSWORD-HASH** *USER-NAME PASSWORD*
 
-    \[public\] Returns the hash of `PASSWORD`, using `USER-NAME` as the salt. This
+    Returns the hash of `PASSWORD`, using `USER-NAME` as the salt. This
     is how `RBAC` stores the password in the database.
 
 <a id="x-28RBAC-3APERMISSION-COUNT-20GENERIC-FUNCTION-29"></a>
@@ -611,14 +611,14 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **PERMISSION-COUNT** *RBAC &KEY FILTERS*
 
-    \[public\] Count the number of permissions (all permissions by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of permissions (all permissions by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3ARBAC-QUERY-20FUNCTION-29"></a>
 <a id="RBAC:RBAC-QUERY%20FUNCTION"></a>
 
 - [function] **RBAC-QUERY** *SQL-TEMPLATE-AND-PARAMETERS &OPTIONAL (RESULT-TYPE :PLISTS)*
 
-    \[public\] Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
+    Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
     list of rows, and executes that query. `SQL-TEMPLATE-AND-PARAMETERS` is a list
     where the first element is an `SQL` string (optionally with placeholders) and the
     rest of the elements are values that are used to replace the placeholders in the
@@ -630,7 +630,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [function] **RBAC-QUERY-SINGLE** *SQL-TEMPLATE-AND-PARAMETERS*
 
-    \[public\] Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
+    Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
     single value, and executes that query. `SQL-TEMPLATE-AND-PARAMETERS` is a list
     where the first element is an `SQL` string (optionally with placeholders) and the
     rest of the elements are the values that are used to replace the placeholders in
@@ -641,7 +641,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-PERMISSION** *RBAC PERMISSION*
 
-    \[public\] Remove `PERMISSION` from the database. Returns the
+    Remove `PERMISSION` from the database. Returns the
     ID of the removed permission.
 
 <a id="x-28RBAC-3AREMOVE-RESOURCE-20GENERIC-FUNCTION-29"></a>
@@ -649,7 +649,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-RESOURCE** *RBAC RESOURCE*
 
-    \[public\] Remove `RESOURCE` from the database. Returns the
+    Remove `RESOURCE` from the database. Returns the
     ID of the removed resource.
 
 <a id="x-28RBAC-3AREMOVE-RESOURCE-ROLE-20GENERIC-FUNCTION-29"></a>
@@ -657,7 +657,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-RESOURCE-ROLE** *RBAC RESOURCE ROLE*
 
-    \[public\] Remove a role from a resource. Returns the ID of
+    Remove a role from a resource. Returns the ID of
     the removed resource role.
 
 <a id="x-28RBAC-3AREMOVE-ROLE-20GENERIC-FUNCTION-29"></a>
@@ -665,7 +665,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-ROLE** *RBAC ROLE*
 
-    \[public\] Remove a role from the database. Returns the ID
+    Remove a role from the database. Returns the ID
     of the removed role.
 
 <a id="x-28RBAC-3AREMOVE-ROLE-PERMISSION-20GENERIC-FUNCTION-29"></a>
@@ -673,7 +673,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-ROLE-PERMISSION** *RBAC ROLE PERMISSION*
 
-    \[public\] Remove a permission from a role. Returns the ID
+    Remove a permission from a role. Returns the ID
     of the removed role-permission.
 
 <a id="x-28RBAC-3AREMOVE-ROLE-USER-20GENERIC-FUNCTION-29"></a>
@@ -681,7 +681,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-ROLE-USER** *RBAC ROLE USER*
 
-    \[public\] Remove a user from a role. Returns the ID of the
+    Remove a user from a role. Returns the ID of the
     removed role user.
 
 <a id="x-28RBAC-3AREMOVE-USER-20GENERIC-FUNCTION-29"></a>
@@ -689,14 +689,14 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **REMOVE-USER** *RBAC USER-NAME*
 
-    \[public\] Remove `USER-NAME` from the database.
+    Remove `USER-NAME` from the database.
 
 <a id="x-28RBAC-3AREMOVE-USER-ROLE-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:REMOVE-USER-ROLE%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **REMOVE-USER-ROLE** *RBAC USER ROLE*
 
-    \[public\] Remove a role from a user. Returns the ID of the removed
+    Remove a role from a user. Returns the ID of the removed
     user role.
 
 <a id="x-28RBAC-3ARESOURCE-COUNT-20GENERIC-FUNCTION-29"></a>
@@ -704,56 +704,56 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **RESOURCE-COUNT** *RBAC &KEY FILTERS*
 
-    \[public\] Count the number of resources (all resources by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of resources (all resources by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3ARESOURCE-ROLE-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:RESOURCE-ROLE-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **RESOURCE-ROLE-COUNT** *RBAC RESOURCE &KEY FILTERS*
 
-    \[public\] Count the number of roles associated with `RESOURCE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of roles associated with `RESOURCE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3ARESOURCE-USER-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:RESOURCE-USER-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **RESOURCE-USER-COUNT** *RBAC RESOURCE PERMISSION &KEY FILTERS*
 
-    \[public\] Count the number of resource users where the user has `PERMISSION` on the resource. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
+    Count the number of resource users where the user has `PERMISSION` on the resource. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "u.user\_name").
 
 <a id="x-28RBAC-3AROLE-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:ROLE-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **ROLE-COUNT** *RBAC &KEY FILTERS*
 
-    \[public\] Count the number of roles (all roles by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of roles (all roles by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3AROLE-PERMISSION-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:ROLE-PERMISSION-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **ROLE-PERMISSION-COUNT** *RBAC ROLE &KEY FILTERS*
 
-    \[public\] Count the number of permissions associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of permissions associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3AROLE-RESOURCE-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:ROLE-RESOURCE-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **ROLE-RESOURCE-COUNT** *RBAC ROLE &KEY FILTERS*
 
-    \[public\] Count the number of resources associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of resources associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3AROLE-USER-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:ROLE-USER-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **ROLE-USER-COUNT** *RBAC ROLE &KEY FILTERS*
 
-    \[public\] Count the number of users associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of users associated with `ROLE`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3AUSER-ALLOWED-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:USER-ALLOWED%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **USER-ALLOWED** *RBAC USER-NAME PERMISSION RESOURCE*
 
-    \[public\] Returns `T` if `USER-NAME` has `PERMISSION` on
+    Returns `T` if `USER-NAME` has `PERMISSION` on
     `RESOURCE`, `NIL` otherwise. Note that this permission may exist via more than one
     role.
 
@@ -762,14 +762,14 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **USER-COUNT** *RBAC &KEY FILTERS*
 
-    \[public\] Count the number of users (all users by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of users (all users by default). The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3AUSER-HAS-ROLE-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:USER-HAS-ROLE%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **USER-HAS-ROLE** *RBAC USER-NAME &REST ROLE*
 
-    \[public\] Returns `T` if `USER-NAME` has any of the specified
+    Returns `T` if `USER-NAME` has any of the specified
     `ROLE`(s).
 
 <a id="x-28RBAC-3AUSER-RESOURCE-COUNT-20GENERIC-FUNCTION-29"></a>
@@ -777,28 +777,28 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **USER-RESOURCE-COUNT** *RBAC USER PERMISSION &KEY FILTERS*
 
-    \[public\] Count the number of user resources where the user has `PERMISSION` on the resource. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+    Count the number of user resources where the user has `PERMISSION` on the resource. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
 
 <a id="x-28RBAC-3AUSER-ROLE-COUNT-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:USER-ROLE-COUNT%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **USER-ROLE-COUNT** *RBAC USER &KEY FILTERS*
 
-    \[public\] Count the number of roles associated with `USER`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
+    Count the number of roles associated with `USER`. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be one of =, \<>, \<, >, \<=, >=, is, is not, like, ilike. Value is a string, number, :null, :true, or :false.
 
 <a id="x-28RBAC-3AVALID-DESCRIPTION-P-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:VALID-DESCRIPTION-P%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **VALID-DESCRIPTION-P** *RBAC DESCRIPTION*
 
-    \[public\] Validates new `DESCRIPTION` string.
+    Validates new `DESCRIPTION` string.
 
 <a id="x-28RBAC-3AVALID-EMAIL-P-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:VALID-EMAIL-P%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **VALID-EMAIL-P** *RBAC EMAIL*
 
-    \[public\] Validates new `EMAIL` string. The string must
+    Validates new `EMAIL` string. The string must
     look like an email address, with a proper domain name, and it must have a length
     that doesn't exceed 128 characters.
 
@@ -807,7 +807,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **VALID-PASSWORD-P** *RBAC PASSWORD*
 
-    \[public\] Validates new `PASSWORD` string.
+    Validates new `PASSWORD` string.
     `PASSWORD` must have
     - at least password-length-min characters
     - at least one letter
@@ -820,7 +820,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **VALID-PERMISSION-P** *RBAC PERMISSION*
 
-    \[public\] Validates new `PERMISSION` string.
+    Validates new `PERMISSION` string.
     PMERISSION must:
     - start with a letter
     - consist of letters, digits, and hyphens
@@ -832,14 +832,14 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **VALID-RESOURCE-P** *RBAC RESOURCE*
 
-    \[public\] Validates new `RESOURCE` string.
+    Validates new `RESOURCE` string.
 
 <a id="x-28RBAC-3AVALID-ROLE-P-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:VALID-ROLE-P%20GENERIC-FUNCTION"></a>
 
 - [generic-function] **VALID-ROLE-P** *RBAC ROLE*
 
-    \[public\] Validates new `ROLE` string.
+    Validates new `ROLE` string.
     `ROLE` must:
     - start with a letter
     - consist of letters, digits, and hyphens
@@ -851,7 +851,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **VALID-USER-NAME-P** *RBAC USER-NAME*
 
-    \[public\] Validates new USERNANME string.
+    Validates new USERNANME string.
     `USER-NAME` must:
     - Have at least 1 character
     - Have at most user-name-length-max characters
@@ -876,21 +876,21 @@ Exported special variables.
 
 - [variable] **\*ADMIN\*** *"admin"*
 
-    \[public\] Administrator user name.
+    Administrator user name.
 
 <a id="x-28RBAC-3A-2AGUEST-2A-20VARIABLE-29"></a>
 <a id="RBAC:*GUEST*%20VARIABLE"></a>
 
 - [variable] **\*GUEST\*** *"guest"*
 
-    \[public\] Guest user name.
+    Guest user name.
 
 <a id="x-28RBAC-3A-2ADEFAULT-PAGE-SIZE-2A-20VARIABLE-29"></a>
 <a id="RBAC:*DEFAULT-PAGE-SIZE*%20VARIABLE"></a>
 
-- [variable] **\*DEFAULT-PAGE-SIZE\*** *1000*
+- [variable] **\*DEFAULT-PAGE-SIZE\*** *20*
 
-    \[public\] Default page size. Used in functions that accept a :page-size
+    Default page size. Used in functions that accept a :page-size
     parameter when the parameter is not specified.
 
 <a id="x-28RBAC-3A-2ADEFAULT-PERMISSIONS-2A-20VARIABLE-29"></a>
@@ -898,7 +898,7 @@ Exported special variables.
 
 - [variable] **\*DEFAULT-PERMISSIONS\*** *("create" "delete" "read" "update")*
 
-    \[public\] Default permissions for a new role when no value is provided for
+    Default permissions for a new role when no value is provided for
     the :roles parameter
 
 <a id="x-28RBAC-3A-2ADEFAULT-RESOURCE-ROLES-2A-20VARIABLE-29"></a>
@@ -906,7 +906,7 @@ Exported special variables.
 
 - [variable] **\*DEFAULT-RESOURCE-ROLES\*** *("admin")*
 
-    \[public\] A list of roles to be used when a resource is created without
+    A list of roles to be used when a resource is created without
     specifying a value for the :roles parameter.
 
 <a id="x-28RBAC-3A-2ADEFAULT-USER-ROLES-2A-20VARIABLE-29"></a>
@@ -914,7 +914,7 @@ Exported special variables.
 
 - [variable] **\*DEFAULT-USER-ROLES\*** *("logged-in" "public")*
 
-    \[public\] A list of roles to be used when a user is first created. These
+    A list of roles to be used when a user is first created. These
     roles are appended to whatever the caller specifies for the :roles parameter.
 
 <a id="x-28RBAC-3A-40RBAC-MACROS-20MGL-PAX-3ASECTION-29"></a>
@@ -929,7 +929,7 @@ Exported macros.
 
 - [macro] **WITH-RBAC** *(RBAC) &BODY BODY*
 
-    \[public\] Opens a connection (pooled) to the rbac database to execute
+    Opens a connection (pooled) to the rbac database to execute
     `BODY`. There's no global connection, so this macro must be used wherever a
     connection is needed. The connection is closed after `BODY` is executed.
 
