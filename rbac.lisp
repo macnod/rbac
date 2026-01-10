@@ -1,3 +1,5 @@
+;; rbac.lisp
+
 (in-package :rbac)
 
 ;;
@@ -8,22 +10,27 @@
 ;; Constants
 ;;
 ;; Users
-(defparameter *admin* "admin" "Administrator user name.")
-(defparameter *guest* "guest" "Guest user name.")
+(defvar *admin* "admin" "[public] Administrator user name.")
+(defvar *guest* "guest" "[public] Guest user name.")
 
 (defparameter *init-permissions*
   (u:safe-sort (list "create" "read" "update" "delete"))
-    "Permissions that are created when the RBAC database is first initialized.")
+    "[private] Permissions that are created when the RBAC database is first
+initialized.")
 
 (defparameter *init-roles*
   (u:safe-sort (list "admin" "public" "logged-in"))
-  "Roles that are created when the RBAC database is first initialized.")
+  "[private] Roles that are created when the RBAC database is first
+initialized.")
 
 (defparameter *init-users* (list *admin* *guest*)
-  "Users that are created when the RBAC database is first initialized.")
+  "[private] Users that are created when the RBAC database is first
+initialized.")
 
-(defvar *default-permissions* *init-permissions*
-  "Default permissions for a new role.")
+(defvar *default-permissions*
+  (u:safe-sort (list "create" "read" "update" "delete"))
+  "[public] Default permissions for a new role when no value is provided for
+the :roles parameter")
 
 (defparameter *table-aliases*
   (ds:ds '(:map
@@ -34,37 +41,42 @@
             "role_permissions" "rp"
             "role_users" "ru"
             "resource_roles" "sr"))
-  "Internal. Mapping from table names to table aliases.")
+  "[private] Mapping from table names to table aliases.")
 
 ;; These roles are assigned to new users
 (defparameter *default-user-roles*
   (u:safe-sort (list "public" "logged-in"))
-  "Internal.")
-(defparameter *default-resource-roles* (list *admin*) "Internal.")
+  "[public] A list of roles to be used when a user is first created. These
+roles are appended to whatever the caller specifies for the :roles parameter.")
+(defparameter *default-resource-roles* (list *admin*)
+  "[public] A list of roles to be used when a resource is created without
+specifying a value for the :roles parameter.")
 
-(defparameter *default-page-size* 20 "Default page size")
+(defparameter *default-page-size* 20
+  "[public] Default page size. Used in functions that accept a :page-size
+parameter when the parameter is not specified.")
 
 ;; Caches
-(defparameter *table-fields* nil "Internal. Cache of table field names.")
+(defparameter *table-fields* nil "[private] Cache of table field names.")
 
 ;;
 ;; Macros
 ;;
 
 (defmacro with-rbac ((rbac) &body body)
-  "Opens a connection (pooled) to the rbac database to execute BODY. There's
-no global connection, so this macro must be used wherever a connection is
-needed. The connection is closed after BODY is executed."
-  `(db:with-connection (list (dbname ,rbac)
-                         (user-name ,rbac)
-                         (password ,rbac)
-                         (host ,rbac)
-                         :port (port ,rbac)
+  "[public] Opens a connection (pooled) to the rbac database to execute
+BODY. There's no global connection, so this macro must be used wherever a
+connection is needed. The connection is closed after BODY is executed."
+  `(db:with-connection (list (db-name ,rbac)
+                         (db-user ,rbac)
+                         (db-password ,rbac)
+                         (db-host ,rbac)
+                         :port (db-port ,rbac)
                          :pooled-p t)
      ,@body))
 
 (defmacro check (errors condition &rest error-message-args)
-  "Internal. Evaluates CONDITION. If the return value of CONDITION is NIL, this
+  "[private] Evaluates CONDITION. If the return value of CONDITION is NIL, this
 function pushes an error message onto ERROS. The error message is created by
 using the format function with the arguments in ERROR-MESSAGE-ARGS. This
 function returns the result of evaluating CONDITION, so that it can be used as
@@ -78,24 +90,25 @@ part of setting a variable, for example."
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun name-to-identifier (name format)
-    "Internal. Convert NAME to an identifier using FORMAT."
+    "[private] Convert NAME to an identifier using FORMAT."
     (intern (format nil format (string-upcase (re:regex-replace "_" name "-")))))
 
   (defun singular (string)
-    "Internal. If STRING ends with an 's', this function returns the string
+    "[private] If STRING ends with an 's', this function returns the string
 without the 's'at the end."
     (re:regex-replace "s$" string ""))
 
   (defun table-name-field (table &optional as-keyword)
-    "Internal. Returns the name field for TABLE. The name field is the singular
+    "[private] Returns the name field for TABLE. The name field is the singular
 form of the table name, with '_name' appended."
     (format nil "~a~aname" (singular table) (if as-keyword "-" "_")))
 
   (defun make-documentation (format-string &rest values)
-    "Internal. Creates documentation strings. FORMAT-STRING is a string with
+    "[private] Creates documentation strings. FORMAT-STRING is a string with
 placeholders like '~a'. VALUES is a list of values for the placeholders. This
 function removes extra spaces."
-    (let* ((doc-1 (apply #'format (append (list nil format-string) values)))
+    (let* ((fs (concatenate 'string "[public] " format-string))
+            (doc-1 (apply #'format (append (list nil fs) values)))
             (doc-2 (re:regex-replace-all "  +" doc-1 " "))
             (lines (remove-if (lambda (s) (zerop (length s)))
                      (re:split "\\n" doc-2)))
@@ -112,7 +125,7 @@ function removes extra spaces."
                                             "resource_roles" "sr"))))
 
 (defmacro define-list-functions (&rest tables)
-  "Internal. This macro defines three list functions for the given tables: all,
+  "[private] This macro defines three list functions for the given tables: all,
 names, and count. The functions are named according to the tables provided. For
 example, if the table 'users' is provided as the only table, the functions are
 named list-users, list-user-names, and user-count. IF the table 'permissions' is
@@ -189,7 +202,7 @@ like, or ilike. Value is a string, number, :null, :true, or :false."
          (:documentation ,doc-count)))))
 
 (defmacro define-list-functions-1 (&rest tables)
-  "Internal. See DEFINE-LIST-FUNCTIONS. This macro works exactly the same, except
+  "[private] See DEFINE-LIST-FUNCTIONS. This macro works exactly the same, except
 that the functions generated take an additional parameter representing the object
 for which you want a list. For example, if the tables 'users' and 'roles' are
 provided, the functions generated are list-user-roles, list-user-role-names, and
@@ -265,7 +278,7 @@ is not, like, ilike. Value is a string, number, :null, :true, or :false."
          (:documentation ,doc-count)))))
 
 (defmacro define-list-functions-2 (&rest tables)
-  "Internal. See DEFINE-LIST-FUNCTIONS and DEFINE-LIST-FUNCTIONS-1. This macro
+  "[private] See DEFINE-LIST-FUNCTIONS and DEFINE-LIST-FUNCTIONS-1. This macro
 works exactly the same as those, except that the generated functions take two
 additional parameters representing the objects for which you want a list. For
 example, if the tables 'users', 'roles', 'permissions', and 'resources' are
@@ -373,8 +386,8 @@ defaults to (list \"~a\")."
 ;;
 
 (defun report-errors (function-name errors &optional (fail-on-error t))
-  "Internal. If ERRORS is not NIL, this function signals an error with a message
-that consists the strings in ERRORS, separated by spaces."
+  "[private] If ERRORS is not NIL, this function signals an error with a
+message that consists the strings in ERRORS, separated by spaces."
   (when errors
     (l:perror :in function-name :errors errors)
     (when fail-on-error
@@ -382,53 +395,53 @@ that consists the strings in ERRORS, separated by spaces."
                (length errors) (reverse errors))))))
 
 (defun rbac-query-single (sql-template-and-parameters)
-  "Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a single
-value, and executes that query. SQL-TEMPLATE-AND-PARAMETERS is a list where the
-first element is an SQL string (optionally with placeholders) and the rest of
-the elements are the values that are used to replace the placeholders in the SQL
-string. This function needs to be called inside a with-rbac block."
+  "[public] Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a
+single value, and executes that query. SQL-TEMPLATE-AND-PARAMETERS is a list
+where the first element is an SQL string (optionally with placeholders) and the
+rest of the elements are the values that are used to replace the placeholders in
+the SQL string. This function needs to be called inside a with-rbac block."
   (eval (cons 'db:query (append sql-template-and-parameters (list :single)))))
 
 (defun rbac-query (sql-template-and-parameters &optional (result-type :plists))
-  "Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a list of
-rows, and executes that query. SQL-TEMPLATE-AND-PARAMETERS is a list where the
-first element is an SQL string (optionally with placeholders) and the rest of
-the elements are values that are used to replace the placeholders in the SQL
-string. This function needs to be called inside of a with-rbac block. Each
+  "[public] Converts SQL-TEMPLATE-AND-PARAMETERS into a query that returns a
+list of rows, and executes that query. SQL-TEMPLATE-AND-PARAMETERS is a list
+where the first element is an SQL string (optionally with placeholders) and the
+rest of the elements are values that are used to replace the placeholders in the
+SQL string. This function needs to be called inside of a with-rbac block. Each
 row in the result is a plist, where the keys represent the field names."
   (eval (cons 'db:query (append
                           sql-template-and-parameters
                           (list result-type)))))
 
 (defun plural (string)
-  "Internal. Adds 's' to STRING, unless STRING already ends with 's'."
+  "[private] Adds 's' to STRING, unless STRING already ends with 's'."
   (if (re:scan "s$" string)
     string
     (format nil "~as" string)))
 
 (defun external-reference-field (external-table)
-  "Internal. Creates a field name that references the id field in
+  "[private] Creates a field name that references the id field in
 EXTERNAL-TABLE."
   (format nil "~a_id" (singular external-table)))
 
 (defun password-hash (user-name password)
-  "Returns the hash of PASSWORD, using USER-NAME as the salt. This is how RBAC
-stores the password in the database."
+  "[public] Returns the hash of PASSWORD, using USER-NAME as the salt. This
+is how RBAC stores the password in the database."
   (u:hash-string password :salt user-name :size 32))
 
 (defun exclusive-role-for (user-name)
-  "Returns the exclusive role for USER-NAME."
+  "[public] Returns the exclusive role for USER-NAME."
   (format nil "~a:exclusive" user-name))
 
 (defun make-description (name value)
-  "Internal. Create a description string for NAME with VALUE. The database has a
+  "[private] Create a description string for NAME with VALUE. The database has a
 description field in several tables, and sometimes the description is optional
 when creating a new row. When a description is not provided, this function can
 be used to create a default description."
   (format nil "~@(~a~) '~a'" name value))
 
 (defun field-no-prefix (field)
-  "Internal. In SQL query strings, fields are often prefixed with the table alias,
+  "[private] In SQL query strings, fields are often prefixed with the table alias,
 such as 'r.id' or 'rs.created_at'. This function removes the prefix and the dot,
 so that it returns just the field name, such as 'id' or 'created_at'. If FIELD
 doesn't have a prefix, it is returned unchanged."
@@ -437,7 +450,7 @@ doesn't have a prefix, it is returned unchanged."
     field))
 
 (defun make-insert-name-query (table name &rest other-fields)
-  "Internal. Generates an SQL insert statement with placeholders and values for
+  "[private] Generates an SQL insert statement with placeholders and values for
 inserting a new row into TABLE with fields NAME and OTHER-FIELDS. Returns a list
 where the first element is the SQL string and the remaaining elements are the
 values to be used. The return value is suitable for passing to rbac-query or
@@ -477,7 +490,7 @@ rbac-query-single."
       values)))
 
 (defun link-table-p (rbac table)
-  "Internal. Checks if TABLE is a link table."
+  "[private] Checks if TABLE is a link table."
   (let* ((parts (re:split "_" table)))
     (and
       (> (length parts) 1)
@@ -488,7 +501,7 @@ rbac-query-single."
         parts))))
 
 (defun render-placeholder (value index)
-  "Internal. Given a string VALUE and an integer INDEX, this funtion returns a
+  "[private] Given a string VALUE and an integer INDEX, this funtion returns a
 cons where the car is the number of values to be added to the query parameters
 (0 or 1) and the cdr is the placeholder string to be used in the SQL query.
 When VALUE is :null, :true, or :false, no value needs to be added to the query
@@ -510,32 +523,32 @@ the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
      :type string
      :initform "^[a-zA-Z][-a-zA-Z0-9]*:?[a-zA-Z0-9][-a-zA-Z0-9]*$"
      :documentation
-     "Defaults to an absolute directory path string that ends with a /")
+     "[public] Defaults to an absolute directory path string that ends with /")
     (resource-length-max :accessor resource-length-max
       :initarg :resource-length-max
       :type integer
       :initform  512
-      :documentation "Maximum length of resource name string.")
+      :documentation "[public] Maximum length of resource name string.")
     (user-name-length-max :accessor user-name-length-max
       :initarg :user-name-length-max
       :type integer
       :initform 64
-      :documentation "Maximum length of user name string.")
+      :documentation "[public] Maximum length of user name string.")
     (user-name-regex :accessor user-name-regex
       :initarg :user-name-regex
       :type string
       :initform "^[a-zA-Z][-a-zA-Z0-9_.+]*$"
-      :documentation "Regex for validating user name strings.")
+      :documentation "[public] Regex for validating user name strings.")
     (password-length-min :accessor password-length-min
       :initarg :password-length-min
       :type integer
       :initform 6
-      :documentation "Minimum length of password string.")
+      :documentation "[public] Minimum length of password string.")
     (password-length-max :accessor password-length-max
       :initarg :password-length-max
       :type integer
       :initform 64
-      :documentation "Maximum length of password string.")
+      :documentation "[public] Maximum length of password string.")
     (password-regexes :accessor password-regexes
       :initarg :password-regexes
       :type list
@@ -545,57 +558,66 @@ the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
                   "[a-zA-Z]"
                   "[-!@#$%^&*()\+={}[\]|:;<>,.?/~`]"
                   "[0-9]")
-      :documentation "List of regular expressions that a valid password must
-      match. Every regex in the list must match.")
+      :documentation
+      "[public] List of regular expressions that a valid password must match.
+Every regex in the list must match.")
     (email-length-max :accessor email-length-max
       :initarg :email-length-max
       :type integer
-      :initform 128)
+      :initform 128
+      :documentation
+      "[public] Maximum length of an email address.")
     (email-regex :accessor email-regex
       :initarg :email-regex
       :type string
       :initform "^[a-zA-Z0-9][-a-zA-Z0-9._%+]+@([a-zA-Z0-9]+)(\\.?[-a-zA-Z0-9])+\\.[a-zA-Z]{2,}$|^no-email$"
-      :documentation "Regex for validation of email address strings.")
+      :documentation
+      "[public] Regex for validation of email address strings.")
     (role-length-max :accessor role-length-max
       :initarg :role-length-max
       :type integer
       :initform 64
-      :documentation "Maximum length of role name string.")
+      :documentation "[public] Maximum length of role name string.")
     (role-regex :accessor role-regex
       :initarg :role-regex
       :type string
       :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"
-      :documentation "Regex for validating role name strings.")
+      :documentation "[public] Regex for validating role name strings.")
     (permission-length-max :accessor permission-length-max
       :initarg :permission-length-max
       :type integer
       :initform 64
-      :documentation "Maximum length of permission name string.")
+      :documentation "[public] Maximum length of permission name string.")
     (permission-regex :accessor permission-regex
       :initarg :permission-regex
       :type string
       :initform "^[a-z]([-a-z0-9_.+]*[a-z0-9])*(:[a-z]+)?$"
-      :documentation "Regex for validating permission name strings."))
-  (:documentation "Abstract base class for user database."))
+      :documentation "[public] Regex for validating permission name strings."))
+  (:documentation "[public] Abstract base class for user database."))
 
 (defclass rbac-pg (rbac)
-  ((dbname :accessor dbname :initarg :dbname :initform "rbac" :type string
-     :documentation "Name of the RBAC database.")
-    (user-name :accessor user-name :initarg :user-name :initform "cl-user"
-      :type string
-      :documentation "User name for connecting to the RBAC database.")
-    (password :accessor password :initarg :password :initform "" :type string
-      :documentation "Password for connecting to the RBAC database.")
-    (host :accessor host :initarg :host :initform "postgres" :type string
-      :documentation "Host name for connecting to the RBAC database.")
-    (port :accessor port :initarg :port :initform 5432 :type integer
-      :documentation "Port number for connecting to the RBAC database."))
-  (:documentation "RBAC database class for PostgreSQL."))
+  ((db-name :accessor db-name :initarg :db-name :initform "rbac" :type string
+     :documentation "[public] Name of the RBAC database.")
+    (db-user :accessor db-user :initarg :db-user
+      :initform "cl-user" :type string
+      :documentation
+      "[public] User name for connecting to the RBAC database.")
+    (db-password :accessor db-password :initarg :db-password
+      :initform "" :type string
+      :documentation "[public] Password for connecting to the RBAC database.")
+    (db-host :accessor db-host :initarg :db-host
+      :initform "postgres" :type string
+      :documentation "[public] Host name for connecting to the RBAC database.")
+    (db-port :accessor db-port :initarg :db-port
+      :initform 5432 :type integer
+      :documentation
+      "[public] Port number for connecting to the RBAC database."))
+  (:documentation "[public] RBAC database class for PostgreSQL."))
 
 (defgeneric id-exists-p (rbac table id)
   (:method ((rbac rbac-pg) (table string) (id string))
     (when (get-value rbac table "id" "id" id) t))
-  (:documentation "Returns T when ID exists in TABLE."))
+  (:documentation "[public] Returns T when ID exists in TABLE."))
 
 (defgeneric delete-by-id (rbac table id)
   (:method ((rbac rbac-pg) (table string) (id string))
@@ -611,7 +633,7 @@ the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
         :status (if database-updated "deleted" "not found")
         :table table :id id)
       (values id database-updated)))
-  (:documentation "Internal. Deletes ID row from TABLE. Raises an error if ID
+  (:documentation "[private] Deletes ID row from TABLE. Raises an error if ID
 is not present in TABLE. Returns the ID of the deleted row."))
 
 (defgeneric table-fields (rbac &optional cache)
@@ -635,7 +657,7 @@ is not present in TABLE. Returns the ID of the deleted row."))
                          :column)
           do (setf (gethash table table-fields) fields)
           finally (return (setf *table-fields* table-fields))))))
-  (:documentation "Internal. Returns a hash table where the keys are table names
+  (:documentation "[private] Returns a hash table where the keys are table names
 and the values are lists of field names for each table."))
 
 (defgeneric aliased-fields (rbac table)
@@ -652,7 +674,7 @@ and the values are lists of field names for each table."))
       collect (if aliased
                 (format nil "~a.~a as ~a_~a" alias field (singular table) field)
                 (format nil "~a.~a" alias field))))
-  (:documentation "Internal. Returns a list of fields from TABLE, with each
+  (:documentation "[private] Returns a list of fields from TABLE, with each
 field prefixed with the table alias, and, except for distinct fields, prefixed
 with the table name."))
 
@@ -693,7 +715,7 @@ from ~a ~a
         link-table alias-link
         table-1 alias-1 link-id-1 id-1
         table-2 alias-2 link-id-2 id-2)))
-  (:documentation "Internal. Returns SQL with a select and join clauses for
+  (:documentation "[private] Returns SQL with a select and join clauses for
 TABLE-1 and TABLE-2 joined through their link table. The name of the link table
 is computeed. If FIELDS is provided, those fields are selected. Otherwise, all
 fields from TABLE-1 and TABLE-2 are selected, excluding foreign key fields. The
@@ -750,7 +772,7 @@ clause returns count(*) instead of the fields."))
       (l:pdebug :in "user-resources-join" :join-type join-type
         :fields fields :all-fields all-fields :for-count for-count :sql sql)
       sql))
-  (:documentation "Internal. Returns SQL with select and join clauses for the
+  (:documentation "[private] Returns SQL with select and join clauses for the
 tables users, roles, permissions, resources, and the associated link tables. The
 tables and fields are aliased properly. JOIN-TYPE can be :user-resources or
 :resource-users. If FOR-COUNT is true, the select clause has count(*) instead
@@ -761,7 +783,7 @@ provided, those fields are also included in the select clause."))
 (defgeneric table-exists-p (rbac table)
   (:method ((rbac rbac-pg) (table string))
     (when (gethash table (table-fields rbac)) t))
-  (:documentation "Internal. Returns T if TABLE exists in the database."))
+  (:documentation "[private] Returns T if TABLE exists in the database."))
 
 (defgeneric table-field-exists-p (rbac table field)
   (:method ((rbac rbac-pg) (table string) (field string))
@@ -771,7 +793,7 @@ provided, those fields are also included in the select clause."))
               (gethash table (table-fields rbac))
               :test 'equal))
       t))
-  (:documentation "Internal. Returns T if FIELD exists in TABLE in the
+  (:documentation "[private] Returns T if FIELD exists in TABLE in the
 database."))
 
 (defgeneric field-exists-p (rbac field)
@@ -780,7 +802,7 @@ database."))
                         (table-fields rbac)
                         append fields)))
       (when (member field all-fields :test 'equal) t)))
-  (:documentation "Internal. Returns T if FIELD exists in any RBAC table in the
+  (:documentation "[private] Returns T if FIELD exists in any RBAC table in the
 database."))
 
 (defgeneric list-rows (rbac tables &key
@@ -812,7 +834,7 @@ database."))
         :query query)
       (with-rbac (rbac)
           (rbac-query query result-type))))
-  (:documentation "Internal. Returns results from TABLES that satisfy the
+  (:documentation "[private] Returns results from TABLES that satisfy the
 conditions in FILTERS. If RESULT-TYPE is :single, a single value is returned,
 from a single row and column. If RESULT-TYPE is :column, a list of values is
 returned, where each value corresponds to a field in a row. If RESULT-TYPE is
@@ -836,7 +858,7 @@ result is a count of the rows that satisfy the conditions in FILTERS."))
   (:method ((rbac rbac-pg) (tables list) &key filters)
     (l:pdebug :in "count-rows" :tables tables :flters filters)
     (list-rows rbac tables :filters filters :for-count t :result-type :single))
-  (:documentation "Internal. Returns the count of rows in TABLES that satisfy
+  (:documentation "[private] Returns the count of rows in TABLES that satisfy
 the conditions in FILTER. TABLES is a list of table names that will be joined
 together. This list excludes the link table names. FILTERS is a list of
 conditions that must all be true for a row to be counted. Each condition in
@@ -847,7 +869,7 @@ FILTERS consists of a list containing a field name, an operator, and a value."))
     (when (and (<= (length user-name) (user-name-length-max rbac))
             (re:scan (user-name-regex rbac) user-name))
       t))
-  (:documentation "Validates new USERNANME string.
+  (:documentation "[public] Validates new USERNANME string.
   USER-NAME must:
   - Have at least 1 character
   - Have at most user-name-length-max characters
@@ -867,7 +889,7 @@ FILTERS consists of a list containing a field name, an operator, and a value."))
             (<= (length password) (password-length-max rbac))
             (every (lambda (r) (re:scan r password)) (password-regexes rbac)))
       t))
-  (:documentation "Validates new PASSWORD string.
+  (:documentation "[public] Validates new PASSWORD string.
 PASSWORD must have
 - at least password-length-min characters
 - at least one letter
@@ -880,16 +902,16 @@ PASSWORD must have
     (when (and (re:scan (email-regex rbac) email)
             (<= (length email) 128))
       t))
-  (:documentation "Validates new EMAIL string. The string must look like an
-email address, with a proper domain name, and it must have a length that
-doesn't exceed 128 characters."))
+  (:documentation "[public] Validates new EMAIL string. The string must
+look like an email address, with a proper domain name, and it must have a length
+that doesn't exceed 128 characters."))
 
 (defgeneric valid-permission-p (rbac permission)
   (:method ((rbac rbac-pg) (permission string))
     (when (and (<= (length permission) (permission-length-max rbac))
             (re:scan (permission-regex rbac) permission))
       t))
-  (:documentation "Validates new PERMISSION string.
+  (:documentation "[public] Validates new PERMISSION string.
 PMERISSION must:
 - start with a letter
 - consist of letters, digits, and hyphens
@@ -901,7 +923,7 @@ PMERISSION must:
     (when (and (<= (length role) (role-length-max rbac))
             (re:scan (role-regex rbac) role))
       t))
-  (:documentation "Validates new ROLE string.
+  (:documentation "[public] Validates new ROLE string.
 ROLE must:
 - start with a letter
 - consist of letters, digits, and hyphens
@@ -913,14 +935,14 @@ ROLE must:
     (when (and (<= (length resource) (resource-length-max rbac))
             (re:scan (resource-regex rbac) resource))
       t))
-  (:documentation "Validates new RESOURCE string."))
+  (:documentation "[public] Validates new RESOURCE string."))
 
 (defgeneric valid-description-p (rbac description)
   (:method ((rbac rbac-pg) (description string))
     (when (and (not (zerop (length description)))
             (<= (length description) 256))
       t))
-  (:documentation "Validates new DESCRIPTION string."))
+  (:documentation "[public] Validates new DESCRIPTION string."))
 
 (defgeneric link (rbac table-1 table-2 name-1 name-2)
   (:method ((rbac rbac-pg)
@@ -957,7 +979,7 @@ ROLE must:
                 :link-table-field-2 link-table-field-2 :id-2 id-2)
               id-link)
             (insert-link rbac table-1 table-2 id-1 id-2))))))
-  (:documentation "Internal. Adds a link between NAME-1 in TABLE-1 and NAME-2 in
+  (:documentation "[private] Adds a link between NAME-1 in TABLE-1 and NAME-2 in
 TABLE-2. Computes the link table name. Returns the ID of the new link row."))
 
 (defgeneric unlink (rbac table-1 table-2 name-1 name-2)
@@ -988,7 +1010,7 @@ TABLE-2. Computes the link table name. Returns the ID of the new link row."))
                 :link-table-field-1 link-table-field-1 :id-1 id-1
                 :link-table-field-2 link-table-field-2 :id-2 id-2)
               nil))))))
-  (:documentation "Internal. Removes the link between NAME-1 in TABLE-1 and
+  (:documentation "[private] Removes the link between NAME-1 in TABLE-1 and
 NAME-2 in TABLE-2. Computes the link table name. Returns the ID of the deleted
 link row, or NIL if the link did not exist."))
 
@@ -1017,11 +1039,11 @@ link row, or NIL if the link did not exist."))
       (l:pdebug :in "get-value"
         :tables tables :fields fields :filters filters :value value)
       value))
-  (:documentation "Retrieves the value from FIELD in TABLE where SEARCH points
-to a unique row. TABLE and FIELD are strings, and SEARCH is a series of field
-names and values that identify the row uniquely. TABLE, FIELD, and the field
-names in SEARCH must exist in the database. If no row is found, this function
-returns NIL."))
+  (:documentation "[public] Retrieves the value from FIELD in TABLE where
+SEARCH points to a unique row. TABLE and FIELD are strings, and SEARCH is a
+series of field names and values that identify the row uniquely. TABLE, FIELD,
+and the field names in SEARCH must exist in the database. If no row is found,
+this function returns NIL."))
 
 (defgeneric get-id (rbac table name)
   (:method ((rbac rbac-pg) (table string) (name string))
@@ -1031,7 +1053,7 @@ returns NIL."))
       (l:pdebug :in "get-id"
         :table table :name-field name-field :name name :id id)
       id))
-  (:documentation "Returns the ID associated with NAME in TABLE."))
+  (:documentation "[public] Returns the ID associated with NAME in TABLE."))
 
 (defgeneric validate-login-params (rbac user-name password)
   (:method ((rbac rbac-pg)
@@ -1047,7 +1069,7 @@ returns NIL."))
           :status "invalid password" :user-name user-name)
         nil)
       (t t)))
-  (:documentation "Internal. Returns T if the login parameters validate.
+  (:documentation "[private] Returns T if the login parameters validate.
 Otherwise, logs a warning and returns NIL."))
 
 (defgeneric check-insert-name-params (rbac table name &key
@@ -1083,7 +1105,7 @@ Otherwise, logs a warning and returns NIL."))
           (check errors (valid-resource-p rbac name)
             "Invalid resource name '~a'." name)))
       (report-errors "check-insert-name-params" errors)))
-  (:documentation "Internal. Validates parameters for inserting NAME into TABLE.
+  (:documentation "[private] Validates parameters for inserting NAME into TABLE.
 Helper function for insert-name."))
 
 (defgeneric insert-name (rbac table name &key
@@ -1117,7 +1139,7 @@ Helper function for insert-name."))
           :query query)
         (with-rbac (rbac)
           (rbac-query-single query)))))
-  (:documentation "Internal. Adds NAME to TABLE with DESCRIPTION. Raises an
+  (:documentation "[private] Adds NAME to TABLE with DESCRIPTION. Raises an
 error if NAME already exists in TABLE. The users and roles tables require
 additional parameters which must be provided via the &KEY arguments. Returns the
 ID of the new row."))
@@ -1126,7 +1148,7 @@ ID of the new row."))
   (:method ((rbac rbac-pg) (user-name string) (email string) (password string))
     (l:pdebug :in "insert-user" :user-name user-name :email email)
     (insert-name rbac "users" user-name :email email :password password))
-  (:documentation "Internal. Inserts a new user into the users table without
+  (:documentation "[private] Inserts a new user into the users table without
 validating any of the parameters. Returns the new user's ID. For internal use
 only."))
 
@@ -1138,7 +1160,7 @@ only."))
       :exclusive exclusive)
     (insert-name rbac "roles" role :description description
       :exclusive exclusive))
-  (:documentation "Internal. Inserts a new role into the roles table without
+  (:documentation "[private] Inserts a new role into the roles table without
  validating any of the parameters. Returns the new role's ID. For internal use
 only."))
 
@@ -1154,7 +1176,7 @@ only."))
         "Exclusive role '~a' already exists." role)
       (report-errors "set-exclusive-role" errors)
       (insert-name rbac "roles" role :description description :exclusive t)))
-  (:documentation "Internal. Add an exclusive role for USER, returning the ID
+  (:documentation "[private] Add an exclusive role for USER, returning the ID
 of the new role"))
 
 (defgeneric insert-permission (rbac permission &key description)
@@ -1162,7 +1184,7 @@ of the new role"))
              (description (format nil "permission '~a'" permission)))
     (l:pdebug :in "insert-permission" :permission permission)
     (insert-name rbac "permissions" permission :description description))
-  (:documentation "Internal. Inserts a new permission into the permissions table
+  (:documentation "[private] Inserts a new permission into the permissions table
 without validating any of the parameters. Returns the new permission's ID. For
 internal use only."))
 
@@ -1171,7 +1193,7 @@ internal use only."))
              (description (format nil "resource '~a'" resource)))
     (l:pdebug :in "insert-resource" :resource resource)
     (insert-name rbac "resources" resource :description description))
-  (:documentation "Internal. Inserts a new resource into the resources table
+  (:documentation "[private] Inserts a new resource into the resources table
 without validating any of the parameters. Returns the new resource's ID. For
 internal"))
 
@@ -1187,7 +1209,7 @@ internal"))
           ((table-exists-p rbac option-1) option-1)
           ((table-exists-p rbac option-2) option-2)
           (t (error "No link table exists for ~a and ~a" t1 t2))))))
-  (:documentation "Internal. Computes the name of the link table that links the
+  (:documentation "[private] Computes the name of the link table that links the
 tables in TABLES. TABLES can contain 1 or 2 table names.  If TABLES contains 1
 table name, the function returns the singluar of that table name. If TABLES
 contains 2 table names, the function finds the and existing table that links the
@@ -1203,7 +1225,7 @@ signals an error."))
       (format nil
         "insert into ~a (~a, ~a) values ($1, $2) returning id"
         link-table id-1-field id-2-field)))
-  (:documentation "Internal. Creates SQL that upserts a row into a link table
+  (:documentation "[private] Creates SQL that upserts a row into a link table
 that has fields that reference TABLE-1 and TABLE-2, creating a new link between
 rows in TABLE-1 and TABLE-2.
 
@@ -1269,7 +1291,7 @@ function will make the following concrete assumptions:
         :sql sql)
       (with-rbac (rbac)
         (rbac-query-single (list sql id-1 id-2 :single)))))
-  (:documentation "Internal. Inserts a row into a link table that has fields that
+  (:documentation "[private] Inserts a row into a link table that has fields that
 reference TABLE-1 and TABLE-2, creating a new link between rows in TABLE-1 and
 TABLE-2. The rows are given by ID-1 and ID-2. The name of the table that
 references TABLE-1 and TABLE-2 is derived from the names of TABLE-1 and TABLE-2,
@@ -1287,7 +1309,7 @@ as described in the documentation for insert-link-sql."))
             (member (second f) ops :test 'equal)
             (field-exists-p rbac (field-no-prefix (first f)))))
         filters)))
-  (:documentation  "Internal. Checks that the operators in FILTERS are valid. A
+  (:documentation  "[private] Checks that the operators in FILTERS are valid. A
 FILTER is a list of three elements: field name, operator, and value."))
 
 (defgeneric make-query (rbac tables &key
@@ -1377,7 +1399,7 @@ FILTER is a list of three elements: field name, operator, and value."))
         :select select :where where :order order :limit-offset limit-offset
         :query query)
       query))
-  (:documentation "Internal. Constructs an SQL query string with parameters.
+  (:documentation "[private] Constructs an SQL query string with parameters.
 Returns a list where the first element is the SQL string and the remaining
 elements are the parameters to be used for the placeholders in the SQL
 string. This functions computes the names of the link tables needed to join
@@ -1400,8 +1422,8 @@ returns the count of rows that match the filters instead of the rows."))
              (user-name string)
              (permission string)
              (resource string))
-    "Returns a list of plists showing how the user USER-NAME has PERMISSION access to
-RESOURCE. If the list is empty, the user does not have access."
+    "Returns a list of plists showing how the user USER-NAME has PERMISSION
+access to RESOURCE. If the list is empty, the user does not have access."
     (l:pdebug :in "user-allowed"
       :status "checking if user has permission on resource"
       :user user-name
@@ -1436,8 +1458,9 @@ RESOURCE. If the list is empty, the user does not have access."
              s.resource_name"
           user-name resource permission :plists)
         t)))
-  (:documentation "Returns T if USER-NAME has PERMISSION on RESOURCE, NIL
-otherwise. Note that this permission may exist via more than one role."))
+  (:documentation "[public] Returns T if USER-NAME has PERMISSION on
+RESOURCE, NIL otherwise. Note that this permission may exist via more than one
+role."))
 
 (defgeneric user-has-role (rbac user-name &rest role)
   (:method ((rbac rbac-pg)
@@ -1460,7 +1483,8 @@ otherwise. Note that this permission may exist via more than one role."))
               (query-params (cons user-name role))
               (count (rbac-query-single (cons query query-params))))
         (> count 0))))
-  (:documentation "Returns T if USER-NAME has any of the specified ROLE(s)."))
+  (:documentation "[public] Returns T if USER-NAME has any of the specified
+ROLE(s)."))
 
 (defgeneric login (rbac user-name password)
   (:method ((rbac rbac-pg)
@@ -1483,8 +1507,8 @@ otherwise. Note that this permission may exist via more than one role."))
           (progn
             (l:pdebug :in "login" :status "fail" :user user-name)
             nil)))))
-  (:documentation "If USER-NAME exists and PASSWORD is correct, update last_login
-for USER-NAME and return the user ID. Otherwise, return NIL."))
+  (:documentation "[public] If USER-NAME exists and PASSWORD is correct,
+update last_login for USER-NAME and return the user ID. Otherwise, return NIL."))
 
 ;;
 ;; API
@@ -1523,8 +1547,8 @@ for USER-NAME and return the user ID. Otherwise, return NIL."))
         :user-id (get-id rbac "users" user-name)
         :roles all-roles)
       (get-id rbac "users" user-name)))
-  (:documentation "Add a new user. This creates an exclusive role, which is
-for this user only, and adds the user to the public and logged-in roles
+  (:documentation "[public] Add a new user. This creates an exclusive role,
+which is for this user only, and adds the user to the public and logged-in roles
 (given by *default-user-roles*). Returns the new user's ID."))
 
 (defgeneric remove-user (rbac user-name)
@@ -1540,7 +1564,7 @@ for this user only, and adds the user to the public and logged-in roles
       ;; Remove the exclusive role associated with the user
       (delete-by-id rbac "roles" role-id)
       user-id))
-  (:documentation "Remove USER-NAME from the database."))
+  (:documentation "[public] Remove USER-NAME from the database."))
 
 (defgeneric add-role (rbac role &key description permissions)
   (:method ((rbac rbac-pg) (role string) &key
@@ -1565,11 +1589,12 @@ for this user only, and adds the user to the public and logged-in roles
     (l:pdebug :in "add-role" :status "created role"
       :role role :role-id (get-id rbac "roles" role))
     (get-id rbac "roles" role))
-  (:documentation "Add a new ROLE. Description is optional and auto-generated
-if not provided. If the role name ends with ':exclusive', the role is marked
-as exclusive, so the EXCLUSIVE parameter is optional. PERMISSIONS is a list
-of permission names to add to the role, defaulting to *DEFAULT-PERMISSIONS*.
-All PERMISSIONS must already exist. Returns the new role's ID."))
+  (:documentation "[public] Add a new ROLE. Description is optional and
+auto-generated if not provided. If the role name ends with ':exclusive', the
+role is marked as exclusive, so the EXCLUSIVE parameter is optional. PERMISSIONS
+is a list of permission names to add to the role, defaulting to
+*DEFAULT-PERMISSIONS*.  All PERMISSIONS must already exist. Returns the new
+role's ID."))
 
 (defgeneric remove-role (rbac role)
   (:method ((rbac rbac-pg) (role string))
@@ -1580,8 +1605,8 @@ All PERMISSIONS must already exist. Returns the new role's ID."))
       (report-errors "remove-role" errors)
       (delete-by-id rbac "roles" role-id)
       role-id))
-  (:documentation "Remove a role from the database. Returns the ID of the
-removed role."))
+  (:documentation "[public] Remove a role from the database. Returns the ID
+of the removed role."))
 
 (defgeneric add-resource (rbac resource &key description roles)
   (:method ((rbac rbac-pg) (resource string) &key
@@ -1602,10 +1627,10 @@ removed role."))
         :resource resource :description description
         :roles roles :all-roles all-roles)
       (get-id rbac "resources" resource)))
-  (:documentation "Add a new resource and returns the ID of the new entry. The
-resource is automatically linked to the roles in *default-resource-roles* plus
-any additional ROLES provided. DESCRIPTION is optional and auto-generated if
-not provided."))
+  (:documentation "[public] Add a new resource and returns the ID of the
+new entry. The resource is automatically linked to the roles in
+*default-resource-roles* plus any additional ROLES provided. DESCRIPTION is
+optional and auto-generated if not provided."))
 
 (defgeneric remove-resource (rbac resource)
   (:method ((rbac rbac-pg) (resource string))
@@ -1616,15 +1641,15 @@ not provided."))
                            "Resource '~a' doesn't exist." resource)))
       (report-errors "remove-resource" errors)
       (delete-by-id rbac "resources" resource-id)))
-  (:documentation "Remove RESOURCE from the database. Returns the ID of the
-removed resource."))
+  (:documentation "[public] Remove RESOURCE from the database. Returns the
+ID of the removed resource."))
 
 (defgeneric add-permission (rbac permission &key description)
   (:method ((rbac rbac-pg) (permission string) &key
              (description (make-description "permission" permission)))
     (insert-name rbac "permissions" permission :description description))
-  (:documentation "Add a new permission and returns the ID of the new entry.
-DESCRIPTION is optional and auto-generated if not provided."))
+  (:documentation "[public] Add a new permission and returns the ID of the
+new entry.  DESCRIPTION is optional and auto-generated if not provided."))
 
 (defgeneric remove-permission (rbac permission)
   (:method ((rbac rbac-pg) (permission string))
@@ -1636,8 +1661,8 @@ DESCRIPTION is optional and auto-generated if not provided."))
       (report-errors "remove-permission" errors)
       (delete-by-id rbac "permissions" permission-id)
       permission-id))
-  (:documentation "Remove PERMISSION from the database. Returns the ID of the
-removed permission."))
+  (:documentation "[public] Remove PERMISSION from the database. Returns the
+ID of the removed permission."))
 
 ;; Link and unlink things
 
@@ -1647,8 +1672,8 @@ removed permission."))
              (permission string))
     (l:pdebug :in "add-role-permission" :role role :permission permission)
     (link rbac "roles" "permissions" role permission))
-  (:documentation "Add an existing permission to an existing role. Returns the
-ID of the new role_permissions row."))
+  (:documentation "[public] Add an existing permission to an existing role.
+Returns the ID of the new role_permissions row."))
 
 (defgeneric remove-role-permission (rbac role permission)
   (:method ((rbac rbac-pg)
@@ -1656,8 +1681,8 @@ ID of the new role_permissions row."))
              (permission string))
     (l:pdebug :in "remove-role-permission" :permission permission :role role)
     (unlink rbac "roles" "permissions" role permission))
-  (:documentation "Remove a permission from a role. Returns the ID of the
-removed role-permission."))
+  (:documentation "[public] Remove a permission from a role. Returns the ID
+ of the removed role-permission."))
 
 (defgeneric add-role-user (rbac role user)
   (:method ((rbac rbac-pg)
@@ -1665,8 +1690,8 @@ removed role-permission."))
              (user string))
     (l:pdebug :in "add-role-user role" :role role :user user)
     (link rbac "roles" "users" role user))
-  (:documentation "Add an existing user to an existing role. Returns the ID of
-the new role_users row."))
+  (:documentation "[public] Add an existing user to an existing role.
+Returns the ID of the new role_users row."))
 
 (defgeneric add-user-role (rbac user role)
   (:method ((rbac rbac-pg)
@@ -1674,8 +1699,8 @@ the new role_users row."))
              (role string))
     (l:pdebug :in "add-user-role" :user user :role role)
     (link rbac "roles" "users" role user))
-  (:documentation "Add an existing role to an existing user. Returns the ID of
-the new role_users row."))
+  (:documentation "[public] Add an existing role to an existing user.
+Returns the ID of the new role_users row."))
 
 (defgeneric remove-role-user (rbac role user)
   (:method ((rbac rbac-pg)
@@ -1683,8 +1708,8 @@ the new role_users row."))
              (user string))
     (l:pdebug :in "remove-role-user" :role role :user user)
     (unlink rbac "roles" "users" role user))
-  (:documentation "Remove a user from a role. Returns the ID of the removed
-role user."))
+  (:documentation "[public] Remove a user from a role. Returns the ID of the
+removed role user."))
 
 (defgeneric remove-user-role (rbac user role)
   (:method ((rbac rbac-pg)
@@ -1692,7 +1717,7 @@ role user."))
              (role string))
     (l:pdebug :in "remove-user-role" :user user :role role)
     (unlink rbac "roles" "users" role user))
-  (:documentation "Remove a role from a user. Returns the ID of the removed
+  (:documentation "[public] Remove a role from a user. Returns the ID of the removed
 user role."))
 
 (defgeneric add-resource-role (rbac resource role)
@@ -1701,8 +1726,8 @@ user role."))
              (role string))
     (l:pdebug :in "add-resource-role" :resource resource :role role)
     (link rbac "resources" "roles" resource role))
-  (:documentation "Add an existing role to an existing resource. Returns the ID
-of the new resource_roles row."))
+  (:documentation "[public] Add an existing role to an existing resource.
+Returns the ID of the new resource_roles row."))
 
 (defgeneric remove-resource-role (rbac resource role)
   (:method ((rbac rbac-pg)
@@ -1710,8 +1735,8 @@ of the new resource_roles row."))
               (role string))
       (l:pdebug :in "remove-resource-role" :resource resource :role role)
       (unlink rbac "resources" "roles" resource role))
-  (:documentation "Remove a role from a resource. Returns the ID of the removed
-resource role."))
+  (:documentation "[public] Remove a role from a resource. Returns the ID of
+the removed resource role."))
 
 ;;
 ;; List functions
@@ -1784,27 +1809,48 @@ resource role."))
         :page page :page-size page-size :sql sql)
       (with-rbac (rbac)
         (rbac-query params :column))))
-  (:documentation "List the names of the permissions that USER-NAME has on
-RESOURCE-NAME. Supports pagination via PAGE and PAGE-SIZE. PAGE defaults to 1
-and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*"))
+  (:documentation "[public] List the names of the permissions that USER-NAME
+has on RESOURCE-NAME. Supports pagination via PAGE and PAGE-SIZE. PAGE defaults
+to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*"))
 
 ;;
 ;; Database initialization
 ;;
 
+(defgeneric table-exists (rbac table)
+  (:method ((rbac rbac-pg) (table string))
+    (with-rbac (rbac)
+      (rbac-query-single
+        (list "select exists (
+                 select 1 from information_schema.tables
+                 where table_schema = 'public' and table_name = $1
+               )"
+          table))))
+  (:documentation "[private] Returns T if TABLE exists in database."))
+
 (defgeneric initialize-database (rbac admin-password)
   (:method ((rbac rbac-pg) (admin-password string))
-    ;; Determine if the database is already initialized. We'll assume that it
-    ;; is if the admin user already exists.
-    (l:pdebug :in "initialize-database" :status "database initialized check")
-    (unless (get-id rbac "users" *admin*)
-
+    (let ((log (lambda (severity status &optional error)
+                 (l:plog severity
+                   (append
+                     (list :in "initialize-database" :status status)
+                     (when error (list :error error))
+                     (list
+                       :db-host (db-host rbac)
+                       :db-port (db-port rbac)
+                       :db-name (db-name rbac)
+                       :db-user (db-user rbac)))))))
+      ;; Determine if the database is already initialized. We'll assume that it
+      ;; is if there are any users.
+      (unless (zerop (user-count rbac))
+        (funcall log :info "skipping initialization"
+          "database already initialized")
+        (return-from initialize-database))
       ;; Create initial permissions
       (l:pdebug :in "initialize-database" :status "create initial permissions")
       (loop for permission in *init-permissions*
         for description = (format nil "Base permission '~a'." permission)
         do (add-permission rbac permission :description description))
-
       ;; Create initial roles
       ;;
       ;; Instead of the normal add-role function, we use the internal function
@@ -1822,27 +1868,24 @@ and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*"))
         (insert-role rbac role :description description)
         (loop for permission in permissions
           do (link rbac "roles" "permissions" role permission)))
-
       ;; Create the admin user
       (l:pdebug :in "initialize-database" :status "create admin user")
       (add-user rbac *admin* "no-email" admin-password :roles *init-roles*)
-
       ;; Create the guest user
       (l:pdebug :in "initialize-database" :status "create guest user")
       (add-user rbac *guest* "no-email" "guest-password-1")
-
       ;; The but the logged-in and public roles are automatically assigned to
       ;; all new users, but the guest user should not have the logged-in role.
       (remove-user-role rbac *guest* "logged-in")))
-  (:documentation "Idempotent function that checks if the database, given by
-RBAC, has been initialized. If not, then this function initializes the database,
-which involves creating some base permissions, roles, and users. The base
-permissions are 'create', 'read', 'update', and 'delete'. The base roles are
-'admin', 'admin:exclusive', 'logged-in', and 'public'. All of the roles have all
-the base permissions, except for the 'public' and 'logged-in' roles, which have
-the 'read' permission only. The base users are 'guest' and 'admin'. The 'guest'
-user is assigned the 'public' role and the 'admin' user is assigned all of the
-roles and created with the password ADMIN-PASSWORD. The 'guest' user doesn't
-need a password, so the bogus value 'guest-password-1' is used. The database is
-considered initialized if the 'admin' user already exists, in which case this
-function does nothing."))
+  (:documentation "[public] Idempotent function that checks if the database,
+given by RBAC, has been initialized. If not, then this function initializes the
+database, which involves creating some base permissions, roles, and users. The
+base permissions are 'create', 'read', 'update', and 'delete'. The base roles
+are 'admin', 'admin:exclusive', 'logged-in', and 'public'. All of the roles have
+all the base permissions, except for the 'public' and 'logged-in' roles, which
+have the 'read' permission only. The base users are 'guest' and 'admin'. The
+'guest' user is assigned the 'public' role and the 'admin' user is assigned all
+of the roles and created with the password ADMIN-PASSWORD. The 'guest' user
+doesn't need a password, so the bogus value 'guest-password-1' is used. The
+database is considered initialized the users table contains records, in which
+case this function does nothing."))

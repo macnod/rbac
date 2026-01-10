@@ -1,3 +1,5 @@
+;; rbac-package.lisp
+
 (defpackage :rbac
   (:use :cl :mgl-pax)
   (:local-nicknames
@@ -7,10 +9,12 @@
     (:l :p-log)
     (:db :postmodern))
   (:export
+    *admin*
     *default-page-size*
     *default-permissions*
     *default-resource-roles*
     *default-user-roles*
+    *guest*
     add-permission
     add-resource
     add-resource-role
@@ -19,13 +23,13 @@
     add-role-user
     add-user
     add-user-role
-    dbname
+    db-name
     email-length-max
     email-regex
     exclusive-role-for
     get-id
     get-value
-    host
+    db-host
     id-exists-p
     initialize-database
     list-permission-names
@@ -52,7 +56,7 @@
     list-user-roles
     list-users
     login
-    password
+    db-password
     password-hash
     password-length-max
     password-length-min
@@ -60,8 +64,7 @@
     permission-count
     permission-length-max
     permission-regex
-    plural
-    port
+    db-port
     rbac
     rbac-pg
     rbac-query
@@ -88,7 +91,7 @@
     user-allowed
     user-count
     user-has-role
-    user-name
+    db-user
     user-name-length-max
     user-name-regex
     user-resource-count

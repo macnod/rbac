@@ -35,10 +35,10 @@
 
 ;; Database connection
 (defparameter *rbac* (make-instance 'rbac-pg
-                       :host *db-host*
-                       :port *db-port*
-                       :user-name *db-user*
-                       :password *db-password*))
+                       :db-host *db-host*
+                       :db-port *db-port*
+                       :db-user *db-user*
+                       :db-password *db-password*))
 
 ;; Test support
 (defparameter uuid-regex "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$")

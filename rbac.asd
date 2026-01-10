@@ -6,4 +6,5 @@
   :serial t
   :components ((:file "rbac-package")
                 (:file "rbac")
-                (:file "rbac-docs")))
+                (:file "rbac-docs")
+                (:file "exports")))
