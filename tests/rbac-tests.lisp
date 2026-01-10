@@ -284,8 +284,8 @@
             :plists)))))
 
 (test utils
-  (is (equal "cats" (plural "cat")))
-  (is (equal "cats" (plural "cats")))
+  (is (equal "cats" (rbac::plural "cat")))
+  (is (equal "cats" (rbac::plural "cats")))
   (is (equal "user_id" (rbac::external-reference-field "users")))
   (is (equal "ba5943b4e73f11457efbb7ae7639462f"
         (password-hash "user-01" "password")))
