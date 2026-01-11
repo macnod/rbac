@@ -6,72 +6,17 @@
 ## Table of Contents
 
 - [1 Examples][967f]
-- [2 `RBAC-PG` Class][7b8a]
-- [3 Functions][94ab]
-- [4 Special Variables][7829]
-- [5 Macros][d0c7]
+- [2 Introduction][2fee]
+- [3 Current Limitations (Planned Fixes)][1877]
+- [4 Installation][e371]
+- [5 `RBAC-PG` Class][7b8a]
+- [6 Functions][94ab]
+- [7 Special Variables][7829]
+- [8 Macros][d0c7]
+- [9 `RBAC` Development][6c9c]
 
 ###### \[in package RBAC\]
-This is a simple Role-Based Access Control (`RBAC`) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class and functions for managing users, roles, permissions, and resources.
-
-## Overview
-
-This library provides functions and initial `SQL` for supporting Role-Based Access Control (`RBAC`).
-
-The system provides users, roles, permissions, and resources. Users have roles. Roles have permissions. Resources also have roles. However, resources do not have users. To determine if user 'adam' has 'read' access to resource 'book', the user and the book must both have the same role and the role must have the 'read' permission.
-
-A role can be exclusive, which means that it can be associated with only one user. Exclusive roles are managed by the system, so there's never any need to create or delete exclusive roles. However, you can manage the permission for an exclusive role. Whenever a user is created with the [`add-user`][e768] function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that user only. In this way, it's possible to give a specific user access to the resource. All users have a corresponding exclusive role, except for the `guest` user. You can obtaine the name of a user's exclusive role  with the [`exclusive-role-for`][ac36] function.
-
-All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user (that is, every user except for 'guest') has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission by default.
-
-Unless you specify specific permissions when creating a new role, its permission defaults to 'create', 'read', 'update', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
-
-All new resources are created with the default role 'admin'.
-
-## Installation
-
-### Roswell
-
-You'll need to install some dependencies first:
-`sh
-ros install postmodern
-ros install fiveam
-ros install cl-csv
-ros install trivial-utf-8
-ros install ironclad
-ros install swank
-ros install macnod/dc-dlist/v1.0
-ros install macnod/dc-ds/v0.5
-ros install macnod/dc-time/v0.5
-ros install macnod/p-log/v0.9
-ros install macnod/dc-eclectic/v0.51
-`
-
-Then, you can install `rbac` like this:
-
-`ros install macnod/rbac/vX.X`
-
-where X.X is the release.
-
-### GitHub
-
-Clone the repo to a directory that Quicklisp or ASDF can see, such as ~/common-lisp. For example:
-
-```sh
-cd ~/common-lisp
-git clone git@github.com:macnod/rbac.git
-cd rbac
-```
-
-Then, install the macnod dependencies in a similar fashion. If use Quicklisp, then Quicklisp will take care of installing the other dependencies (non-macnod) when you do `(ql:quickload :rbac)`.
-
-## Usage
-
-One way to use the `RBAC` library is to create a project that includes the `RBAC` init.sql file. You might want to edit the init.sql file to change the database name, for example, or to add some tables.
-
-Your project should start PostgreSQL, initialize the database with init.sql (if that hasn't already been done), and load the `RBAC` library.
-
-Your project can then use the library via the `RBAC` API.
+Simple Role-Based Access Control (`RBAC`) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class and functions for managing users, roles, permissions, and resources.
 
 <a id="x-28RBAC-3A-40RBAC-EXAMPLES-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION"></a>
@@ -148,10 +93,92 @@ Usage examples.
 ```
 
 
+<a id="x-28RBAC-3A-40RBAC-OVERVIEW-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-OVERVIEW%20MGL-PAX:SECTION"></a>
+
+## 2 Introduction
+
+This library provides functions and initial SQL for supporting Role-Based Access Control (`RBAC`).
+
+The system provides users, roles, permissions, and resources. Users have roles. Roles have permissions. Resources also have roles. However, resources do not have users. To determine if user 'adam' has 'read' access to resource 'book', the user and the book must both have the same role and the role must have the 'read' permission.
+
+A role can be exclusive, which means that it can be associated with only one user. Exclusive roles are managed by the system, so there's never any need to create or delete exclusive roles. However, you can manage the permission for an exclusive role. Whenever a user is created with the [`add-user`][e768] function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that user only. In this way, it's possible to give a specific user access to the resource. All users have a corresponding exclusive role, except for the `guest` user. You can obtaine the name of a user's exclusive role  with the [`exclusive-role-for`][ac36] function.
+
+All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user (that is, every user except for 'guest') has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission by default.
+
+Unless you specify specific permissions when creating a new role, its permission defaults to 'create', 'read', 'update', and 'delete'. These are general, default permissions, but you can add any permission you like to the system.
+
+All new resources are created with the default role 'admin'.
+
+<a id="x-28RBAC-3A-40RBAC-LIMITATIONS-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-LIMITATIONS%20MGL-PAX:SECTION"></a>
+
+## 3 Current Limitations (Planned Fixes)
+
+### Single-Threaded Design
+
+`RBAC` operations span multiple transactions for maximum flexibility. Thus, this library will **not work well** with multi-threaded clients unless `RBAC` calls are serialized.
+
+**Status**: Transaction wrappers planned for future release.
+
+### Password Hashing
+
+Username **salting** prevents casual DB lookups, but doesn't provide optimal security.
+
+**Status**: Argon2/PBKDF2 with iterations planned for future release.
+
+<a id="x-28RBAC-3A-40RBAC-INSTALLATION-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-INSTALLATION%20MGL-PAX:SECTION"></a>
+
+## 4 Installation
+
+### Roswell
+
+You'll need to install some dependencies first:
+`sh
+ros install postmodern
+ros install fiveam
+ros install cl-csv
+ros install trivial-utf-8
+ros install ironclad
+ros install swank
+ros install macnod/dc-dlist/v1.0
+ros install macnod/dc-ds/v0.5
+ros install macnod/dc-time/v0.5
+ros install macnod/p-log/v0.9
+ros install macnod/dc-eclectic/v0.51
+`
+
+Then, you can install `rbac` like this:
+
+`ros install macnod/rbac/vX.X`
+
+where X.X is the release.
+
+### GitHub
+
+Clone the repo to a directory that Quicklisp or ASDF can see, such as ~/common-lisp. For example:
+
+```sh
+cd ~/common-lisp
+git clone git@github.com:macnod/rbac.git
+cd rbac
+```
+
+Then, install the macnod dependencies in a similar fashion. If use Quicklisp, then Quicklisp will take care of installing the other dependencies (non-macnod) when you do `(ql:quickload :rbac)`.
+
+## Usage
+
+One way to use the `RBAC` library is to create a project that includes the `RBAC` init.sql file. You might want to edit the init.sql file to change the database name, for example, or to add some tables.
+
+Your project should start PostgreSQL, initialize the database with init.sql (if that hasn't already been done), and load the `RBAC` library.
+
+Your project can then use the library via the `RBAC` API.
+
 <a id="x-28RBAC-3A-40RBAC-PG-CLASS-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-PG-CLASS%20MGL-PAX:SECTION"></a>
 
-## 2 `RBAC-PG` Class
+## 5 `RBAC-PG` Class
 
 [`RBAC-PG`][5ba5] Class and Accessors.
 
@@ -294,7 +321,7 @@ Usage examples.
 <a id="x-28RBAC-3A-40RBAC-FUNCTIONS-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION"></a>
 
-## 3 Functions
+## 6 Functions
 
 Accessors and methods for manipulating `RBAC` objects.
 
@@ -620,9 +647,9 @@ Accessors and methods for manipulating `RBAC` objects.
 
     Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
     list of rows, and executes that query. `SQL-TEMPLATE-AND-PARAMETERS` is a list
-    where the first element is an `SQL` string (optionally with placeholders) and the
+    where the first element is an SQL string (optionally with placeholders) and the
     rest of the elements are values that are used to replace the placeholders in the
-    `SQL` string. This function needs to be called inside of a with-rbac block. Each
+    SQL string. This function needs to be called inside of a with-rbac block. Each
     row in the result is a plist, where the keys represent the field names.
 
 <a id="x-28RBAC-3ARBAC-QUERY-SINGLE-20FUNCTION-29"></a>
@@ -632,9 +659,9 @@ Accessors and methods for manipulating `RBAC` objects.
 
     Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
     single value, and executes that query. `SQL-TEMPLATE-AND-PARAMETERS` is a list
-    where the first element is an `SQL` string (optionally with placeholders) and the
+    where the first element is an SQL string (optionally with placeholders) and the
     rest of the elements are the values that are used to replace the placeholders in
-    the `SQL` string. This function needs to be called inside a with-rbac block.
+    the SQL string. This function needs to be called inside a with-rbac block.
 
 <a id="x-28RBAC-3AREMOVE-PERMISSION-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:REMOVE-PERMISSION%20GENERIC-FUNCTION"></a>
@@ -867,7 +894,7 @@ Accessors and methods for manipulating `RBAC` objects.
 <a id="x-28RBAC-3A-40RBAC-VARIABLES-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-VARIABLES%20MGL-PAX:SECTION"></a>
 
-## 4 Special Variables
+## 7 Special Variables
 
 Exported special variables.
 
@@ -888,7 +915,7 @@ Exported special variables.
 <a id="x-28RBAC-3A-2ADEFAULT-PAGE-SIZE-2A-20VARIABLE-29"></a>
 <a id="RBAC:*DEFAULT-PAGE-SIZE*%20VARIABLE"></a>
 
-- [variable] **\*DEFAULT-PAGE-SIZE\*** *20*
+- [variable] **\*DEFAULT-PAGE-SIZE\*** *1000*
 
     Default page size. Used in functions that accept a :page-size
     parameter when the parameter is not specified.
@@ -920,7 +947,7 @@ Exported special variables.
 <a id="x-28RBAC-3A-40RBAC-MACROS-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-MACROS%20MGL-PAX:SECTION"></a>
 
-## 5 Macros
+## 8 Macros
 
 Exported macros.
 
@@ -933,7 +960,86 @@ Exported macros.
     `BODY`. There's no global connection, so this macro must be used wherever a
     connection is needed. The connection is closed after `BODY` is executed.
 
+<a id="x-28RBAC-3A-40RBAC-DEVELOPMENT-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-DEVELOPMENT%20MGL-PAX:SECTION"></a>
+
+## 9 `RBAC` Development
+
+This section describes tools to improve the efficiency and accuracy of the development of this software.
+
+### Tests
+
+The tests are located in rbac-tests.lisp.
+
+#### Running all the tests
+
+`make test`
+
+This will start PostreSQL as a Docker container, initialize the database, run all the tests, then stop the database container.
+
+#### Running a swank server
+
+`make test-repl`
+
+This will start PostgreSQL as a Docker container, initialize the database, load the `RBAC` and RBAC-TEST packages, and wait for you to connect with a client such as Slime. This enables you modify the library's code and the tests in a REPL environment. Go Common Lisp!
+
+The tests are in the `:rbac-test` package. You can run a specific test like this:
+
+```lisp
+(in-package :rbac-test)
+(run! 'name-of-test)
+```
+
+The database is cleared at the beginning of each test. Therefore, any changes that the tests makes to the database are available to you after you run the test. For example, if the test adds a user, then after the test ends, you'll find the user among the results of calling `(list-user-names *rbac*)`. The `:rbac-tests` package uses the `:rbac` package, so in these types of situation, you don't have to switch to the `:rbac` package to call [`list-user-names`][38b1].
+
+Compiling a function, auto-completion, and so forth all work in the usual way. If you want, you can switch to the `:rbac` package first. That way, you don't have to worry about some not-yet-exported function being available in the `:rbac-test` package.
+
+```lisp
+(in-package :rbac)
+(list-user-names *rbac*)
+```
+
+When you quit the REPL environment, the PostgreSQL container stops.
+
+#### GitHub Actions
+
+This project contains a GitHub Action to run tests. It uses `make test-ci`. The repo is configured to run tests whenever code is pushed to the repo.
+
+### Exports
+
+The exported functions are listed in the usual fashion in the package file, rbac-package.lisp, in alphabetical order.
+
+### Generating Documentation
+
+This README is generated. The code to generate the README is in rbac-docs.lisp. The MGL-PAX library fetches the documentation strings from the variables, functions, accessors, and macros in the code, and uses them to help build the README.
+
+You can generate the README by starting a REPL (see "Running a swank server" above) and calling `(generate-readme)`.
+
+When adding a documentation string to a variable, function, class accessor, or macro, it's important to start the documentation string with ":public:" or ":private:", to indicate if the symbol should be exported. The `generate-readme` function removes these strings (and the space that follows the string) from the documentation when generating the README.
+
+There's a lot of macro business going on in `rbac-docs.lisp`. If you don't see some new text you edited appearing in the README after calling `generate-readme`, simply evaluate the whole buffer. In Emacs, you can do that with M-x slime-eval-buffer, for example.
+
+### Exports and documentation checks
+
+When you remove a function from the library, it can be easy to forget to update the documentation or the exports section of the package file. This project provides functions to help ensure that nothing is out of sync. Those functions are in the exports.lisp file. The most important function in that file is `check-exports`.
+
+The `check-exports` function returns a plist with the following keys:
+
+- **:missing-in-exports** A list of the variables, functions, class accessors, and macros in the `:rbac` package that have a documentation string that starts with ":public:" and that don't appear in the `:exports` section of the `rbac-package.lisp` file.
+
+- **:stale-exports** A list of symbols that appear in the `:exports` section of the `rbac-package.lisp` file that are not defined in the package, or that no longer have a documentation string that starts with ":public:".
+
+- **:missing-in-docs** A list of the symbols that have a documentation string that starts with ":public:" and that do not appear in the `rbac-docs.lisp` file.
+
+- **:stale-docs** A list of the symbols in `rbac-docs.lisp` that no longer exist or that no longer have a documentation string that starts with ":public:".
+
+Thus, you can easily determine if something is missing from the documentation or the exports.
+
+  [1877]: #RBAC:@RBAC-LIMITATIONS%20MGL-PAX:SECTION "Current Limitations (Planned Fixes)"
+  [2fee]: #RBAC:@RBAC-OVERVIEW%20MGL-PAX:SECTION "Introduction"
+  [38b1]: #RBAC:LIST-USER-NAMES%20GENERIC-FUNCTION "RBAC:LIST-USER-NAMES GENERIC-FUNCTION"
   [5ba5]: #RBAC:RBAC-PG%20CLASS "RBAC:RBAC-PG CLASS"
+  [6c9c]: #RBAC:@RBAC-DEVELOPMENT%20MGL-PAX:SECTION "`RBAC` Development"
   [7829]: #RBAC:@RBAC-VARIABLES%20MGL-PAX:SECTION "Special Variables"
   [7b8a]: #RBAC:@RBAC-PG-CLASS%20MGL-PAX:SECTION "`RBAC-PG` Class"
   [94ab]: #RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION "Functions"
@@ -942,4 +1048,5 @@ Exported macros.
   [c729]: #RBAC:*DEFAULT-PERMISSIONS*%20VARIABLE "RBAC:*DEFAULT-PERMISSIONS* VARIABLE"
   [d0c7]: #RBAC:@RBAC-MACROS%20MGL-PAX:SECTION "Macros"
   [df57]: #RBAC:*DEFAULT-PAGE-SIZE*%20VARIABLE "RBAC:*DEFAULT-PAGE-SIZE* VARIABLE"
+  [e371]: #RBAC:@RBAC-INSTALLATION%20MGL-PAX:SECTION "Installation"
   [e768]: #RBAC:ADD-USER%20GENERIC-FUNCTION "RBAC:ADD-USER GENERIC-FUNCTION"

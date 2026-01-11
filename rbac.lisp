@@ -1114,8 +1114,8 @@ Helper function for insert-name."))
              (table string)
              (name string)
              &key (description (unless (equal table "users")
-                                         (format nil "~a '~a'"
-                                           (singular table) name)))
+                                 (format nil "~a '~a'"
+                                   (singular table) name)))
              email
              password
              exclusive)
@@ -1125,11 +1125,11 @@ Helper function for insert-name."))
       (check errors (not (get-id rbac table name))
         "~a '~a' already exists." (singular table) name)
       (report-errors "insert-name" errors))
-      (check-insert-name-params rbac table name
-        :description description
-        :email email
-        :password password
-        :exclusive exclusive)
+    (check-insert-name-params rbac table name
+      :description description
+      :email email
+      :password password
+      :exclusive exclusive)
     (let* ((other-values (list description email password exclusive))
             (query-params (append (list table name) other-values)))
       (let ((query (apply #'make-insert-name-query query-params)))
@@ -1422,8 +1422,6 @@ returns the count of rows that match the filters instead of the rows."))
              (user-name string)
              (permission string)
              (resource string))
-    "Returns a list of plists showing how the user USER-NAME has PERMISSION
-access to RESOURCE. If the list is empty, the user does not have access."
     (l:pdebug :in "user-allowed"
       :status "checking if user has permission on resource"
       :user user-name

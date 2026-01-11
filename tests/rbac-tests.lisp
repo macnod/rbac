@@ -42,29 +42,27 @@
 
 ;; Test support
 (defparameter uuid-regex "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
-(defparameter *admin* "admin")
 (defparameter *admin-exclusive* (exclusive-role-for *admin*))
-(defparameter *guest* "guest")
 (defparameter *guest-exclusive* (exclusive-role-for *guest*))
-(defparameter *init-users* (list *admin* *guest*))
-(defparameter *init-roles* (list *admin* *admin-exclusive* *guest-exclusive*
-                             "logged-in" "public"))
-(defparameter *init-permissions* *default-permissions*)
 
 (setf *default-page-size* 1000)
 
-(when *log-file*
-  (make-log-stream "tests" *log-file* :append nil))
+(when *log-file* (make-log-stream "tests" *log-file* :append nil))
 
 (initialize-database *rbac* *admin-password*)
 
+;; What RBAC starts with
+(defparameter *base-users* (list-user-names *rbac*))
+(defparameter *base-roles* (list-role-names *rbac*))
+(defparameter *base-permissions* (list-permission-names *rbac*))
+
 (defun clear-database ()
-  (loop for user in (u:exclude (list-user-names *rbac*) *init-users*)
+  (loop for user in (u:exclude (list-user-names *rbac*) *base-users*)
     do (remove-user *rbac* user))
   (loop for permission in (u:exclude (list-permission-names *rbac*)
-                            *init-permissions*)
+                            *base-permissions*)
     do (remove-permission *rbac* permission))
-  (loop for role in (u:exclude (list-role-names *rbac*) *init-roles*)
+  (loop for role in (u:exclude (list-role-names *rbac*) *base-roles*)
     do (remove-role *rbac* role))
   (loop for resource in (list-resource-names *rbac*)
     do (remove-resource *rbac* resource))
@@ -153,7 +151,7 @@
         (u:exclude-regex (list-role-names *rbac*) ":exclusive$")))
   (is (equal (loop for a from 1 to 7
                collect (format nil "user-~2,'0d" a))
-        (u:exclude (list-user-names *rbac*) *init-users*)))
+        (u:exclude (list-user-names *rbac*) *base-users*)))
   (is (equal '("test:resource-01" "test:resource-02"
                 "test:resource-03" "test:resource-04"
                 "test:resource-05" "test:resource-06"
@@ -718,7 +716,7 @@
   (add-user *rbac* "user-2" "no-email" "password-02")
   (let ((users (list-users *rbac*)))
     (is (= 4 (length users)))
-    (is (equal (append *init-users* (list "user-1" "user-2"))
+    (is (equal (append *base-users* (list "user-1" "user-2"))
           (mapcar (lambda (user) (getf user :user-name)) users)))
     (is-true (every (lambda (u) (is-uuid (getf u :id))) users))
     (is-true (every (lambda (u) (integerp (getf u :created-at))) users))
@@ -728,7 +726,7 @@
     (is-true (every (lambda (u)
                       (re:scan "^[a-f0-9]{32}$" (getf u :password-hash)))
                users)))
-  (is (equal (append *init-users* (list "user-1" "user-2"))
+  (is (equal (append *base-users* (list "user-1" "user-2"))
         (list-user-names *rbac*)))
   (is (= 4 (user-count *rbac*))))
 

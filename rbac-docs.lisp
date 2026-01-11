@@ -11,10 +11,32 @@
              (asdf:system-relative-pathname :rbac #P"")
              "intro-src.md"))
   (@rbac-examples section)
+  (@rbac-overview section)
+  (@rbac-limitations section)
+  (@rbac-installation section)
   (@rbac-pg-class section)
   (@rbac-functions section)
   (@rbac-variables section)
-  (@rbac-macros section))
+  (@rbac-macros section)
+  (@rbac-development section))
+
+(defsection-wrapper @rbac-overview
+  (:title "Introduction")
+  (u:slurp (u:join-paths
+             (asdf:system-relative-pathname :rbac #P"")
+             "overview-src.md")))
+
+(defsection-wrapper @rbac-limitations
+  (:title "Current Limitations (Planned Fixes)")
+  (u:slurp (u:join-paths
+             (asdf:system-relative-pathname :rbac #P"")
+             "limitations-src.md")))
+
+(defsection-wrapper @rbac-installation
+  (:title "Installation")
+  (u:slurp (u:join-paths
+             (asdf:system-relative-pathname :rbac #P"")
+             "installation-src.md")))
 
 (defsection @rbac-pg-class
   (:title "RBAC-PG Class")
@@ -132,6 +154,12 @@
   (u:slurp (u:join-paths
              (asdf:system-relative-pathname :rbac #P"")
              "examples-src.md")))
+
+(defsection-wrapper @rbac-development
+  (:title "RBAC Development")
+  (u:slurp (u:join-paths
+             (asdf:system-relative-pathname :rbac #P"")
+             "development-src.md")))
 
 (defun generate-readme ()
   (let* ((file-name (u:join-paths
