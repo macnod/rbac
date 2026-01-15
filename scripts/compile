@@ -1,0 +1,34 @@
+#!/bin/bash
+
+TEST_FILE=$1
+
+# File Server Lisp Environment
+export DB_HOST="127.0.0.1"
+export DB_PORT="5436"
+export DB_NAME="rbac"
+export DB_USER="rbac"
+export DB_PASSWORD="rbac-password"
+export ADMIN_PASSWORD="admin-password-1"
+export DB_CONTAINER="pg-rbac-test"
+export RBAC_REPL="false"
+export RUN_TESTS="false"
+export SKIP_DB="true"
+
+if [[ -z "$TEST_FILE" ]]; then
+    echo "Usage: $(basename $0) {test-file}"
+    exit 1
+fi
+
+ros run -- --disable-debugger \
+  --eval "(push (uiop:getcwd) asdf:*central-registry*)" \
+  --eval "(ql:register-local-projects)" \
+  --eval "(asdf:load-system :rbac :force t)" \
+  --load "$TEST_FILE" \
+  --quit
+if [[ $? -eq 0 ]]; then
+  echo
+  echo "Compilation successful."
+else
+  echo
+  echo "Compilation failed."
+fi
