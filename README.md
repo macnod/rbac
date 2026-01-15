@@ -286,7 +286,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="x-28RBAC-3ARESOURCE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:RESOURCE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9\]\[-a-zA-Z0-9\]\*$")*
+- [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9.\_/\]\[-a-zA-Z0-9.\_ /\]\*$")*
 
     Defaults to an absolute directory path string that ends with /
 
@@ -571,6 +571,16 @@ Accessors and methods for manipulating `RBAC` objects.
 - [generic-function] **LIST-USER-RESOURCE-NAMES** *RBAC USER PERMISSION &KEY PAGE PAGE-SIZE FILTERS ORDER-BY*
 
     List resource names of users where the user has `PERMISSION` on the resource. Pagination is supported via the `PAGE` and `PAGE-SIZE` parameters. `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57]. The `FILTERS` parameter can be used to filter the results. It consists of a list of filters, where each filter is a list of three elements: field name, operator, and value. Operator, a string, can be =, \<>, \<, >, \<=, >=, is, is not, like, or ilike. Value is a string, number, :null, :true, or :false. The `ORDER-BY` parameter is a list of strings that represent field names and are used to order the results. It defaults to (list "s.resource\_name").
+
+<a id="x-28RBAC-3ALIST-USER-RESOURCE-NAMES-OF-TYPE-20GENERIC-FUNCTION-29"></a>
+<a id="RBAC:LIST-USER-RESOURCE-NAMES-OF-TYPE%20GENERIC-FUNCTION"></a>
+
+- [generic-function] **LIST-USER-RESOURCE-NAMES-OF-TYPE** *RBAC USER-NAME RESOURCE-TYPE &KEY PERMISSIONS PAGE PAGE-SIZE*
+
+    List the names of the resources of type
+    `RESOURCE-TYPE` that `USER-NAME` has access to. `RESOURCE-TYPE` is matched against
+    the prefix of the resource name. Supports pagination via `PAGE` and `PAGE-SIZE`.
+    `PAGE` defaults to 1 and `PAGE-SIZE` defaults to [`*DEFAULT-PAGE-SIZE*`][df57].
 
 <a id="x-28RBAC-3ALIST-USER-RESOURCE-PERMISSION-NAMES-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:LIST-USER-RESOURCE-PERMISSION-NAMES%20GENERIC-FUNCTION"></a>

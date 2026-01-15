@@ -31,14 +31,16 @@
 (defparameter *log-file* (u:getenv "LOG_FILE"))
 (defparameter *run-tests* (u:getenv "RUN_TESTS" :type :boolean :default t))
 (defparameter *rbac-repl* (u:getenv "RBAC_REPL" :type :boolean :default nil))
+(defparameter *skip-db* (u:getenv "SKIP_DB" :type :boolean :default nil))
 (defparameter *swank-port* (u:getenv "SWANK_PORT" :type :integer))
 
 ;; Database connection
-(defparameter *rbac* (make-instance 'rbac-pg
-                       :db-host *db-host*
-                       :db-port *db-port*
-                       :db-user *db-user*
-                       :db-password *db-password*))
+(defparameter *rbac* (unless *skip-db*
+                       (make-instance 'rbac-pg
+                         :db-host *db-host*
+                         :db-port *db-port*
+                         :db-user *db-user*
+                         :db-password *db-password*)))
 
 ;; Test support
 (defparameter uuid-regex "^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$")
@@ -49,12 +51,16 @@
 
 (when *log-file* (make-log-stream "tests" *log-file* :append nil))
 
-(initialize-database *rbac* *admin-password*)
+(unless *skip-db*
+  (initialize-database *rbac* *admin-password*))
 
 ;; What RBAC starts with
-(defparameter *base-users* (list-user-names *rbac*))
-(defparameter *base-roles* (list-role-names *rbac*))
-(defparameter *base-permissions* (list-permission-names *rbac*))
+(defparameter *base-users* (unless *skip-db*
+                             (list-user-names *rbac*)))
+(defparameter *base-roles* (unless *skip-db*
+                             (list-role-names *rbac*)))
+(defparameter *base-permissions* (unless *skip-db*
+                                   (list-permission-names *rbac*)))
 
 (defun clear-database ()
   (loop for user in (u:exclude (list-user-names *rbac*) *base-users*)
@@ -978,6 +984,59 @@
   (add-resource-role *rbac* "resource-1" "role-2")
   (is (equal '("create" "delete" "read")
         (list-user-resource-permission-names *rbac* "user-1" "resource-1"))))
+
+(test list-user-resource-names-of-type
+  (clear-database)
+  (add-role *rbac* "role-1" :permissions '("create" "update" "delete"))
+  (add-role *rbac* "role-2" :permissions '("read"))
+  (add-user *rbac* "user-1" "no-email" "password-01" :roles '("role-1"))
+  (add-user *rbac* "user-2" "no-email" "password-02" :roles '("role-2"))
+  (add-user *rbac* "user-3" "no-email" "password-03" :roles '("role-1" "role-2"))
+  (add-user *rbac* "user-4" "no-email" "password-04")
+  (add-resource *rbac* "file:/a-1.txt" :roles '("role-1"))
+  (add-resource *rbac* "file:/b-1.txt" :roles '("role-1"))
+  (add-resource *rbac* "file:/a-2.txt" :roles '("role-2"))
+  (add-resource *rbac* "file:/b-2.txt" :roles '("role-2"))
+  (add-resource *rbac* "file:/c.txt" :roles '("role-1" "role-2"))
+  (add-resource *rbac* "directory:/a-1/" :roles '("role-1"))
+  (add-resource *rbac* "directory:/b-1/" :roles '("role-1"))
+  (add-resource *rbac* "directory:/a-2/" :roles '("role-2"))
+  (add-resource *rbac* "directory:/b-2/" :roles '("role-2"))
+  (add-resource *rbac* "directory:/c/"   :roles '("role-1" "role-2"))
+  (is (equal (u:safe-sort '("file:/a-1.txt" "file:/b-1.txt" "file:/c.txt"))
+        (list-user-resource-names-of-type *rbac* "user-1" "file"
+          :permissions '("create"))))
+  (is-false (list-user-resource-names-of-type *rbac* "user-1" "file"))
+  (is-false (list-user-resource-names-of-type *rbac* "user-1" "file"
+              :permissions '("read")))
+  (is (equal (u:safe-sort '("file:/a-2.txt" "file:/b-2.txt" "file:/c.txt"))
+        (list-user-resource-names-of-type *rbac* "user-2" "file")))
+  (is (equal (u:safe-sort '("file:/a-2.txt" "file:/b-2.txt" "file:/c.txt"))
+        (list-user-resource-names-of-type *rbac* "user-2" "file"
+          :permissions '("read"))))
+  (is-false (list-user-resource-names-of-type *rbac* "user-2" "file"
+              :permissions '("create" "update" "delete")))
+  (is (equal
+        (u:safe-sort
+          '("file:/a-1.txt" "file:/b-1.txt" "file:/a-2.txt" "file:/b-2.txt"
+             "file:/c.txt"))
+        (list-user-resource-names-of-type *rbac* "user-3" "file"
+          :permissions '("read" "create"))))
+  (is (equal
+        (u:safe-sort
+          '("directory:/a-1/" "directory:/b-1/" "directory:/a-2/"
+             "directory:/b-2/" "directory:/c/" ))
+        (list-user-resource-names-of-type *rbac* "user-3" "directory"
+          :permissions '("read" "update"))))
+  (is (equal
+        (u:safe-sort '("directory:/a-2/" "directory:/b-2/" "directory:/c/"))
+        (list-user-resource-names-of-type *rbac* "user-3" "directory"
+          :permissions '("read"))))
+  (is (equal
+        (u:safe-sort '("directory:/a-1/" "directory:/b-1/" "directory:/c/"))
+        (list-user-resource-names-of-type *rbac* "user-1" "directory"
+          :permissions '("create"))))
+  (is-false (list-user-resource-names-of-type *rbac* "user-1" "directory")))
 
 ;;; Run tests
 (if *run-tests*

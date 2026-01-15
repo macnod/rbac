@@ -30,14 +30,17 @@ install-dependencies:
 	ros install macnod/dc-eclectic/v0.51
 
 test:
-	tests/run-tests "$(TEST_FILE)"
+	scripts/run-tests "$(TEST_FILE)"
 
 test-ci:
 	ADMIN_PASSWORD="admin-password-1" \
 	ros run -- --disable-debugger --load "$(TEST_FILE)" --quit
 
-test-repl:
-	tests/rbac-tests-repl start "$(TEST_FILE)"
+repl:
+	scripts/rbac-tests-repl start "$(TEST_FILE)"
+
+docs:
+	scripts/generate-readme "$(TEST_FILE)"
 
 .PHONY: install-roswell install-dependencies test
 .DEFAULT_GOAL := test

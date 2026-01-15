@@ -50,6 +50,7 @@
     list-roles
     list-user-names
     list-user-resource-names
+    list-user-resource-names-of-type
     list-user-resource-permission-names
     list-user-resources
     list-user-role-names

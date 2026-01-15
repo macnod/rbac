@@ -95,6 +95,7 @@
   (list-roles function)
   (list-user-names function)
   (list-user-resource-names function)
+  (list-user-resource-names-of-type function)
   (list-user-resource-permission-names function)
   (list-user-resources function)
   (list-user-role-names function)

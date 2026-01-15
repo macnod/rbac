@@ -521,7 +521,7 @@ the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
   ((resource-regex :accessor resource-regex
      :initarg :resource-regex
      :type string
-     :initform "^[a-zA-Z][-a-zA-Z0-9]*:?[a-zA-Z0-9][-a-zA-Z0-9]*$"
+     :initform "^[a-zA-Z][-a-zA-Z0-9]*:?[a-zA-Z0-9._/][-a-zA-Z0-9._ /]*$"
      :documentation
      ":public: Defaults to an absolute directory path string that ends with /")
     (resource-length-max :accessor resource-length-max
@@ -1525,13 +1525,16 @@ update last_login for USER-NAME and return the user ID. Otherwise, return NIL.")
       :email email
       :password password
       :roles roles
-      :all-roles (append roles *default-user-roles*))
+      :all-roles (u:distinct-values (append roles *default-user-roles*)))
     (let* (errors
-            (all-roles (append roles *default-user-roles*))
+            (all-roles (u:distinct-values (append roles *default-user-roles*)))
             (missing-roles (remove-if (lambda (r) (get-id rbac "roles" r))
                              all-roles)))
       (check errors (not missing-roles)
         "The following roles do not exist: ~{~a~^, ~}." missing-roles)
+      (check errors
+        (not (some (lambda (r) (re:scan ":exclusive$" r)) all-roles))
+        "Exclusive roles are not allowed for :roles parameter")
       (report-errors "add-user" errors)
       ;; Add the user
       (insert-user rbac user-name email password)
@@ -1617,7 +1620,8 @@ of the removed role."))
       (check errors (not missing-roles)
         "The following roles do not exist: ~{~a~^, ~}." missing-roles)
       (report-errors "add-resource" errors))
-    (let ((all-roles (append *default-resource-roles* roles)))
+    (let ((all-roles (u:distinct-values
+                       (append *default-resource-roles* roles))))
       (insert-name rbac "resources" resource :description description)
       (loop for role in all-roles
         do (link rbac "resources" "roles" resource role))
@@ -1810,6 +1814,45 @@ the removed resource role."))
   (:documentation ":public: List the names of the permissions that USER-NAME
 has on RESOURCE-NAME. Supports pagination via PAGE and PAGE-SIZE. PAGE defaults
 to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*"))
+
+(defgeneric list-user-resource-names-of-type (rbac user-name resource-type &key
+                                               permissions page page-size)
+  (:method ((rbac rbac-pg) (user-name string) (resource-type string) &key
+             (permissions '("read")) (page 1) (page-size *default-page-size*))
+    (l:pdebug :in "list-user-resource-names-of-type"
+      :user-name user-name :resource-type resource-type
+      :permissions permissions :page page :page-size page-size)
+    (let* ((sql (format nil
+                  "select distinct s.resource_name
+                   from users u
+                     join role_users ru on ru.user_id = u.id
+                     join roles r on ru.role_id = r.id
+                     join resource_roles sr on sr.role_id = r.id
+                     join resources s on sr.resource_id = s.id
+                     join role_permissions rp on rp.role_id = r.id
+                     join permissions p on rp.permission_id = p.id
+                   where u.user_name = $1
+                     and s.resource_name like $2
+                     and p.permission_name in (~{~a~^, ~})
+                   order by s.resource_name
+                   limit ~a offset ~a"
+                  (loop for a from 3 to (+ 3 (1- (length permissions)))
+                    collect (format nil "$~d" a))
+                  (* page-size 1)
+                  (* (1- page) page-size)))
+            (like-pattern (format nil "~a:%" resource-type))
+            (params (append (list sql user-name like-pattern) permissions)))
+      (l:pdebug :in "list-user-resource-names-of-type"
+        :user-name user-name :resource-type resource-type
+        :page page :page-size page-size :sql sql
+        :params (cdr params))
+      (with-rbac (rbac)
+        (rbac-query params :column))))
+  (:documentation ":public: List the names of the resources of type
+RESOURCE-TYPE that USER-NAME has access to. RESOURCE-TYPE is matched against
+the prefix of the resource name. Supports pagination via PAGE and PAGE-SIZE.
+PAGE defaults to 1 and PAGE-SIZE defaults to *DEFAULT-PAGE-SIZE*."))
+
 
 ;;
 ;; Database initialization
