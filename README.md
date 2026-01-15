@@ -26,6 +26,10 @@ Simple Role-Based Access Control (`RBAC`) system implemented in Common Lisp. It 
 Usage examples.
 
 ```lisp
+;;
+;; WARNING: Use environment variables for real passwords, never hardcode them
+;;
+
 (require :rbac)
 (defpackage :rbac-example (:use :cl :rbac))
 (in-package :rbac-example)
@@ -62,7 +66,7 @@ Usage examples.
 
 ;; Add a user with roles "role-a" and "role-b"
 (add-user *rbac* "user-1" "user-1@example.com" "password-01"
-    :roles '("role-a" "role-b")
+    :roles '("role-a" "role-b"))
 
 ;; Add a resource that is accessible to the public
 (add-resource *rbac* "test:resource-1"
@@ -98,11 +102,11 @@ Usage examples.
 
 ## 2 Introduction
 
-This library provides functions and initial SQL for supporting Role-Based Access Control (`RBAC`).
+This library provides functions and initial `SQL` for supporting Role-Based Access Control (`RBAC`).
 
 The system provides users, roles, permissions, and resources. Users have roles. Roles have permissions. Resources also have roles. However, resources do not have users. To determine if user 'adam' has 'read' access to resource 'book', the user and the book must both have the same role and the role must have the 'read' permission.
 
-A role can be exclusive, which means that it can be associated with only one user. Exclusive roles are managed by the system, so there's never any need to create or delete exclusive roles. However, you can manage the permission for an exclusive role. Whenever a user is created with the [`add-user`][e768] function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that user only. In this way, it's possible to give a specific user access to the resource. All users have a corresponding exclusive role, except for the `guest` user. You can obtaine the name of a user's exclusive role  with the [`exclusive-role-for`][ac36] function.
+A role can be exclusive, which means that it can be associated with only one user. Exclusive roles are managed by the system, so there's never any need to create or delete exclusive roles. However, you can manage the permission for an exclusive role. Whenever a user is created with the [`add-user`][e768] function, the library creates the user's exclusive role. The user's exclusive role is also removed when the user is removed. Thus, the exclusive role represents that user only. In this way, it's possible to give a specific user access to the resource. All users have a corresponding exclusive role, except for the `guest` user. You can obtain the name of a user's exclusive role  with the [`exclusive-role-for`][ac36] function.
 
 All new users are created with default roles: 'logged-in', 'public', and the exclusive role for that user. If a resource has the 'logged-in' role, then every logged-in user (that is, every user except for 'guest') has access to the resource. If a resource has the 'public' role, then all users, including the guest user (not logged in), have access to the resource. The 'public' and 'logged-in' roles have 'read' permission by default.
 
@@ -135,7 +139,8 @@ Username **salting** prevents casual DB lookups, but doesn't provide optimal sec
 ### Roswell
 
 You'll need to install some dependencies first:
-`sh
+
+```sh
 ros install postmodern
 ros install fiveam
 ros install cl-csv
@@ -147,13 +152,13 @@ ros install macnod/dc-ds/v0.5
 ros install macnod/dc-time/v0.5
 ros install macnod/p-log/v0.9
 ros install macnod/dc-eclectic/v0.51
-`
+```
 
 Then, you can install `rbac` like this:
 
 `ros install macnod/rbac/vX.X`
 
-where X.X is the release.
+where X.X is the release. You can find the latest release in [the repo](https://github.com/macnod/rbac).
 
 ### GitHub
 
@@ -657,9 +662,9 @@ Accessors and methods for manipulating `RBAC` objects.
 
     Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
     list of rows, and executes that query. `SQL-TEMPLATE-AND-PARAMETERS` is a list
-    where the first element is an SQL string (optionally with placeholders) and the
+    where the first element is an `SQL` string (optionally with placeholders) and the
     rest of the elements are values that are used to replace the placeholders in the
-    SQL string. This function needs to be called inside of a with-rbac block. Each
+    `SQL` string. This function needs to be called inside of a with-rbac block. Each
     row in the result is a plist, where the keys represent the field names.
 
 <a id="x-28RBAC-3ARBAC-QUERY-SINGLE-20FUNCTION-29"></a>
@@ -669,9 +674,9 @@ Accessors and methods for manipulating `RBAC` objects.
 
     Converts `SQL-TEMPLATE-AND-PARAMETERS` into a query that returns a
     single value, and executes that query. `SQL-TEMPLATE-AND-PARAMETERS` is a list
-    where the first element is an SQL string (optionally with placeholders) and the
+    where the first element is an `SQL` string (optionally with placeholders) and the
     rest of the elements are the values that are used to replace the placeholders in
-    the SQL string. This function needs to be called inside a with-rbac block.
+    the `SQL` string. This function needs to be called inside a with-rbac block.
 
 <a id="x-28RBAC-3AREMOVE-PERMISSION-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:REMOVE-PERMISSION%20GENERIC-FUNCTION"></a>
@@ -1023,7 +1028,7 @@ The exported functions are listed in the usual fashion in the package file, rbac
 
 This README is generated. The code to generate the README is in rbac-docs.lisp. The MGL-PAX library fetches the documentation strings from the variables, functions, accessors, and macros in the code, and uses them to help build the README.
 
-You can generate the README by starting a REPL (see "Running a swank server" above) and calling `(generate-readme)`.
+You can generate the README from the command line with `make docs`, or by starting a REPL (see "Running a swank server" above) and then calling `(generate-readme)`.
 
 When adding a documentation string to a variable, function, class accessor, or macro, it's important to start the documentation string with ":public:" or ":private:", to indicate if the symbol should be exported. The `generate-readme` function removes these strings (and the space that follows the string) from the documentation when generating the README.
 
@@ -1044,6 +1049,24 @@ The `check-exports` function returns a plist with the following keys:
 - **:stale-docs** A list of the symbols in `rbac-docs.lisp` that no longer exist or that no longer have a documentation string that starts with ":public:".
 
 Thus, you can easily determine if something is missing from the documentation or the exports.
+
+### Summary of `make` targets
+
+#### **`make test`**
+
+Runs the tests. Run from command line.
+
+#### **`make test-ci`**
+
+Runs the tests. Run from GitHub Actions. (See `.github/workflows/ci.yaml`.)
+
+#### **`make repl`**
+
+Start a Swank server so that you can connect to `RBAC` and to the `RBAC` tests with a REPL. Please note the Swank port number, which this command prints when the server is ready.
+
+#### **`make docs`**
+
+Generate the README.md file.
 
   [1877]: #RBAC:@RBAC-LIMITATIONS%20MGL-PAX:SECTION "Current Limitations (Planned Fixes)"
   [2fee]: #RBAC:@RBAC-OVERVIEW%20MGL-PAX:SECTION "Introduction"

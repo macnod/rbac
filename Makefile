@@ -32,8 +32,18 @@ install-dependencies:
 test:
 	scripts/run-tests "$(TEST_FILE)"
 
+compile:
+	ros run -- --disable-debugger \
+		--eval '(asdf:load-system :rbac :force t)' --quit; \
+	if [ $$? -eq 0 ]; then \
+		echo \
+		echo "Compilation successful."; \
+	else \
+		echo \
+		echo "Compilation failed."; \
+	fi
+
 test-ci:
-	ADMIN_PASSWORD="admin-password-1" \
 	ros run -- --disable-debugger --load "$(TEST_FILE)" --quit
 
 repl:

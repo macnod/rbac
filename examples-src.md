@@ -1,6 +1,10 @@
 Usage examples.
 
 ```lisp
+;;
+;; WARNING: Use environment variables for real passwords, never hardcode them
+;;
+
 (require :rbac)
 (defpackage :rbac-example (:use :cl :rbac))
 (in-package :rbac-example)
@@ -37,7 +41,7 @@ Usage examples.
 
 ;; Add a user with roles "role-a" and "role-b"
 (add-user *rbac* "user-1" "user-1@example.com" "password-01"
-    :roles '("role-a" "role-b")
+    :roles '("role-a" "role-b"))
 
 ;; Add a resource that is accessible to the public
 (add-resource *rbac* "test:resource-1"

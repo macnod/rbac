@@ -1,6 +1,7 @@
 ### Roswell
 
 You'll need to install some dependencies first:
+
 ```sh
 ros install postmodern
 ros install fiveam
@@ -19,7 +20,7 @@ Then, you can install `rbac` like this:
 
 `ros install macnod/rbac/vX.X`
 
-where X.X is the release.
+where X.X is the release. You can find the latest release in [the repo](https://github.com/macnod/rbac).
 
 ### GitHub
 Clone the repo to a directory that Quicklisp or ASDF can see, such as ~/common-lisp. For example:

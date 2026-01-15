@@ -20,7 +20,9 @@ if [[ -z "$TEST_FILE" ]]; then
     exit 1
 fi
 
-ros run -- --disable-debugger --load "$TEST_FILE" \
+ros run -- --disable-debugger \
+  --eval '(asdf:load-system :rbac :force t)' \
+  --load "$TEST_FILE" \
   --eval "(rbac::generate-readme)" --quit
 if [[ $? -eq 0 ]]; then
     echo "Generated README.md"

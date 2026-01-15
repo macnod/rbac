@@ -46,7 +46,7 @@ The exported functions are listed in the usual fashion in the package file, rbac
 
 This README is generated. The code to generate the README is in rbac-docs.lisp. The MGL-PAX library fetches the documentation strings from the variables, functions, accessors, and macros in the code, and uses them to help build the README.
 
-You can generate the README by starting a REPL (see "Running a swank server" above) and calling `(generate-readme)`.
+You can generate the README from the command line with `make docs`, or by starting a REPL (see "Running a swank server" above) and then calling `(generate-readme)`.
 
 When adding a documentation string to a variable, function, class accessor, or macro, it's important to start the documentation string with ":public:" or ":private:", to indicate if the symbol should be exported. The `generate-readme` function removes these strings (and the space that follows the string) from the documentation when generating the README.
 
@@ -64,3 +64,17 @@ The `check-exports` function returns a plist with the following keys:
 - **:stale-docs** A list of the symbols in `rbac-docs.lisp` that no longer exist or that no longer have a documentation string that starts with ":public:".
 
 Thus, you can easily determine if something is missing from the documentation or the exports.
+
+### Summary of `make` targets
+
+#### **`make test`**
+Runs the tests. Run from command line.
+
+#### **`make test-ci`**
+Runs the tests. Run from GitHub Actions. (See `.github/workflows/ci.yaml`.)
+
+#### **`make repl`**
+Start a Swank server so that you can connect to RBAC and to the RBAC tests with a REPL. Please note the Swank port number, which this command prints when the server is ready.
+
+#### **`make docs`**
+Generate the README.md file.
