@@ -33,8 +33,20 @@ test:
 	scripts/run-tests "$(TEST_FILE)"
 
 compile:
+	DB_HOST="127.0.0.1" \
+	DB_PORT="5436" \
+	DB_NAME="rbac" \
+	DB_USER="rbac" \
+	DB_PASSWORD="rbac-password" \
+	ADMIN_PASSWORD="admin-password-1" \
+	DB_CONTAINER="pg-rbac-test" \
+	RBAC_REPL="false" \
+	RUN_TESTS="false" \
+	SKIP_DB="true" \
 	ros run -- --disable-debugger \
-		--eval '(asdf:load-system :rbac :force t)' --quit; \
+		--eval '(asdf:load-system :rbac :force t)' \
+    --load "$(TEST_FILE)" \
+	  --quit; \
 	if [ $$? -eq 0 ]; then \
 		echo \
 		echo "Compilation successful."; \
