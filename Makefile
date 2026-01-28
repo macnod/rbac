@@ -27,7 +27,7 @@ install-dependencies:
 	ros install macnod/dc-ds/v0.5
 	ros install macnod/dc-time/v0.5
 	ros install macnod/p-log/v0.9
-	ros install macnod/dc-eclectic/v0.53
+	ros install macnod/dc-eclectic
 
 test:
 	scripts/run tests
