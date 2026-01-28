@@ -1,0 +1,209 @@
+#!/bin/bash
+
+SCRIPT_NAME=$(basename $0)
+ACTION="$1"
+
+export ADMIN_PASSWORD="admin-password-1"
+export DB_HOST="127.0.0.1"
+export DB_INIT_TEMPLATE="tests/init-template.sql"
+export DB_INIT_SQL="tests/init.sql"
+export DB_NAME="rbac"
+export DB_USER="rbac"
+export DB_PASSWORD="rbac-password"
+export PGPASSWORD="$DB_PASSWORD"
+
+sed "s/:database_name:/$DB_NAME/" $DB_INIT_TEMPLATE > $DB_INIT_SQL
+
+function usage {
+    echo "Usage:"
+    echo "    $SCRIPT_NAME {command}"
+    echo
+    echo "Commands:"
+    echo "repl     Starts a Common Lisp REPL (using Roswell) that loads the"
+    echo "         test file at $TEST_FILE, but doesn't run the tests. You"
+    echo "         can connect to the REPL with the a client like Slime at"
+    echo "         the reported Swank port."
+    echo "tests    Runs all the tests and reports success or failure."
+    echo "docs     Generates the REAME file."
+    echo "stop     Stops the database container and removes it. This is"
+    echo "         normally not necessary."
+    echo "debug    Runs the tests, printing all output from postgres and"
+    echo "         docker compose."
+    echo "help     Displays this help text."
+}
+
+function start_postgres_quietly {
+    echo
+    echo "Starting PosgreSQL"
+    docker-compose -f "$DB_DOCKER_COMPOSE" up -d &>/dev/null
+    until docker-compose -f "$DB_DOCKER_COMPOSE" exec -it "$DB_CONTAINER" \
+                         pg_isready -U postgres &>/dev/null; do
+        echo "Waiting for postgres..."
+        sleep 1
+    done
+    echo "PostgreSQL is up on port ${DB_PORT}"
+    sleep 2
+}
+
+function start_postgres {
+    echo
+    echo "Starting PosgreSQL"
+    echo "docker-compose -f \"${DB_DOCKER_COMPOSE}\" up -d"
+    docker-compose -f "$DB_DOCKER_COMPOSE" up -d
+    until docker-compose -f "$DB_DOCKER_COMPOSE" exec -it "$DB_CONTAINER" \
+                         pg_isready -U postgres; do
+        echo "Waiting for postgres..."
+        sleep 1
+    done
+    echo "PostgreSQL is up on port ${DB_PORT}"
+    sleep 2
+}
+
+function initialize_database_quietly {
+    echo
+    echo -n "Initializing database... "
+    psql -h $DB_HOST -p $DB_PORT -d $DB_NAME -U $DB_USER \
+         -f "$DB_INIT_SQL" >&/dev/null
+    echo "Done."
+}
+
+function initialize_database {
+    echo
+    echo "Initializing database"
+    psql -h $DB_HOST -p $DB_PORT -d $DB_NAME -U $DB_USER \
+         -f "$DB_INIT_SQL"
+}
+
+function start_repl {
+    echo
+    echo "Loading $TEST_FILE and starting Swank server on port $SWANK_PORT."
+    ros run -- --load "$TEST_FILE"
+}
+
+function run_tests {
+    echo
+    echo "Running tests"
+    ros run -- --disable-debugger --load "$TEST_FILE" --quit
+    export REPORT=$( [[ $? -eq 0 ]] && echo "PASS" || echo "FAIL" )
+}
+
+function generate_readme {
+    ros run -- --disable-debugger \
+        --eval '(asdf:load-system :rbac :force t)' \
+        --load "$TEST_FILE" \
+        --eval "(rbac::generate-readme)" --quit
+    if [[ $? -eq 0 ]]; then
+        echo "Generated README.md"
+    else
+        echo "Failed to generate README.md"
+    fi
+}
+
+function compile {
+    ros run -- --disable-debugger \
+        --eval "(push (uiop:getcwd) asdf:*central-registry*)" \
+        --eval "(ql:register-local-projects)" \
+        --eval "(asdf:load-system :rbac :force t)" \
+        --load "$TEST_FILE" \
+        --quit
+    if [[ $? -eq 0 ]]; then
+        echo
+        echo "Compilation successful."
+    else
+        echo
+        echo "Compilation failed."
+    fi
+}
+
+function stop_database {
+    echo "Stopping and removing database container"
+    echo "docker-compose -f \"${DB_DOCKER_COMPOSE}\" down --remove-orphans --volumes"
+    docker-compose -f "$DB_DOCKER_COMPOSE" down --remove-orphans --volumes
+}
+
+function stop_database_quietly {
+    echo "Stopping and removing database container"
+    docker-compose -f "$DB_DOCKER_COMPOSE" down &>/dev/null
+}
+
+function export_repl_environment {
+    export DB_CONTAINER="pg-rbac-repl"
+    export DB_PORT="5440"
+    export LOG_FILE="tests/repl.log"
+    export SWANK_PORT="4010"
+    export RUN_TESTS="false"
+    export REPL_ENABLED="true"
+    export DB_DOCKER_COMPOSE="tests/docker-compose-${DB_CONTAINER}.yaml"
+    export TEST_FILE="tests/rbac-tests.lisp"
+}
+
+function export_test_environment {
+    export DB_CONTAINER="pg-rbac-test"
+    export DB_PORT="5441"
+    export LOG_FILE="tests/test.log"
+    export RUN_TESTS="true"
+    export REPL_ENABLED="false"
+    export DB_DOCKER_COMPOSE="tests/docker-compose-${DB_CONTAINER}.yaml"
+    export TEST_FILE="tests/rbac-tests.lisp"
+}
+
+function export_docs_environment {
+    export DB_CONTAINER="pg-rbac-docs"
+    export DB_PORT="5442"
+    export LOG_FILE="tests/docs.log"
+    export RUN_TESTS="false"
+    export REPL_ENABLED="false"
+    export SKIP_DB="true"
+    export TEST_FILE="tests/rbac-tests.lisp"
+}
+
+case "$ACTION" in
+    repl)
+        export_repl_environment
+        start_postgres_quietly
+        initialize_database_quietly
+        start_repl
+        stop_database_quietly
+        ;;
+    tests)
+        export_test_environment
+        start_postgres_quietly
+        initialize_database_quietly
+        run_tests
+        stop_database_quietly
+        echo $REPORT
+        ;;
+    debug)
+        export_test_environment
+        start_postgres
+        initialize_database
+        run_tests
+        stop_database
+        echo $REPORT
+        ;;
+    compile)
+        export_docs_environment
+        compile
+        ;;
+    docs)
+        export_docs_environment
+        generate_readme
+        ;;
+    stop)
+        export_test_environment
+        stop_database
+        ;;
+    help)
+        usage
+        exit 0
+        ;;
+    *)
+        if [[ -z "$ACTION" ]]; then
+            echo "Missing command"
+        else
+            echo "Unknown command $ACTION"
+        fi
+        usage
+        exit 1
+        ;;
+esac

@@ -1,5 +1,5 @@
 services:
-  pg-tests-repl:
+  pg-rbac-repl:
     image: postgres:16
     environment:
       POSTGRES_HOST: "$DB_HOST"

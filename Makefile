@@ -30,19 +30,25 @@ install-dependencies:
 	ros install macnod/dc-eclectic/v0.53
 
 test:
-	scripts/run-tests "$(TEST_FILE)"
+	scripts/run tests
 
 compile:
-	scripts/compile "$(TEST_FILE)"
+	scripts/run compile
 
 test-ci:
 	ros run -- --disable-debugger --load "$(TEST_FILE)" --quit
 
 repl:
-	scripts/rbac-tests-repl start "$(TEST_FILE)"
+	scripts/run repl
 
 docs:
-	scripts/generate-readme "$(TEST_FILE)"
+	scripts/run docs
 
-.PHONY: install-roswell install-dependencies test
+debug:
+	scripts/run debug
+
+stop:
+	scripts/run stop
+
+.PHONY: install-roswell install-dependencies test compile test-ci repl docs debug stop
 .DEFAULT_GOAL := test

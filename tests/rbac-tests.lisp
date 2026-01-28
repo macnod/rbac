@@ -30,7 +30,7 @@
 (defparameter *admin-password* (u:getenv "ADMIN_PASSWORD" :required t))
 (defparameter *log-file* (u:getenv "LOG_FILE"))
 (defparameter *run-tests* (u:getenv "RUN_TESTS" :type :boolean :default t))
-(defparameter *rbac-repl* (u:getenv "RBAC_REPL" :type :boolean :default nil))
+(defparameter *repl* (u:getenv "REPL_ENABLED" :type :boolean :default nil))
 (defparameter *skip-db* (u:getenv "SKIP_DB" :type :boolean :default nil))
 (defparameter *swank-port* (u:getenv "SWANK_PORT" :type :integer))
 
@@ -288,8 +288,6 @@
             :plists)))))
 
 (test utils
-  (is (equal "cats" (rbac::plural "cat")))
-  (is (equal "cats" (rbac::plural "cats")))
   (is (equal "user_id" (rbac::external-reference-field "users")))
   (is (equal "ba5943b4e73f11457efbb7ae7639462f"
         (password-hash "user-01" "password")))
@@ -1038,6 +1036,11 @@
           :permissions '("create"))))
   (is-false (list-user-resource-names-of-type *rbac* "user-1" "directory")))
 
+(test initial-data
+  (is (equal rbac::*init-roles* (initial-roles)))
+  (is (equal rbac::*init-users* (initial-users)))
+  (is (equal rbac::*init-permissions* (initial-permissions))))
+
 ;;; Run tests
 (if *run-tests*
   (progn
@@ -1046,7 +1049,7 @@
       (close-log-stream "tests")
       (unless test-results
         (sb-ext:quit :unix-status 1))))
-  (if *rbac-repl*
+  (if *repl*
     (progn
       (format t "Compiling and loading RBAC system with Swank server...~%")
       (pinfo :in "rbac-tests"

@@ -433,6 +433,27 @@ Accessors and methods for manipulating `RBAC` objects.
 
     Returns `T` when `ID` exists in `TABLE`.
 
+<a id="x-28RBAC-3AINITIAL-PERMISSIONS-20FUNCTION-29"></a>
+<a id="RBAC:INITIAL-PERMISSIONS%20FUNCTION"></a>
+
+- [function] **INITIAL-PERMISSIONS**
+
+    Returns the list of initial permissions that `RBAC` creates.
+
+<a id="x-28RBAC-3AINITIAL-ROLES-20FUNCTION-29"></a>
+<a id="RBAC:INITIAL-ROLES%20FUNCTION"></a>
+
+- [function] **INITIAL-ROLES**
+
+    Returns the list of initial roles that `RBAC` creates.
+
+<a id="x-28RBAC-3AINITIAL-USERS-20FUNCTION-29"></a>
+<a id="RBAC:INITIAL-USERS%20FUNCTION"></a>
+
+- [function] **INITIAL-USERS**
+
+    Returns the list of initial users that `RBAC` creates.
+
 <a id="x-28RBAC-3AINITIALIZE-DATABASE-20GENERIC-FUNCTION-29"></a>
 <a id="RBAC:INITIALIZE-DATABASE%20GENERIC-FUNCTION"></a>
 
@@ -982,6 +1003,22 @@ Exported macros.
 
 This section describes tools to improve the efficiency and accuracy of the development of this software.
 
+### Makefile
+
+Most of the functionality of these tools is exposed via the Makefile, which supports the following targets.
+
+- **`make test`** Runs all the tests.
+
+- **`make repl`** Starts a Swank server that you can connect to via Slime or some such to access the REPL. The REPL will start with both :rbac and :rbac-test loaded.
+
+- **`make docs`** Generate the README.md file.
+
+- **`make debug`** Like `make test`, but more verbose when it comes to database and container operations.
+
+- **`make compile`** Compiles the code, including the tests, but doesn't run the tests. In CI, this allows the compilation to happen in a separate step, making the test step less cluttered.
+
+- **`make stop`** If something goes wrong and the database container remains (rare), you can stop the container with this command.
+
 ### Tests
 
 The tests are located in rbac-tests.lisp.
@@ -1030,7 +1067,7 @@ This README is generated. The code to generate the README is in rbac-docs.lisp. 
 
 You can generate the README from the command line with `make docs`, or by starting a REPL (see "Running a swank server" above) and then calling `(generate-readme)`.
 
-When adding a documentation string to a variable, function, class accessor, or macro, it's important to start the documentation string with ":public:" or ":private:", to indicate if the symbol should be exported. The `generate-readme` function removes these strings (and the space that follows the string) from the documentation when generating the README.
+When adding a documentation string to a variable, function, class accessor, or macro, it's important to start the documentation string with `""` or `":private: "`, to indicate if the symbol should be exported. The `generate-readme` function removes these strings (and the space that follows the string) from the documentation when generating the README.
 
 There's a lot of macro business going on in `rbac-docs.lisp`. If you don't see some new text you edited appearing in the README after calling `generate-readme`, simply evaluate the whole buffer. In Emacs, you can do that with M-x slime-eval-buffer, for example.
 
@@ -1049,24 +1086,6 @@ The `check-exports` function returns a plist with the following keys:
 - **:stale-docs** A list of the symbols in `rbac-docs.lisp` that no longer exist or that no longer have a documentation string that starts with ":public:".
 
 Thus, you can easily determine if something is missing from the documentation or the exports.
-
-### Summary of `make` targets
-
-#### **`make test`**
-
-Runs the tests. Run from command line.
-
-#### **`make test-ci`**
-
-Runs the tests. Run from GitHub Actions. (See `.github/workflows/ci.yaml`.)
-
-#### **`make repl`**
-
-Start a Swank server so that you can connect to `RBAC` and to the `RBAC` tests with a REPL. Please note the Swank port number, which this command prints when the server is ready.
-
-#### **`make docs`**
-
-Generate the README.md file.
 
   [1877]: #RBAC:@RBAC-LIMITATIONS%20MGL-PAX:SECTION "Current Limitations (Planned Fixes)"
   [2fee]: #RBAC:@RBAC-OVERVIEW%20MGL-PAX:SECTION "Introduction"

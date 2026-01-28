@@ -385,6 +385,18 @@ defaults to (list \"~a\")."
 ;; Support functions
 ;;
 
+(defun initial-users ()
+  ":public: Returns the list of initial users that RBAC creates."
+  *init-users*)
+
+(defun initial-roles ()
+  ":public: Returns the list of initial roles that RBAC creates."
+  *init-roles*)
+
+(defun initial-permissions ()
+  ":public: Returns the list of initial permissions that RBAC creates."
+  *init-permissions*)
+
 (defun report-errors (function-name errors &optional (fail-on-error t))
   ":private: If ERRORS is not NIL, this function signals an error with a
 message that consists the strings in ERRORS, separated by spaces."
@@ -412,12 +424,6 @@ row in the result is a plist, where the keys represent the field names."
   (eval (cons 'db:query (append
                           sql-template-and-parameters
                           (list result-type)))))
-
-(defun plural (string)
-  ":private: Adds 's' to STRING, unless STRING already ends with 's'."
-  (if (re:scan "s$" string)
-    string
-    (format nil "~as" string)))
 
 (defun external-reference-field (external-table)
   ":private: Creates a field name that references the id field in
@@ -497,7 +503,7 @@ rbac-query-single."
       (every (lambda (p)
                (or
                  (table-exists-p rbac p)
-                 (table-exists-p rbac (plural p))))
+                 (table-exists-p rbac (u:plural p))))
         parts))))
 
 (defun render-placeholder (value index)

@@ -25,6 +25,4 @@
 # Logs
 /.markdown-preview.html
 /tests/archive/
-/tests/tests.log
-/tests/rbac.log
 *.log

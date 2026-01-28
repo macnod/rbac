@@ -31,6 +31,9 @@
     get-value
     db-host
     id-exists-p
+    initial-permissions
+    initial-roles
+    initial-users
     initialize-database
     list-permission-names
     list-permissions
