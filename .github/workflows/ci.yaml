@@ -46,7 +46,7 @@ jobs:
           PGPASSWORD: "rbac-password"
         run: |
           psql -h 127.0.0.1 -p 5434 -U rbac -d postgres \
-            -f ${{ github.workspace }}/tests/db-init/init.sql
+            -f ${{ github.workspace }}/tests/init.sql
 
       - name: Install dependencies
         run: make install-dependencies
