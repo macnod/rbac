@@ -385,6 +385,9 @@ defaults to (list \"~a\")."
 ;; Support functions
 ;;
 
+(defun initial-users ()
+  *init-users*)
+
 (defun report-errors (function-name errors &optional (fail-on-error t))
   ":private: If ERRORS is not NIL, this function signals an error with a
 message that consists the strings in ERRORS, separated by spaces."
