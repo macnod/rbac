@@ -11,7 +11,6 @@
   (:export
     *admin*
     *default-page-size*
-    *default-permissions*
     *default-resource-roles*
     *default-user-roles*
     *guest*
@@ -31,7 +30,10 @@
     get-value
     db-host
     id-exists-p
+    initial-permissions
     initial-users
+    initial-resource-roles
+    initial-user-roles
     initialize-database
     list-permission-names
     list-permissions

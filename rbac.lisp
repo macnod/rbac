@@ -28,8 +28,8 @@ initialized.")
 initialized.")
 
 (defvar *default-permissions*
-  (u:safe-sort (list "create" "read" "update" "delete"))
-  ":public: Default permissions for a new role when no value is provided for
+  *init-permissions*
+  ":private: Default permissions for a new role when no value is provided for
 the :roles parameter")
 
 (defparameter *table-aliases*
@@ -46,10 +46,10 @@ the :roles parameter")
 ;; These roles are assigned to new users
 (defparameter *default-user-roles*
   (u:safe-sort (list "public" "logged-in"))
-  ":public: A list of roles to be used when a user is first created. These
+  ":private: A list of roles to be used when a user is first created. These
 roles are appended to whatever the caller specifies for the :roles parameter.")
 (defparameter *default-resource-roles* (list *admin*)
-  ":public: A list of roles to be used when a resource is created without
+  ":private: A list of roles to be used when a resource is created without
 specifying a value for the :roles parameter.")
 
 (defparameter *default-page-size* 20
@@ -387,6 +387,15 @@ defaults to (list \"~a\")."
 
 (defun initial-users ()
   *init-users*)
+
+(defun initial-permissions ()
+  *init-permissions*)
+
+(defun initial-user-roles ()
+  *default-user-roles*)
+
+(defun initial-resource-roles ()
+  *default-resource-roles*)
 
 (defun report-errors (function-name errors &optional (fail-on-error t))
   ":private: If ERRORS is not NIL, this function signals an error with a
