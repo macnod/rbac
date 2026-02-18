@@ -391,10 +391,13 @@ defaults to (list \"~a\")."
 (defun initial-permissions ()
   *init-permissions*)
 
-(defun initial-user-roles ()
+(defun initial-roles ()
+  *init-roles*)
+
+(defun default-user-roles ()
   *default-user-roles*)
 
-(defun initial-resource-roles ()
+(defun default-resource-roles ()
   *default-resource-roles*)
 
 (defun report-errors (function-name errors &optional (fail-on-error t))

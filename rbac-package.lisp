@@ -11,8 +11,6 @@
   (:export
     *admin*
     *default-page-size*
-    *default-resource-roles*
-    *default-user-roles*
     *guest*
     add-permission
     add-resource
@@ -23,6 +21,8 @@
     add-user
     add-user-role
     db-name
+    default-resource-roles
+    default-user-roles
     email-length-max
     email-regex
     exclusive-role-for
@@ -31,9 +31,8 @@
     db-host
     id-exists-p
     initial-permissions
+    initial-roles
     initial-users
-    initial-resource-roles
-    initial-user-roles
     initialize-database
     list-permission-names
     list-permissions
