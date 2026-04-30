@@ -1190,7 +1190,9 @@ only."))
       (check errors (not (get-id rbac "roles" role))
         "Exclusive role '~a' already exists." role)
       (report-errors "set-exclusive-role" errors)
-      (insert-name rbac "roles" role :description description :exclusive t)))
+      (insert-name rbac "roles" role :description description :exclusive t)
+      (loop for permission in *default-permissions*
+        do (link rbac "roles" "permissions" role permission))))
   (:documentation ":private: Add an exclusive role for USER, returning the ID
 of the new role"))
 

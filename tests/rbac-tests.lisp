@@ -544,10 +544,17 @@
   (clear-database)
   (let ((user-id (add-user *rbac* "user-1" "no-email" "password-01"))
          (role-id (get-id *rbac* "roles" (exclusive-role-for "user-1"))))
-  (is-true (member (exclusive-role-for "user-1")
-             (list-role-names *rbac*) :test #'equal))
-  (is-uuid (get-value *rbac* "role_users" "id"
-             "role_id" role-id "user_id" user-id))))
+    (is-true (member (exclusive-role-for "user-1")
+               (list-role-names *rbac*) :test #'equal))
+    (is-uuid (get-value *rbac* "role_users" "id"
+               "role_id" role-id "user_id" user-id))
+    ;; When a user is added, the system automatically adds an exclusive
+    ;; role for the user, and that exclusive role should have all the
+    ;; default permisssions.
+    (is-true
+      (u:has
+        (list-role-permission-names *rbac* (exclusive-role-for "user-1"))
+        *default-permissions*))))
 
 (test get-id
   (clear-database)
