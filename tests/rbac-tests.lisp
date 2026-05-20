@@ -193,7 +193,10 @@
     (is-true (is-uuid (add-user *rbac* user "no-email" "password-01"
                         :roles (list role))))
     ;; User should have default user roles plus the custom role
-    (is (equal (u:safe-sort (cons role *default-user-roles*))
+    (is (equal (u:safe-sort
+                 (append
+                   (list role (exclusive-role-for user))
+                   *default-user-roles*))
           (list-user-role-names *rbac* user)))
     ;; Resource should have default resource roles
     (is (equal *default-resource-roles*
@@ -227,7 +230,9 @@
 (test new-item-roles
   (clear-database)
   (add-user *rbac* "user-1" "no-email" "password-01")
-  (is (equal *default-user-roles* (list-user-role-names *rbac* "user-1")))
+  (is (equal
+        (u:safe-sort (cons (exclusive-role-for "user-1") *default-user-roles*))
+        (u:safe-sort (list-user-role-names *rbac* "user-1"))))
   (add-resource *rbac* "resource-1")
   (is (equal *default-resource-roles*
         (list-resource-role-names *rbac* "resource-1"))))
@@ -423,16 +428,16 @@
   (add-user *rbac* "user-1" "no-email" "password-01")
   (add-user *rbac* "user-2" "no-email" "password-02")
   (is-false (u:exclude (list-user-role-names *rbac* "user-1")
-              *default-user-roles*))
+              (cons (exclusive-role-for "user-1") *default-user-roles*)))
   (is-false (u:exclude (list-user-role-names *rbac* "user-2")
-              *default-user-roles*))
+              (cons (exclusive-role-for "user-2") *default-user-roles*)))
   (is-true (is-uuid (rbac::link *rbac* "users" "roles" "user-1" "role-1")))
   (rbac::link *rbac* "users" "roles" "user-1" "role-2")
   (is (equal '("role-1" "role-2")
         (u:exclude (list-user-role-names *rbac* "user-1")
-          *default-user-roles*)))
+          (cons (exclusive-role-for "user-1") *default-user-roles*))))
   (is-false (u:exclude (list-user-role-names *rbac* "user-2")
-              *default-user-roles*)))
+              (cons (exclusive-role-for "user-2") *default-user-roles*))))
 
 (test link-resource-roles
   (clear-database)
@@ -486,14 +491,14 @@
     :roles '("role-1" "role-2"))
   (is (equal '("role-1" "role-2")
         (u:exclude (list-user-role-names *rbac* "user-1")
-          *default-user-roles*)))
+          (cons (exclusive-role-for "user-1") *default-user-roles*))))
   (rbac::unlink *rbac* "users" "roles" "user-1" "role-1")
   (is (equal '("role-2")
         (u:exclude (list-user-role-names *rbac* "user-1")
-          *default-user-roles*)))
+          (cons (exclusive-role-for "user-1") *default-user-roles*))))
   (rbac::unlink *rbac* "users" "roles" "user-1" "role-2")
   (is-false (u:exclude (list-user-role-names *rbac* "user-1")
-              *default-user-roles*)))
+              (cons (exclusive-role-for "user-1") *default-user-roles*))))
 
 (test get-value
   (clear-database)
@@ -815,7 +820,7 @@
     :roles '("role-1" "role-2"))
   (let ((user-role-names (list-user-role-names *rbac* "user-1"))
          (user-roles (list-user-roles *rbac* "user-1")))
-    (is (= 4 (length user-roles)))
+    (is (= 5 (length user-roles)))
     (is (equal user-role-names
           (mapcar (lambda (r) (getf r :role-name)) user-roles)))
     (is-true (every (lambda (r) (is-uuid (getf r :role-user-id))) user-roles))

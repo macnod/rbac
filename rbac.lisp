@@ -1192,7 +1192,8 @@ only."))
       (report-errors "set-exclusive-role" errors)
       (insert-name rbac "roles" role :description description :exclusive t)
       (loop for permission in *default-permissions*
-        do (link rbac "roles" "permissions" role permission))))
+        do (link rbac "roles" "permissions" role permission))
+      (link rbac "roles" "users" role user-name)))
   (:documentation ":private: Add an exclusive role for USER, returning the ID
 of the new role"))
 
@@ -1537,14 +1538,14 @@ update last_login for USER-NAME and return the user ID. Otherwise, return NIL.")
              (email string)
              (password string)
              &key roles)
+    (let ((all-roles (u:distinct-values (append *default-user-roles* roles))))
     (l:pdebug :in "add-user"
       :user-name user-name
       :email email
       :password password
       :roles roles
-      :all-roles (u:distinct-values (append roles *default-user-roles*)))
+      :all-roles all-roles)
     (let* (errors
-            (all-roles (u:distinct-values (append roles *default-user-roles*)))
             (missing-roles (remove-if (lambda (r) (get-id rbac "roles" r))
                              all-roles)))
       (check errors (not missing-roles)
@@ -1564,7 +1565,7 @@ update last_login for USER-NAME and return the user ID. Otherwise, return NIL.")
         :status "created user" :user-name user-name
         :user-id (get-id rbac "users" user-name)
         :roles all-roles)
-      (get-id rbac "users" user-name)))
+      (get-id rbac "users" user-name))))
   (:documentation ":public: Add a new user. This creates an exclusive role,
 which is for this user only, and adds the user to the public and logged-in roles
 (given by *default-user-roles*). Returns the new user's ID."))
