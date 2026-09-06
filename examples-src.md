@@ -9,7 +9,7 @@ Usage examples.
 (defpackage :rbac-example (:use :cl :rbac))
 (in-package :rbac-example)
 
-;; Connect to the databse
+;; Connect to the database
 (defparameter *rbac* (make-instance 'rbac-pg
                        :host "127.0.0.1"
                        :port "5432"

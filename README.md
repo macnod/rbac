@@ -34,7 +34,7 @@ Usage examples.
 (defpackage :rbac-example (:use :cl :rbac))
 (in-package :rbac-example)
 
-;; Connect to the databse
+;; Connect to the database
 (defparameter *rbac* (make-instance 'rbac-pg
                        :host "127.0.0.1"
                        :port "5432"
@@ -197,35 +197,35 @@ Your project can then use the library via the `RBAC` API.
 <a id="x-28RBAC-3ADB-HOST-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-HOST%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
-- [accessor] **DB-HOST** *RBAC-PG (:DB-HOST = "postgres")*
+- [accessor] **DB-HOST** *[RBAC-PG][5ba5] (:DB-HOST = "postgres")*
 
     Host name for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-NAME-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-NAME%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
-- [accessor] **DB-NAME** *RBAC-PG (:DB-NAME = "rbac")*
+- [accessor] **DB-NAME** *[RBAC-PG][5ba5] (:DB-NAME = "rbac")*
 
     Name of the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-PASSWORD-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-PASSWORD%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
-- [accessor] **DB-PASSWORD** *RBAC-PG (:DB-PASSWORD = "")*
+- [accessor] **DB-PASSWORD** *[RBAC-PG][5ba5] (:DB-PASSWORD = "")*
 
     Password for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-PORT-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-PORT%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
-- [accessor] **DB-PORT** *RBAC-PG (:DB-PORT = 5432)*
+- [accessor] **DB-PORT** *[RBAC-PG][5ba5] (:DB-PORT = 5432)*
 
     Port number for connecting to the `RBAC` database.
 
 <a id="x-28RBAC-3ADB-USER-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-PG-29-29"></a>
 <a id="RBAC:DB-USER%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC-PG%29"></a>
 
-- [accessor] **DB-USER** *RBAC-PG (:DB-USER = "cl-user")*
+- [accessor] **DB-USER** *[RBAC-PG][5ba5] (:DB-USER = "cl-user")*
 
     User name for connecting to the `RBAC` database.
 
@@ -240,7 +240,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="RBAC:EMAIL-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **EMAIL-REGEX** *RBAC (:EMAIL-REGEX =
- "^\[a-zA-Z0-9\]\[-a-zA-Z0-9.\_%+\]+@(\[a-zA-Z0-9\]+)(\\\\.?\[-a-zA-Z0-9\])+\\\\.\[a-zA-Z\]{2,}$|^no-email$")*
+ "^\[a-zA-Z0-9\]\[-a-zA-Z0-9.\_%+\]+@(\[a-zA-Z0-9\]+)(\\\\.?\[-a-zA-Z0-9\])+\\\\.\[a-zA-Z\]{2,}\$|^no-email\$")*
 
     Regex for validation of email address strings.
 
@@ -262,7 +262,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="RBAC:PASSWORD-REGEXES%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
 - [accessor] **PASSWORD-REGEXES** *RBAC (:PASSWORD-REGEXES =
- (LIST "^\[\\\\x00-\\\\x7f\]+$" "\[a-zA-Z\]" "\[-!@#$%^\&\*()+={}\[\]|:;\<>,.?/~\`\]" "\[0-9\]"))*
+ (LIST "^\[\\\\x00-\\\\x7f\]+\$" "\[a-zA-Z\]" "\[-!@#\$%^\&\*()+={}\[\]|:;\<>,.?/~\`\]" "\[0-9\]"))*
 
     List of regular expressions that a valid password must match.
     Every regex in the list must match.
@@ -277,7 +277,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="x-28RBAC-3APERMISSION-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:PERMISSION-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- [accessor] **PERMISSION-REGEX** *RBAC (:PERMISSION-REGEX = "^\[a-z\](\[-a-z0-9\_.+\]\*\[a-z0-9\])\*(:\[a-z\]+)?$")*
+- [accessor] **PERMISSION-REGEX** *RBAC (:PERMISSION-REGEX = "^\[a-z\](\[-a-z0-9\_.+\]\*\[a-z0-9\])\*(:\[a-z\]+)?\$")*
 
     Regex for validating permission name strings.
 
@@ -291,7 +291,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="x-28RBAC-3ARESOURCE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:RESOURCE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9.\_/\]\[-a-zA-Z0-9.\_ /\]\*$")*
+- [accessor] **RESOURCE-REGEX** *RBAC (:RESOURCE-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\]\*:?\[a-zA-Z0-9.\_/\]\[-a-zA-Z0-9.\_ /\]\*\$")*
 
     Defaults to an absolute directory path string that ends with /
 
@@ -305,7 +305,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="x-28RBAC-3AROLE-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:ROLE-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- [accessor] **ROLE-REGEX** *RBAC (:ROLE-REGEX = "^\[a-z\](\[-a-z0-9\_.+\]\*\[a-z0-9\])\*(:\[a-z\]+)?$")*
+- [accessor] **ROLE-REGEX** *RBAC (:ROLE-REGEX = "^\[a-z\](\[-a-z0-9\_.+\]\*\[a-z0-9\])\*(:\[a-z\]+)?\$")*
 
     Regex for validating role name strings.
 
@@ -319,7 +319,7 @@ Your project can then use the library via the `RBAC` API.
 <a id="x-28RBAC-3AUSER-NAME-REGEX-20-28MGL-PAX-3AACCESSOR-20RBAC-3ARBAC-29-29"></a>
 <a id="RBAC:USER-NAME-REGEX%20%28MGL-PAX:ACCESSOR%20RBAC:RBAC%29"></a>
 
-- [accessor] **USER-NAME-REGEX** *RBAC (:USER-NAME-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\_.+\]\*$")*
+- [accessor] **USER-NAME-REGEX** *RBAC (:USER-NAME-REGEX = "^\[a-zA-Z\]\[-a-zA-Z0-9\_.+\]\*\$")*
 
     Regex for validating user name strings.
 
@@ -863,7 +863,7 @@ Accessors and methods for manipulating `RBAC` objects.
 - [generic-function] **VALID-PERMISSION-P** *RBAC PERMISSION*
 
     Validates new `PERMISSION` string.
-    PMERISSION must:
+    `PERMISSION` must:
     - start with a letter
     - consist of letters, digits, and hyphens
     - optionally have a colon that is not at the beginning or the end
@@ -893,7 +893,7 @@ Accessors and methods for manipulating `RBAC` objects.
 
 - [generic-function] **VALID-USER-NAME-P** *RBAC USER-NAME*
 
-    Validates new USERNANME string.
+    Validates new USERNAME string.
     `USER-NAME` must:
     - Have at least 1 character
     - Have at most user-name-length-max characters
@@ -940,7 +940,7 @@ Exported special variables.
 
 - [variable] **\*DEFAULT-PERMISSIONS\*** *("create" "delete" "read" "update")*
 
-    Default permissions for a new role when no value is provided for
+    :private: Default permissions for a new role when no value is provided for
     the :roles parameter
 
 <a id="x-28RBAC-3A-2ADEFAULT-RESOURCE-ROLES-2A-20VARIABLE-29"></a>
@@ -948,7 +948,7 @@ Exported special variables.
 
 - [variable] **\*DEFAULT-RESOURCE-ROLES\*** *("admin")*
 
-    A list of roles to be used when a resource is created without
+    :private: A list of roles to be used when a resource is created without
     specifying a value for the :roles parameter.
 
 <a id="x-28RBAC-3A-2ADEFAULT-USER-ROLES-2A-20VARIABLE-29"></a>
@@ -956,7 +956,7 @@ Exported special variables.
 
 - [variable] **\*DEFAULT-USER-ROLES\*** *("logged-in" "public")*
 
-    A list of roles to be used when a user is first created. These
+    :private: A list of roles to be used when a user is first created. These
     roles are appended to whatever the caller specifies for the :roles parameter.
 
 <a id="x-28RBAC-3A-40RBAC-MACROS-20MGL-PAX-3ASECTION-29"></a>

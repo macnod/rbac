@@ -884,7 +884,7 @@ FILTERS consists of a list containing a field name, an operator, and a value."))
     (when (and (<= (length user-name) (user-name-length-max rbac))
             (re:scan (user-name-regex rbac) user-name))
       t))
-  (:documentation ":public: Validates new USERNANME string.
+  (:documentation ":public: Validates new USERNAME string.
   USER-NAME must:
   - Have at least 1 character
   - Have at most user-name-length-max characters
@@ -927,7 +927,7 @@ that doesn't exceed 128 characters."))
             (re:scan (permission-regex rbac) permission))
       t))
   (:documentation ":public: Validates new PERMISSION string.
-PMERISSION must:
+PERMISSION must:
 - start with a letter
 - consist of letters, digits, and hyphens
 - optionally have a colon that is not at the beginning or the end
