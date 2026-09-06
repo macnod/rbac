@@ -14,9 +14,13 @@
 - [7 Special Variables][7829]
 - [8 Macros][d0c7]
 - [9 `RBAC` Development][6c9c]
+- [10 Contact][a3a8]
 
 ###### \[in package RBAC\]
 Simple Role-Based Access Control (`RBAC`) system implemented in Common Lisp. It provides an [`rbac-pg`][5ba5] class and functions for managing users, roles, permissions, and resources.
+
+> Built by Donnie Cameron at [Sinister Code](https://sinistercode.com), programs that write programs.
+
 
 <a id="x-28RBAC-3A-40RBAC-EXAMPLES-20MGL-PAX-3ASECTION-29"></a>
 <a id="RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION"></a>
@@ -1068,6 +1072,15 @@ Start a Swank server so that you can connect to `RBAC` and to the `RBAC` tests w
 
 Generate the README.md file.
 
+<a id="x-28RBAC-3A-40RBAC-CONTACT-20MGL-PAX-3ASECTION-29"></a>
+<a id="RBAC:@RBAC-CONTACT%20MGL-PAX:SECTION"></a>
+
+## 10 Contact
+
+Donnie Cameron - macnod@gmail.com - [Sinister Code](https://sinistercode.com) - [LinkedIn](https://linkedin.com/in/macnod)
+
+`RBAC` is developed at [Sinister Code](https://sinistercode.com), Donnie Cameron's studio for programs that write programs. It is the access-control engine behind [Data UI](https://github.com/macnod/data-ui).
+
   [1877]: #RBAC:@RBAC-LIMITATIONS%20MGL-PAX:SECTION "Current Limitations (Planned Fixes)"
   [2fee]: #RBAC:@RBAC-OVERVIEW%20MGL-PAX:SECTION "Introduction"
   [38b1]: #RBAC:LIST-USER-NAMES%20GENERIC-FUNCTION "RBAC:LIST-USER-NAMES GENERIC-FUNCTION"
@@ -1077,6 +1090,7 @@ Generate the README.md file.
   [7b8a]: #RBAC:@RBAC-PG-CLASS%20MGL-PAX:SECTION "`RBAC-PG` Class"
   [94ab]: #RBAC:@RBAC-FUNCTIONS%20MGL-PAX:SECTION "Functions"
   [967f]: #RBAC:@RBAC-EXAMPLES%20MGL-PAX:SECTION "Examples"
+  [a3a8]: #RBAC:@RBAC-CONTACT%20MGL-PAX:SECTION "Contact"
   [ac36]: #RBAC:EXCLUSIVE-ROLE-FOR%20FUNCTION "RBAC:EXCLUSIVE-ROLE-FOR FUNCTION"
   [c729]: #RBAC:*DEFAULT-PERMISSIONS*%20VARIABLE "RBAC:*DEFAULT-PERMISSIONS* VARIABLE"
   [d0c7]: #RBAC:@RBAC-MACROS%20MGL-PAX:SECTION "Macros"

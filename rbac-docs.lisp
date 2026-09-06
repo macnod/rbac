@@ -18,7 +18,8 @@
   (@rbac-functions section)
   (@rbac-variables section)
   (@rbac-macros section)
-  (@rbac-development section))
+  (@rbac-development section)
+  (@rbac-contact section))
 
 (defsection-wrapper @rbac-overview
   (:title "Introduction")
@@ -161,6 +162,12 @@
   (u:slurp (u:join-paths
              (asdf:system-relative-pathname :rbac #P"")
              "development-src.md")))
+
+(defsection-wrapper @rbac-contact
+  (:title "Contact")
+  (u:slurp (u:join-paths
+             (asdf:system-relative-pathname :rbac #P"")
+             "contact-src.md")))
 
 (defun generate-readme ()
   (let* ((file-name (u:join-paths
