@@ -571,7 +571,9 @@ the car of the returned cons is 1, and the cdr is something like '$1', '$2'."
                   ;; These must all be true
                   "^[\\x00-\\x7f]+$"
                   "[a-zA-Z]"
-                  "[-!@#$%^&*()\+={}[\]|:;<>,.?/~`]"
+                  ;; Double backslashes: the reader drops a single
+                  ;; one, which made the bare ] close the class early.
+                  "[-!@#$%^&*()\\+={}\\[\\]|:;<>,.?/~`_]"
                   "[0-9]")
       :documentation
       ":public: List of regular expressions that a valid password must match.
